@@ -53,6 +53,11 @@
 --   0362_installation_once_and_no_dealer_request.sql
 --   0383_transfer_fresh_warranty.sql
 --   0391_transfer_ot_number_invoice_files.sql
+--   0401_pm_due.sql
+--   0402_pm_visits_due.sql
+--   0403_pm_due_install_and_customer.sql
+--   0404_pm_due_no_install_call_allowed.sql
+--   0407_pm_schedule.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5430,5 +5435,888 @@ comment on column public.ownership_transfers.reference_no is
   'The OT number: OT + the next number after the highest on file, given by the database on insert when none is sent (0391).';
 comment on column public.ownership_transfers.attachments is
   'Files kept with the transfer: a list of {name, url, at, by}, uploaded to the "Ownership Transfers" Drive folder (0391).';
+
+-- ------------------------------------------------------------------------
+-- 0401_pm_due.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0401 — PM DUE: THE MONTH'S PM VISITS, FROM THE WARRANTY AND CONTRACT
+-- REGISTERS (the user, 2026-10-08: "Can we do PM generation from Contract and
+-- warranty register?").
+--
+-- What was asked, answer by answer:
+--   * A PM Due screen lists the machines due in a chosen month; the
+--     coordinator reviews and creates the PM calls. PM Bulk Upload stays as it
+--     is ("don't replace the monthly upload for now").
+--   * VISIT k IS DUE ON start + k x (months x 30 / visits) DAYS, rounded to the
+--     nearest day, and falls in the month that date falls in. The user's own
+--     example: start 10 January, 3 visits in 12 months -> 120 days -> the first
+--     visit is due 10 May, so it is a May PM. Never after the cover's end date.
+--   * ONLY WHAT REMAINS: a machine is due in the month when the visits
+--     scheduled up to that month outnumber the PM calls already raised for it
+--     (model + serial, not cancelled) between the cover's start month and the
+--     end of that month.
+--   * The engineer is the Product Database's Service Engineer for the machine.
+--
+-- ONE ROW PER MACHINE. A machine whose warranty and contract both have a visit
+-- in the month is listed once, from the WARRANTY -- the order Product
+-- Database 2.0 already decides cover in (0218).
+--
+-- The party, city and state are the Product Database's -- the machine's
+-- CURRENT owner after any transfer (0238) -- and the register's where the
+-- machine has no Product Database row.
+--
+-- SECURITY DEFINER, WITH ITS OWN CHECK: counting the PM calls already raised
+-- must see ALL of them, or a reader whose row-level security hides some would
+-- be told a visit is still owed and raise it twice. So it runs as the owner,
+-- refuses anybody without pm.generate, and is not executable by the public key.
+-- `pm_due_latest_reg_at` is the same rule for the batch's registration time:
+-- the LARGEST registration date-and-time in the month, whoever's call it is.
+--
+-- KEYS: mod:/pm-due opens the page (admin + technical_support only, the 0241
+-- pattern); pm.generate reads the list, granted to NO role -- an administrator
+-- passes has_perm() anyway. Creating the calls still passes pm_calls' own
+-- insert policy (pm.create), exactly as PM Bulk Upload does.
+-- ===========================================================================
+
+create or replace function public.pm_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  raised           integer   -- PM calls already raised in the period up to this month
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined: a count per machine as a
+    -- correlated subquery scanned it once per machine due, and a month owes
+    -- over a thousand.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.reg_date
+      from public.pm_calls pc
+     where pc.cancelled_at is null and pc.reg_date <= m_end
+  ), cnt as (
+    select vi.src, vi.ref, vi.mk, count(*)::int as n
+      from visits vi
+      join pm on pm.mk = vi.mk
+             and pm.reg_date between date_trunc('month', vi.cs)::date and least(m_end, vi.ce)
+     group by 1, 2, 3
+  ), counted as (
+    select vi.*, coalesce(cnt.n, 0) as n_raised
+      from visits vi
+      left join cnt on cnt.src = vi.src and cnt.ref = vi.ref and cnt.mk = vi.mk
+  ), owed as (
+    select distinct on (co.mk) co.*
+      from counted co
+     where co.kk > co.n_raised
+     order by co.mk, (co.src = 'Warranty') desc, co.cs desc
+  )
+  select o.src, o.ref, o.p, o.s,
+         coalesce(nullif(btrim(pr.party_name), ''), o.party),
+         coalesce(nullif(btrim(pr.city), ''), o.cty),
+         coalesce(nullif(btrim(pr.state), ''), o.st),
+         nullif(btrim(coalesce(pr.service_engineer, '')), ''),
+         pr.id is not null,
+         o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due, o.n_raised
+    from owed o
+    left join lateral (
+      select * from public.products x
+       where x.machine_key = o.mk
+       order by x.id desc limit 1) pr on true
+   order by 6 nulls last, 5, 3, 4;
+end $$;
+
+comment on function public.pm_due(date) is
+  'The PM visits due in a month from the Warranty and Contract Registers: visit k on start + k x months x 30 / visits days, only where the visits scheduled so far outnumber the PM calls raised in the period. One row per machine, warranty first. Needs pm.generate (0401).';
+
+create or replace function public.pm_due_latest_reg_at(p_month date)
+returns timestamptz
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+  return (select max(pc.reg_at) from public.pm_calls pc
+           where pc.reg_date >= date_trunc('month', p_month)::date
+             and pc.reg_date < (date_trunc('month', p_month) + interval '1 month')::date);
+end $$;
+
+comment on function public.pm_due_latest_reg_at(date) is
+  'The largest registration date-and-time among ALL PM calls of a month, so a generated batch starts 10 seconds after it. Needs pm.generate (0401).';
+
+revoke execute on function public.pm_due(date) from public, anon;
+revoke execute on function public.pm_due_latest_reg_at(date) from public, anon;
+grant execute on function public.pm_due(date) to authenticated;
+grant execute on function public.pm_due_latest_reg_at(date) to authenticated;
+
+-- THE SCREEN'S KEY, IN THE ADMIN AND TECHNICAL SUPPORT ROLES ONLY (0241, 0377).
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select unnest(array['mod:/pm-due']) as v) u),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/pm-due');
+  get diagnostics n = row_count;
+  raise notice '0401: PM Due screen key given to admin + technical_support (% of 2 rows) -- grant the rest on Roles & Permissions', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0402_pm_visits_due.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0402 — PM DUE, BY THE VISIT AND NOT BY A COUNT: GENERATED OR MISSED PM,
+-- PRODUCTS AND ACCESSORIES (the user, 2026-10-08).
+--
+-- WHY 0401'S RULE IS REPLACED. It listed a machine when the visits scheduled
+-- since its cover started outnumbered the PM calls raised in that time. RITHI
+-- holds almost no PM call from before 2026 (37 of 2024, 500 of 2025), so a
+-- three-year contract from 2024 read every 2024-25 visit as missed and was
+-- listed again even with this month's call raised. Measured on the live
+-- project (`_pm_due_by_month.sql`): October listed 2,348 machines, 1,098 of
+-- which ALREADY had an October PM call -- Create would have duplicated them.
+--
+-- THE RULE NOW, in the user's words: a visit is GENERATED "when the visit is
+-- created -- like 1/12, 2/12 like that and it is not in Cancelled state". So
+-- each machine with a visit due in the month is listed, and is
+--   GENERATED  a PM call exists for that product + serial, not cancelled,
+--              registered within that cover's period (its start month to its
+--              end), whose Reported Problem reads "k / N" with the SAME visit
+--              number and the SAME number of visits -- in whatever month it was
+--              raised;
+--   MISSED PM  otherwise.
+-- The visit numbering is the existing one: visit k on start + round(k x months
+-- x 30 / visits) days, never after the cover's end (0401, the user's 120-day
+-- example). One row per machine, warranty first (0218's order).
+--
+-- ACCESSORIES ARE LISTED AND MARKED, not dropped: "Give me an option to
+-- segregate Product and Accessory". An accessory is a product whose Product
+-- Master category reads ACCESSORY (the user, 2026-09-30, `isAccessoryCategory`);
+-- anything else is a product.
+--
+-- `last_pm_on` is the machine's latest PM call ever (not cancelled), so a
+-- Missed PM raised under a different visit number or a month off is visible.
+--
+-- A NEW NAME, pm_visits_due, because the columns differ: `create or replace`
+-- cannot change a function's result columns, and re-running 0401's bundle on a
+-- database holding a changed pm_due would fail on exactly that. 0401's pm_due
+-- is dropped here; re-running the bundle recreates it in 0401 and drops it
+-- again here. pm_due_latest_reg_at (0401) is unchanged.
+--
+-- SECURITY DEFINER with its own pm.generate check, as 0401: whether a visit was
+-- generated must be answered from EVERY PM call, not only those the reader's
+-- row-level security shows, or a hidden call reads as Missed and is raised
+-- twice. Not executable by the public key.
+-- ===========================================================================
+
+drop function if exists public.pm_due(date);
+-- Dropped first as well: 0403 gives pm_visits_due more result columns, and a
+-- re-run of this bundle on a database holding 0403's would otherwise fail on
+-- `create or replace` (it cannot change result columns). 0403 recreates it.
+drop function if exists public.pm_visits_due(date);
+
+create or replace function public.pm_visits_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  is_accessory     boolean,  -- Product Master category ACCESSORY
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  generated        boolean,  -- a PM call "k / N" exists for this visit, not cancelled
+  generated_ucn    text,
+  generated_on     date,     -- that call's registration date
+  last_pm_on       date      -- the machine's latest PM call, any visit
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), one as (
+    -- One row per machine, the warranty's visit first (0218's order).
+    select distinct on (vi.mk) vi.*
+      from visits vi
+     order by vi.mk, (vi.src = 'Warranty') desc, vi.cs desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined, with the "k / N" of its
+    -- Reported Problem parsed. Only machines in this month's list.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select o.mk from one o)
+  ), gen as (
+    select distinct on (o.mk) o.mk, pm.ucn, pm.reg_date
+      from one o
+      join pm on pm.mk = o.mk
+             and pm.kn[1] = o.kk and pm.kn[2] = o.v
+             and pm.reg_date between date_trunc('month', o.cs)::date and o.ce
+     order by o.mk, pm.reg_date desc, pm.ucn desc
+  ), last_pm as (
+    select pm.mk, max(pm.reg_date) as d from pm group by pm.mk
+  ), acc as (
+    select distinct lower(btrim(pmx.product_name)) as p
+      from public.product_master pmx
+     where upper(btrim(coalesce(pmx.item_category, ''))) = 'ACCESSORY'
+  )
+  select o.src, o.ref, o.p, o.s,
+         lower(o.p) in (select acc.p from acc),
+         coalesce(nullif(btrim(pr.party_name), ''), o.party),
+         coalesce(nullif(btrim(pr.city), ''), o.cty),
+         coalesce(nullif(btrim(pr.state), ''), o.st),
+         nullif(btrim(coalesce(pr.service_engineer, '')), ''),
+         pr.id is not null,
+         o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
+         g.ucn is not null, g.ucn, g.reg_date, lp.d
+    from one o
+    left join gen g on g.mk = o.mk
+    left join last_pm lp on lp.mk = o.mk
+    left join lateral (
+      select * from public.products x
+       where x.machine_key = o.mk
+       order by x.id desc limit 1) pr on true
+   order by 6 nulls last, 3, 4;
+end $$;
+
+comment on function public.pm_visits_due(date) is
+  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked by the Product Master category. One row per machine, warranty first. Needs pm.generate (0402).';
+
+revoke execute on function public.pm_visits_due(date) from public, anon;
+grant execute on function public.pm_visits_due(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0403_pm_due_install_and_customer.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0403 — PM DUE: TWO MORE RULES, EACH ALSO A FILTER (the user, 2026-10-08:
+-- "Add 2 more logics - But add these as rules + Filters").
+--
+--   1. "The installation call associated with it should be in solved state" --
+--      the machine's call in the Installation register (product + serial, the
+--      match 0331's warranty start already uses) reads open_state = 'Solved'.
+--      A Solved call is taken over a cancelled or later one, so a cancelled
+--      first attempt does not hide the solved second. No installation call
+--      fails the rule.
+--   2. "Party the device is associated to should be a customer" -- the
+--      machine's party (the Product Database's, which follows transfers; else
+--      the register's) has Type CUSTOMER on the Party Master. DEALER is a
+--      dealer (0328); a party not in the master, or with no Type, fails.
+--
+-- Every row is still listed, with its installation call, its state, its
+-- party's Type and the two answers, so the screen can filter by each; a row
+-- may be CREATED (`can_create`) only when it is a Missed PM passing both.
+--
+-- Same name, more columns: `create or replace` cannot change result columns,
+-- so the function is dropped and recreated (0402 now drops it first too, so
+-- re-running that bundle does not fail on this one). Definer with its own
+-- pm.generate check and not executable by anon, as 0402.
+-- ===========================================================================
+
+drop function if exists public.pm_visits_due(date);
+
+create or replace function public.pm_visits_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  is_accessory     boolean,  -- Product Master category ACCESSORY
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  generated        boolean,  -- a PM call "k / N" exists for this visit, not cancelled
+  generated_ucn    text,
+  generated_on     date,     -- that call's registration date
+  last_pm_on       date,     -- the machine's latest PM call, any visit
+  installation_ucn   text,   -- the machine's installation call (product + serial)
+  installation_state text,   -- its state: Solved, Unsolved, ... ; NULL = none
+  install_solved     boolean,-- RULE 1: that call reads Solved
+  party_type         text,   -- the Party Master's Type for the machine's party; NULL = not in it
+  party_is_customer  boolean,-- RULE 2: that Type is CUSTOMER
+  can_create         boolean -- a Missed PM passing both rules
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), one as (
+    -- One row per machine, the warranty's visit first (0218's order).
+    select distinct on (vi.mk) vi.*
+      from visits vi
+     order by vi.mk, (vi.src = 'Warranty') desc, vi.cs desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined, with the "k / N" of its
+    -- Reported Problem parsed. Only machines in this month's list.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select o.mk from one o)
+  ), gen as (
+    select distinct on (o.mk) o.mk, pm.ucn, pm.reg_date
+      from one o
+      join pm on pm.mk = o.mk
+             and pm.kn[1] = o.kk and pm.kn[2] = o.v
+             and pm.reg_date between date_trunc('month', o.cs)::date and o.ce
+     order by o.mk, pm.reg_date desc, pm.ucn desc
+  ), last_pm as (
+    select pm.mk, max(pm.reg_date) as d from pm group by pm.mk
+  ), inst as (
+    -- RULE 1. The machine's installation call: a Solved one if it has one,
+    -- else the latest not cancelled, else the latest -- so a cancelled first
+    -- attempt does not hide the solved second one.
+    select distinct on (lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))))
+           lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))) as mk,
+           ic.ucn, ic.open_state
+      from public.installation_calls ic
+     where lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, '')))
+           in (select o.mk from one o)
+     order by lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))),
+              (ic.open_state = 'Solved') desc, (ic.cancelled_at is null) desc,
+              ic.reg_date desc nulls last, ic.ucn desc
+  ), acc as (
+    select distinct lower(btrim(pmx.product_name)) as p
+      from public.product_master pmx
+     where upper(btrim(coalesce(pmx.item_category, ''))) = 'ACCESSORY'
+  )
+  , rowz as (
+    select o.src, o.ref, o.p, o.s,
+           lower(o.p) in (select acc.p from acc) as is_acc,
+           coalesce(nullif(btrim(pr.party_name), ''), o.party) as party,
+           coalesce(nullif(btrim(pr.city), ''), o.cty) as cty,
+           coalesce(nullif(btrim(pr.state), ''), o.st) as st,
+           nullif(btrim(coalesce(pr.service_engineer, '')), '') as eng,
+           pr.id is not null as on_pd,
+           o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
+           g.ucn is not null as gen, g.ucn as gucn, g.reg_date as gon, lp.d as lpd,
+           i.ucn as iucn, i.open_state as istate
+      from one o
+      left join gen g on g.mk = o.mk
+      left join last_pm lp on lp.mk = o.mk
+      left join inst i on i.mk = o.mk
+      left join lateral (
+        select * from public.products x
+         where x.machine_key = o.mk
+         order by x.id desc limit 1) pr on true
+  )
+  -- RULE 2. The party the machine is with -- the Product Database's, else the
+  -- register's -- is a CUSTOMER on the Party Master (its Type; DEALER is a
+  -- dealer, 0328). A party not in the master, or with no Type, is not shown as
+  -- a customer: the rule asks for one, and a blank says nothing.
+  select r.src, r.ref, r.p, r.s, r.is_acc, r.party, r.cty, r.st, r.eng, r.on_pd,
+         r.ctype, r.cs, r.ce, r.m, r.v, r.kk, r.due, r.gen, r.gucn, r.gon, r.lpd,
+         r.iucn, r.istate, coalesce(r.istate = 'Solved', false),
+         pt.party_type,
+         coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false),
+         not r.gen and coalesce(r.istate = 'Solved', false) and coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false)
+    from rowz r
+    left join public.parties pt on pt.name_key = lower(btrim(r.party))
+   order by r.party nulls last, r.p, r.s;
+end $$;
+
+comment on function public.pm_visits_due(date) is
+  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked; its installation call and whether it is Solved; its party''s Party Master Type and whether it is CUSTOMER; can_create when a Missed PM passes both. Needs pm.generate (0403).';
+
+revoke execute on function public.pm_visits_due(date) from public, anon;
+grant execute on function public.pm_visits_due(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0404_pm_due_no_install_call_allowed.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0404 — PM DUE: A MACHINE WITH NO INSTALLATION CALL MAY BE CREATED (the
+-- user, 2026-10-08: "Allow machines with no installation call").
+--
+-- 0403's rule 1 held back every machine with no installation call in RITHI --
+-- measured live, 1,152 of October's 1,242 Missed PM, most of them accessories
+-- and machines installed before RITHI held installation calls. Now only an
+-- installation call that EXISTS and is not Solved holds a machine back;
+-- `install_solved` still says whether there is a Solved call, and
+-- `installation_ucn` is NULL where there is none, so the screen can show and
+-- filter each case. Rule 2 (the party a CUSTOMER) is unchanged.
+--
+-- Only `can_create` changes, so the result columns are 0403's and `create or
+-- replace` is enough. Definer with its own pm.generate check, not executable
+-- by anon, as 0403.
+-- ===========================================================================
+
+create or replace function public.pm_visits_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  is_accessory     boolean,  -- Product Master category ACCESSORY
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  generated        boolean,  -- a PM call "k / N" exists for this visit, not cancelled
+  generated_ucn    text,
+  generated_on     date,     -- that call's registration date
+  last_pm_on       date,     -- the machine's latest PM call, any visit
+  installation_ucn   text,   -- the machine's installation call (product + serial)
+  installation_state text,   -- its state: Solved, Unsolved, ... ; NULL = none
+  install_solved     boolean,-- RULE 1: that call reads Solved
+  party_type         text,   -- the Party Master's Type for the machine's party; NULL = not in it
+  party_is_customer  boolean,-- RULE 2: that Type is CUSTOMER
+  can_create         boolean -- a Missed PM passing both rules (no installation call passes rule 1, 0404)
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), one as (
+    -- One row per machine, the warranty's visit first (0218's order).
+    select distinct on (vi.mk) vi.*
+      from visits vi
+     order by vi.mk, (vi.src = 'Warranty') desc, vi.cs desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined, with the "k / N" of its
+    -- Reported Problem parsed. Only machines in this month's list.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select o.mk from one o)
+  ), gen as (
+    select distinct on (o.mk) o.mk, pm.ucn, pm.reg_date
+      from one o
+      join pm on pm.mk = o.mk
+             and pm.kn[1] = o.kk and pm.kn[2] = o.v
+             and pm.reg_date between date_trunc('month', o.cs)::date and o.ce
+     order by o.mk, pm.reg_date desc, pm.ucn desc
+  ), last_pm as (
+    select pm.mk, max(pm.reg_date) as d from pm group by pm.mk
+  ), inst as (
+    -- RULE 1. The machine's installation call: a Solved one if it has one,
+    -- else the latest not cancelled, else the latest -- so a cancelled first
+    -- attempt does not hide the solved second one.
+    select distinct on (lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))))
+           lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))) as mk,
+           ic.ucn, ic.open_state
+      from public.installation_calls ic
+     where lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, '')))
+           in (select o.mk from one o)
+     order by lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))),
+              (ic.open_state = 'Solved') desc, (ic.cancelled_at is null) desc,
+              ic.reg_date desc nulls last, ic.ucn desc
+  ), acc as (
+    select distinct lower(btrim(pmx.product_name)) as p
+      from public.product_master pmx
+     where upper(btrim(coalesce(pmx.item_category, ''))) = 'ACCESSORY'
+  )
+  , rowz as (
+    select o.src, o.ref, o.p, o.s,
+           lower(o.p) in (select acc.p from acc) as is_acc,
+           coalesce(nullif(btrim(pr.party_name), ''), o.party) as party,
+           coalesce(nullif(btrim(pr.city), ''), o.cty) as cty,
+           coalesce(nullif(btrim(pr.state), ''), o.st) as st,
+           nullif(btrim(coalesce(pr.service_engineer, '')), '') as eng,
+           pr.id is not null as on_pd,
+           o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
+           g.ucn is not null as gen, g.ucn as gucn, g.reg_date as gon, lp.d as lpd,
+           i.ucn as iucn, i.open_state as istate
+      from one o
+      left join gen g on g.mk = o.mk
+      left join last_pm lp on lp.mk = o.mk
+      left join inst i on i.mk = o.mk
+      left join lateral (
+        select * from public.products x
+         where x.machine_key = o.mk
+         order by x.id desc limit 1) pr on true
+  )
+  -- RULE 2. The party the machine is with -- the Product Database's, else the
+  -- register's -- is a CUSTOMER on the Party Master (its Type; DEALER is a
+  -- dealer, 0328). A party not in the master, or with no Type, is not shown as
+  -- a customer: the rule asks for one, and a blank says nothing.
+  select r.src, r.ref, r.p, r.s, r.is_acc, r.party, r.cty, r.st, r.eng, r.on_pd,
+         r.ctype, r.cs, r.ce, r.m, r.v, r.kk, r.due, r.gen, r.gucn, r.gon, r.lpd,
+         r.iucn, r.istate, coalesce(r.istate = 'Solved', false),
+         pt.party_type,
+         coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false),
+         -- RULE 1 as amended (0404): a machine with NO installation call passes;
+         -- only an installation call that exists and is not Solved holds it back.
+         not r.gen and (r.istate is null or r.istate = 'Solved') and coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false)
+    from rowz r
+    left join public.parties pt on pt.name_key = lower(btrim(r.party))
+   order by r.party nulls last, r.p, r.s;
+end $$;
+
+comment on function public.pm_visits_due(date) is
+  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked; its installation call and whether it is Solved; its party''s Party Master Type and whether it is CUSTOMER; can_create when a Missed PM has no installation call or a Solved one, and a CUSTOMER party. Needs pm.generate (0404).';
+
+revoke execute on function public.pm_visits_due(date) from public, anon;
+grant execute on function public.pm_visits_due(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0407_pm_schedule.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0407 -- THE PM SCHEDULE OF ONE SALE OR ONE CONTRACT (the user, 2026-10-09:
+-- "Can I have the schedules listed in Warranty and contract pages as well..
+-- also a provision to generate from there").
+--
+-- Every visit of every machine on ONE Warranty Register entry (SA number) or
+-- ONE Contract Register entry (MC number), by the rules PM Due uses (0402):
+--   * visit k is due on start + round(k x months x 30 / visits) days, never
+--     after the cover's end;
+--   * it is GENERATED when a PM call for that product + serial, not cancelled,
+--     registered within the cover's period, reads "k / N" with the same visit
+--     number and number of visits -- in whatever month it was raised.
+-- The entry window lists them, and offers Generate on a visit that is not
+-- generated and whose due month has come ("Due or past due, dated its due
+-- month" -- the call is shaped and dated exactly as PM Due shapes it).
+--
+-- ONE ENTRY AT A TIME, so it is a lookup and never a whole-register scan: the
+-- reference is required. The party, city, state and engineer are the machine's
+-- Product Database row's (the machine's current owner), else the register's,
+-- as on PM Due.
+--
+-- SECURITY DEFINER with pm.generate, as pm_visits_due: whether a visit was
+-- generated must be answered from EVERY PM call, not only those the reader may
+-- see. Not executable by the public key.
+-- ===========================================================================
+
+create or replace function public.pm_schedule(p_source text, p_ref text)
+returns table (
+  source           text,
+  ref_no           text,
+  product_name     text,
+  serial           text,
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,
+  on_product_database boolean,
+  cover_type       text,
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,
+  due_date         date,
+  generated        boolean,
+  generated_ucn    text,
+  generated_on     date
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'The PM schedule needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+  if btrim(coalesce(p_ref, '')) = '' or p_source not in ('Warranty', 'Contract') then
+    raise exception 'Name the register (Warranty or Contract) and the SA or MC number.';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where p_source = 'Warranty' and w.sa_number = btrim(p_ref)
+       and w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where p_source = 'Contract' and c.mc_number = btrim(p_ref)
+       and c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+  ), visits as (
+    select cv.*, k as kk, least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv cross join lateral generate_series(1, cv.v) k
+  ), pm as materialized (
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select c.mk from cover c)
+  ), gen as (
+    select distinct on (vi.mk, vi.kk) vi.mk, vi.kk, pm.ucn, pm.reg_date
+      from visits vi
+      join pm on pm.mk = vi.mk and pm.kn[1] = vi.kk and pm.kn[2] = vi.v
+             and pm.reg_date between date_trunc('month', vi.cs)::date and vi.ce
+     order by vi.mk, vi.kk, pm.reg_date desc, pm.ucn desc
+  )
+  select vi.src, vi.ref, vi.p, vi.s,
+         coalesce(nullif(btrim(pr.party_name), ''), vi.party),
+         coalesce(nullif(btrim(pr.city), ''), vi.cty),
+         coalesce(nullif(btrim(pr.state), ''), vi.st),
+         nullif(btrim(coalesce(pr.service_engineer, '')), ''),
+         pr.id is not null,
+         vi.ctype, vi.cs, vi.ce, vi.m, vi.v, vi.kk, vi.due,
+         g.ucn is not null, g.ucn, g.reg_date
+    from visits vi
+    left join gen g on g.mk = vi.mk and g.kk = vi.kk
+    left join lateral (
+      select * from public.products x where x.machine_key = vi.mk order by x.id desc limit 1) pr on true
+   order by vi.p, vi.s, vi.kk;
+end $$;
+
+comment on function public.pm_schedule(text, text) is
+  'Every PM visit of every machine on one Warranty (SA) or Contract (MC) entry -- visit k on start + k x months x 30 / visits days -- each GENERATED when a not-cancelled PM call "k / N" exists for it in the cover period. Needs pm.generate (0407).';
+
+revoke execute on function public.pm_schedule(text, text) from public, anon;
+grant execute on function public.pm_schedule(text, text) to authenticated;
 
 commit;

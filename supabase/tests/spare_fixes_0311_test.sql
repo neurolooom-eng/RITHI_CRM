@@ -84,8 +84,11 @@ select qty, original_qty, adjusted_at is not null as adjusted_at_set
 \echo 'expect: qty 1, original_qty still 3'
 update public.spare_consumption set qty = 1, adjustment_reason = 'fitted after all' where ucn = 'T311-C';
 select qty, original_qty from public.spare_consumption where ucn = 'T311-C';
-\echo 'expect ERROR: Only 9 left in ENG 311''s hand stock for P-9|NINE'
+-- Past the balance is allowed since 0401 and the Spare Coordinator told. Rolled back.
+begin;
 update public.spare_consumption set qty = 51, adjustment_reason = 'too many' where ucn = 'T311-C';
+select 'raise past the balance (0401)' as check, qty::text as should_be_51 from public.spare_consumption where ucn = 'T311-C';
+rollback;
 
 \echo '--- 5. the guard still refuses a void with no reason ---'
 \echo 'expect ERROR: Say why the line is being voided'

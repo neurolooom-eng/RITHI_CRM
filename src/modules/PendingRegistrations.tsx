@@ -4,7 +4,9 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
-import { cancelCallRequest, callByUcn, callExists, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
+import { cancelCallRequest, callByUcn, callExists, openCallsFor, callsForMachine, machineKey, supabaseConfigured, reportingManagerEmails, type OpenCall, type MachineCall } from '../lib/supabase';
+import { requestMailSubject, requestMailBody, requestMailHtml, requestGmailUrl, REQUEST_MAIL_ALWAYS_CC } from '../lib/requestMail';
+import { formatDay, formatDayTime } from '../lib/dates';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
@@ -401,6 +403,89 @@ export function PendingRegistrations() {
 // Request detail + the three ways to close it out: map to an existing call,
 // create a new one, or cancel.
 // ---------------------------------------------------------------------------
+// ---- "NEED MORE DETAILS" ---------------------------------------------------
+//
+// The user, 2026-10-08: "Add a provision to compose a mail to the requestor
+// asking for more details ... This is for Pending Registrations - Commercial
+// Team will be doing it." It OPENS A NEW MAIL IN GMAIL, in a new tab, as the
+// person composing it (2026-10-10: "the official mail box is Gmail") --
+// so it is from them, and they read it before it goes -- To the request's
+// E-Mail ID, Cc the requestor's Reporting Manager from the User Master, the
+// subject and body built by requestMail.ts. Both addresses are shown first: a
+// Cc nobody could see would be a mail copied to somebody nobody checked.
+function MoreDetailsMail({ row }: { row: Row }) {
+  const { user } = useAuth();
+  const to = g(row, 'E-Mail ID').trim();
+  const [cc, setCc] = useState<{ manager: string; emails: string[] } | null>(null);
+  const [ccErr, setCcErr] = useState('');
+  useEffect(() => {
+    let live = true;
+    setCc(null); setCcErr('');
+    if (!to || !supabaseConfigured()) { setCc({ manager: '', emails: [] }); return; }
+    reportingManagerEmails(to)
+      .then((r) => { if (live) setCc(r); })
+      .catch((e) => { if (live) { setCc({ manager: '', emails: [] }); setCcErr(e instanceof Error ? e.message : String(e)); } });
+    return () => { live = false; };
+  }, [to]);
+  const fmt = (label: string, x: string) =>
+    label === 'Raised on' ? formatDayTime(x) : /date/i.test(label) ? formatDay(x) || x : x;
+  const subject = requestMailSubject(row);
+  const text = requestMailBody(row, user?.fullName ?? '', fmt);
+  const html = requestMailHtml(row, user?.fullName ?? '', fmt);
+  const [copied, setCopied] = useState<'' | 'table' | 'text'>('');
+  // Another request: what was copied belongs to the last one.
+  useEffect(() => { setCopied(''); }, [row]);
+  // THE TABLE GOES ON THE CLIPBOARD (2026-10-10: "tabular Format"): a Gmail
+  // link takes plain text only. Copied FIRST, while this page still has the
+  // focus a clipboard write needs; Gmail opens after. Where the browser
+  // refuses the clipboard, the link carries the same fields as plain lines,
+  // so the mail is never left empty.
+  const copyTable = async (): Promise<boolean> => {
+    try {
+      if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      })]);
+      return true;
+    } catch { return false; }
+  };
+  const compose = async () => {
+    if (!to || cc === null) return;
+    const ok = await copyTable();
+    setCopied(ok ? 'table' : 'text');
+    window.open(requestGmailUrl([to], [...cc.emails, ...REQUEST_MAIL_ALWAYS_CC], subject, ok ? '' : text, user?.email ?? ''), '_blank', 'noopener,noreferrer');
+  };
+  return (
+    <div className="req-act-sec">
+      <div className="rep-sec-title">Ask the requestor for more details</div>
+      <div className="detail-hint">
+        <b>To:</b> {to || <span className="field-err">this request has no E-Mail ID</span>}<br />
+        <b>Cc:</b>{' '}
+        {cc === null ? 'finding the Reporting Manager…'
+          : cc.emails.length ? <>{cc.emails.join(', ')} <span className="muted">({cc.manager}, Reporting Manager)</span></>
+          : cc.manager ? <span className="muted">{cc.manager} is the Reporting Manager, but has no email in the User Master — not copied</span>
+          : <span className="muted">no Reporting Manager in the User Master for {to || 'this requestor'}</span>}
+        {cc !== null && <>{'; '}{REQUEST_MAIL_ALWAYS_CC.join(', ')} <span className="muted">(always copied)</span></>}
+        {ccErr && <div className="field-err">The Reporting Manager could not be looked up: {ccErr}</div>}
+        <br /><b>Subject:</b> {subject}
+      </div>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        <button type="button" className="btn btn-sm" disabled={!to || cc === null} onClick={() => void compose()}>✉ Compose in Gmail</button>
+        {copied === 'table' && (
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void copyTable().then((ok) => setCopied(ok ? 'table' : 'text'))}>⧉ Copy the table again</button>
+        )}
+      </div>
+      {copied === 'table'
+        ? <div className="sheet-banner sheet-banner-ok" style={{ marginTop: 6 }}><span><b>The mail is copied.</b> In the Gmail tab, click in the message body and press <b>Ctrl+V</b> — the greeting, the table and your name go in.</span></div>
+        : copied === 'text'
+          ? <div className="sheet-banner sheet-banner-info" style={{ marginTop: 6 }}><span>This browser would not let RITHI copy the table, so the details went into the mail as plain lines instead.</span></div>
+          : null}
+      <div className="detail-hint">Opens a new mail in Gmail, in a new tab, from your own account{user?.email ? <> ({user.email})</> : null}, and copies the request’s details as a table to paste into it — read it and send it from there.</div>
+    </div>
+  );
+}
+
 function RequestActions({
   row, openCalls, openCallsFailed, canAct, canCreate, busy, onClose, onMap, onCreate, onCancel, onOpenCall,
 }: {
@@ -565,7 +650,9 @@ function RequestActions({
             {detailKeys.map((k) => (
               <div className="reg-detail-row" key={k}>
                 <div className="reg-detail-k">{k}</div>
-                <div className="reg-detail-v">{String(row[k])}</div>
+                <div className="reg-detail-v">{/^https?:\/\/\S+$/i.test(String(row[k]).trim())
+                  ? <a href={String(row[k]).trim()} target="_blank" rel="noopener noreferrer">Open {k}</a>
+                  : String(row[k])}</div>
               </div>
             ))}
           </div>
@@ -628,6 +715,8 @@ function RequestActions({
                   </div>
                   <div className="detail-hint">Mapping fills UCN (Mapped) and takes the request off the pending list.</div>
                 </div>
+
+                {can('pending.mail') && <MoreDetailsMail row={row} />}
 
                 <div className="rep-actions">
                   <button className="btn btn-danger" disabled={!canAct || busy} onClick={() => setMode('cancel')}>✕ Cancel request</button>

@@ -144,3 +144,53 @@ export function pmTemplateCsv(): string {
   ];
   return `${PM_TEMPLATE_HEADERS.join(',')}\n${sample.map((c) => `"${c}"`).join(',')}\n`;
 }
+
+// ===========================================================================
+// PM DUE -> PM CALLS (0401, the user, 2026-10-08). The machines the Warranty
+// and Contract Registers say are due become calls through shapePmRows, the
+// SAME shaping the monthly upload uses, so a generated call and an uploaded
+// one cannot differ: dated the 1st of the due month, complaint and breakdown
+// dates the same, Added On the day it was generated, registration times
+// stepped from the month's latest.
+//
+// The two texts are what this year's PM calls carry (measured 2026-10-08:
+// 8,720 of 8,720 read "SCHEDULED PM VISIT", and the Reported Problem reads
+// "SCHEDULED PM VISIT k / N"), not wording chosen here.
+// ===========================================================================
+export const PM_STANDARD_COMPLAINT = 'SCHEDULED PM VISIT';
+
+export interface PmDueMachine {
+  source: 'Warranty' | 'Contract'; ref_no: string; product_name: string; serial: string;
+  party_name: string | null; city: string | null; state: string | null;
+  engineer: string | null; cover_type: string; cover_start: string; cover_end: string;
+  pm_visits: number; visit_no: number; due_date: string;
+}
+
+export function shapePmDueRows(
+  due: PmDueMachine[], month: string, startLocal: string, stepSec: number,
+): Record<string, unknown>[] {
+  const raw = due.map((d) => ({
+    'Party Name': d.party_name ?? '', 'City': d.city ?? '', 'State': d.state ?? '',
+    'Product': d.product_name, 'Serial No': d.serial,
+    'Item Status': d.cover_type ?? '',
+    'Engineer': d.engineer ?? '',
+    'Standard Complaint': PM_STANDARD_COMPLAINT,
+    'Reported Problem': `${PM_STANDARD_COMPLAINT} ${d.visit_no} / ${d.pm_visits}`,
+    // A sale's SA number is the machine's Warranty No. (sync_product_machine),
+    // a contract's MC number its Contract No.
+    ...(d.source === 'Contract' ? { 'Contract Number': d.ref_no } : { 'Warranty Number': d.ref_no }),
+    // Not call columns: kept in `extra`, so the call says where it came from.
+    'PM Source': `${d.source} Register`,
+    'PM Due Date': d.due_date,
+  }));
+  const shaped = shapePmRows(raw, month, startLocal, stepSec);
+  // The cover's own dates, on the call's own columns. shapePmRows keeps the
+  // rows in order and drops only rows with no party, product or serial --
+  // which a due machine always has -- so the two lists line up.
+  return shaped.map((o, i) => {
+    const d = due[i];
+    return d.source === 'Warranty'
+      ? { ...o, warranty_start: d.cover_start, warranty_end: d.cover_end }
+      : { ...o, contract_start: d.cover_start, contract_end: d.cover_end };
+  });
+}

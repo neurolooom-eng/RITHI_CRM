@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { PmScheduleSection } from './PmSchedule';
+import { PmDue } from './PmDue';
+import { useCallStates } from '../lib/callstates';
+import { StateBadge, Ucn } from '../lib/callstate';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { LongDateInput, LongDateText } from '../components/ui/LongDate';
 import { sbListPartyItems, sbSearchParties, sbSearchProductParties, sbPartyInfo, sbSearchDealers, addParty, sbActiveUserNames, sbPartyIdByName, updateParty, type PartyPatch } from '../lib/supabase';
@@ -1049,6 +1053,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const live = supabaseConfigured();
 
   const [tab, setTab] = useState<Tab>('entries');
+  // THE PM SCHEDULE TAB (0407): PM Due narrowed to this register. Its own
+  // switch rather than a third Tab, because every Tab is a paged feed here.
+  const [pmTab, setPmTab] = useState(false);
   const [q, setQ] = useState('');
   const [state, setState] = useState('');
   // PENDING INSTALLATION CALL -- a Warranty filter, on the server (cover.ts).
@@ -1547,6 +1554,75 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setSaving(false); }
   };
+
+  // ONE MACHINE, FROM THE ENTRY'S INSTALLATION CALLS SECTION (the user,
+  // 2026-10-09: "Similar to PM schedule, add Installation Call as well in
+  // warranty"). The same raiseInstallCalls() with a list of one, so what the
+  // call carries and what is refused cannot drift from the bar's button.
+  const raiseOneInEntry = async (it: Row) => {
+    if (!machinesNeedingInstallCall([it] as never).length) return;
+    if (!window.confirm(
+      `Raise an installation call for ${str(it.product_name)} · ${str(it.serial_number)}`
+      + ` at ${str(draft.party_name) || 'this customer'}?\n\n`
+      + `Standard Complaint and Complaint Reported will read "${INSTALL_COMPLAINT}", the three vigilance `
+      + `questions will be answered NO, and the customer contact will be left blank — nobody reported this.`)) return;
+    setSaving(true);
+    try {
+      const r = await raiseInstallCalls(draft, [it]);
+      const fresh = await listItems(kind, str(draft[cfg.key]));
+      setItems(fresh);
+      const left = machinesNeedingInstallCall(fresh as never).length;
+      setFeed('entries', { rows: feeds.entries.rows.map((x) => (x.id === draft.id ? { ...x, pending_install: left } : x)) });
+      setMsg(r.error || !r.created.length
+        ? { tone: 'error', text: r.error ?? 'The call was not created.' }
+        : { tone: 'ok', text: `Installation call ${r.created[0].ucn} raised for ${str(it.serial_number)}.` });
+    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+  // THE CALL'S OWN STATUS (the user, 2026-10-09: "Add status for generated
+  // calls"), one request for the entry's machines; unknown reads plain.
+  const instStates = useCallStates(useMemo(
+    () => (kind === 'sale' ? items.map((i) => str(i.inst_call)).filter((u) => isCallNumber(u)) : []), [kind, items]));
+  const installSection = kind === 'sale' && open?.id ? (
+    <div className="req-act-sec">
+      <div className="rep-sec-title" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span>Installation calls</span>
+        <span className="muted">({items.filter((i) => isCallNumber(i.inst_call)).length} of {items.length} raised)</span>
+        <span style={{ flex: 1 }} />
+        {!isDealerParty(draft.party_name, dealers) && needCalls.length > 0 && canRaiseInstall && (
+          <button className="btn btn-sm btn-primary" disabled={saving} onClick={() => void raiseCalls()}>
+            ＋ Raise {needCalls.length} pending
+          </button>
+        )}
+      </div>
+      {isDealerParty(draft.party_name, dealers) && <div className="detail-hint">{DEALER_NO_INSTALL}</div>}
+      {items.length === 0 ? <div className="detail-hint">No machines on this sale yet.</div> : (
+        <div className="assoc-scroll">
+          <table className="assoc-table">
+            <thead><tr><th>Product</th><th>Serial</th><th>Installation call</th><th>Call status</th><th /></tr></thead>
+            <tbody>
+              {items.map((it, i) => {
+                const ucn = str(it.inst_call).trim();
+                const has = isCallNumber(ucn);
+                const may = !has && !isDealerParty(draft.party_name, dealers) && canRaiseInstall
+                  && machinesNeedingInstallCall([it] as never).length > 0;
+                return (
+                  <tr key={str(it.id) || i}>
+                    <td>{str(it.product_name) || <span className="muted">—</span>}</td>
+                    <td>{str(it.serial_number) || <span className="muted">—</span>}</td>
+                    <td>{has ? <Ucn ucn={ucn} state={instStates[ucn]} />
+                      : <span className="muted">{ucn ? `not raised (reads “${ucn}”)` : isPinnedValue(it.id) ? 'not raised' : 'save the entry first'}</span>}</td>
+                    <td>{has ? <StateBadge state={instStates[ucn]} /> : <span className="muted">—</span>}</td>
+                    <td>{may && <button className="btn btn-sm" disabled={saving} onClick={() => void raiseOneInEntry(it)}>Raise</button>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  ) : null;
 
   // ONE MACHINE, FROM THE BY-MACHINE LIST (the user, 2026-09-23: "I need
   // + Installation Call"). The entry pane raises them for a whole sale; this
@@ -2103,6 +2179,12 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           <div className="cover-pop-col" ref={productsRef}>
             <div className="cover-pop-col-head">Products ({items.length})</div>
             {machineList}
+            {/* THE ENTRY'S PM SCHEDULE (0407): every visit of every machine,
+                generated or not, with Generate on a due or missed one. */}
+            {!!open?.id && !!str(open[cfg.key]).trim() && (
+              <PmScheduleSection source={kind === 'sale' ? 'Warranty' : 'Contract'} refNo={str(open[cfg.key]).trim()} />
+            )}
+            {installSection}
           </div>
           {sidePanel && (
             <div className="cover-pop-col cover-pop-col-side">
@@ -2210,13 +2292,16 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       )}
 
       <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-        <button className={`btn btn-sm ${tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => setTab('entries')}>Entries</button>
-        <button className={`btn btn-sm ${tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => setTab('machines')}>Register</button>
+        <button className={`btn btn-sm ${!pmTab && tab === 'entries' ? 'btn-primary' : ''}`} onClick={() => { setPmTab(false); setTab('entries'); }}>Entries</button>
+        <button className={`btn btn-sm ${!pmTab && tab === 'machines' ? 'btn-primary' : ''}`} onClick={() => { setPmTab(false); setTab('machines'); }}>Register</button>
+        <button className={`btn btn-sm ${pmTab ? 'btn-primary' : ''}`} onClick={() => setPmTab(true)}>PM Schedule</button>
       </div>
+
+      {pmTab && <PmDue source={kind === 'sale' ? 'Warranty' : 'Contract'} embedded />}
 
       {/* THE SAME FILTER ON THE ENTRIES TAB: sales with at least one machine
           still waiting for its installation call. */}
-      {tab === 'entries' && kind === 'sale' && (
+      {!pmTab && tab === 'entries' && kind === 'sale' && (
         <div className="pc-summary">
           <button className={`pc-tile ${pendingInstall ? 'pc-tile-on' : ''}`} onClick={() => setPendingInstall((v) => !v)}
             title="Sales with at least one machine whose INST Call holds no call number">
@@ -2228,7 +2313,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         </div>
       )}
 
-      {tab === 'machines' && (
+      {!pmTab && tab === 'machines' && (
         <div className="pc-summary">
           {STATES.map((s) => (
             <button key={s} className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`} onClick={() => setState(state === s ? '' : s)}>
@@ -2253,7 +2338,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
         </div>
       )}
 
-      {tab === 'entries' ? (
+      {pmTab ? null : tab === 'entries' ? (
         entriesTable
       ) : (
         <DataTable<Row>

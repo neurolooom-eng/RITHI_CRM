@@ -143,12 +143,12 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
 
   // A VALUE RECORDS CARRY IS DEACTIVATED, NOT DELETED (D-056, FRS-015,
   // FRS-180.6). Before the Delete is confirmed, the database is asked how many
-  // records carry the value (master_value_uses, 0409 -- counted as its owner,
+  // records carry the value (master_value_uses, 0424 -- counted as its owner,
   // so every record and not only the reader's). In use, and no other row of
   // this list holds the same word: the delete is NOT offered -- the screen says
   // how many records and offers Deactivate, which keeps it on them and stops
   // offering it. A count that cannot be read falls back to asking, and the
-  // database decides (0409's trigger refuses a value in use); its refusal is
+  // database decides (0424's trigger refuses a value in use); its refusal is
   // shown word for word.
   const [blocked, setBlocked] = useState<{ item: MasterItem; uses: number } | null>(null);
   const remove = async (item: MasterItem) => {

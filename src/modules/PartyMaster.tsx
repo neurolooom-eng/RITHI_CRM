@@ -1,4 +1,4 @@
-import { partyMissing } from '../lib/partyRules';
+import { partyMissing, type PartyFieldOptions } from '../lib/partyRules';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useColumns } from '../components/ui/useColumns';
 import { useLocation } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { csvExport, timeAgo } from '../lib/format';
 import {
   queryParties, updateParty, getParty, addParty, deleteMasterRecord, supabaseConfigured,
   partyServiceEngineerCounts, renamePartyServiceEngineer, sbDirectoryNames,
+  sbActiveUserNames, sbPartyFieldOptions,
   type PartyFilter, type PartyPatch,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
@@ -142,17 +143,61 @@ const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.ma
 /** One section of the party form: its full-width fields (an address), then
  *  the rest in the 2/3-column grid. Shared by Add entry and the Edit panel so
  *  the two lay a party out the same way. */
-function PartyGroupFields({ fields, value, set }: {
+// THE DROPDOWNS (the user, 2026-10-08: "Type, Profile, ServiceMan, City,
+// State, Country -- all of this should be Drop-down. SERVICEMAN should list
+// from user master (Filter Active)"). Type-search-and-select, as every
+// dropdown here. CITY, STATE AND COUNTRY also take a value not on their list
+// (the user, 2026-10-08: "Allow new values in City, State, Country. Customer,
+// Type and Profile should not take new values") -- a customer in a place the
+// Party Master has never named is a real customer. TYPE and PROFILE are the
+// fixed vocabulary every count groups by, and the SERVICEMAN must be an active
+// person on the User Master, so those three take nothing else. The cities
+// follow the State chosen.
+export function partyPick(k: string, opts: PartyFieldOptions | null, active: string[], state: string):
+  { options: string[]; freeText: boolean; empty: string } | null {
+  if (k === 'service_engineer') return { options: active, freeText: false, empty: 'Active people on the User Master.' };
+  if (!opts) return null;
+  if (k === 'party_type' || k === 'profile')
+    return { options: opts[k], freeText: false, empty: 'Values already on the Party Master.' };
+  if (k === 'state' || k === 'country')
+    return { options: opts[k], freeText: true, empty: 'Values already on the Party Master — or type a new one.' };
+  if (k === 'city') {
+    const inState = opts.cityByState[state.trim().toLowerCase()];
+    return { options: inState && inState.length ? inState : opts.city, freeText: true,
+             empty: 'Cities already on the Party Master for this state — or type a new one.' };
+  }
+  return null;
+}
+
+function PartyGroupFields({ fields, value, set, pick }: {
   fields: { key: keyof PartyPatch; label: string; wide?: boolean }[];
   value: (k: string) => string;
   set: (k: string, v: string) => void;
+  pick?: (k: string) => { options: string[]; freeText: boolean; empty: string } | null;
 }) {
-  const field = ({ key, label }: { key: keyof PartyPatch; label: string }) => (
-    <div className="ml-field" key={key}>
-      <label className="field-label">{label}</label>
-      <input className="input" value={value(key as string)} onChange={(e) => set(key as string, e.target.value)} />
-    </div>
-  );
+  const field = ({ key, label }: { key: keyof PartyPatch; label: string }) => {
+    const p = pick?.(key as string) ?? null;
+    const v = value(key as string);
+    return (
+      <div className="ml-field" key={key}>
+        <label className="field-label">{label}</label>
+        {p
+          ? <SelectPicker value={v} placeholder={`— ${label.toLowerCase()} —`}
+              options={v && !p.options.some((o) => o.toLowerCase() === v.trim().toLowerCase()) ? [v, ...p.options] : p.options}
+              allowFreeText={p.freeText} emptyHint={p.empty}
+              onChange={(nv) => set(key as string, nv)} />
+          : <input className="input" value={v} onChange={(e) => set(key as string, e.target.value)} />}
+        {/* A SERVICEMAN NOT ACTIVE ON THE USER MASTER is said, not silently
+            kept or cleared -- the Warranty Entry's rule. */}
+        {key === 'service_engineer' && p && p.options.length > 0 && v.trim()
+          && !p.options.some((o) => o.toLowerCase() === v.trim().toLowerCase()) && (
+          <span className="muted" style={{ fontSize: 12, color: 'var(--danger, #b91c1c)' }}>
+            Not an active user on the User Master — choose one from the list.
+          </span>
+        )}
+      </div>
+    );
+  };
   const narrow = fields.filter((f) => !f.wide);
   return (
     <>
@@ -188,6 +233,15 @@ export function PartyMaster() {
   const maySwap = can('masters.edit.swap_serviceman') && supabaseConfigured();
   const [uploading, setUploading] = useState(false);
   const [edit, setEdit] = useState<Row | null>(null);
+  // WHAT THE DROPDOWNS OFFER: the Party Master's own values (this device's
+  // copy first) and the User Master's ACTIVE people for the Serviceman.
+  const [fieldOpts, setFieldOpts] = useState<PartyFieldOptions | null>(null);
+  const [activeUsers, setActiveUsers] = useState<string[]>([]);
+  useEffect(() => {
+    if (!supabaseConfigured()) return;
+    void sbPartyFieldOptions().then(setFieldOpts).catch(() => setFieldOpts(null));
+    void sbActiveUserNames().then(setActiveUsers).catch(() => setActiveUsers([]));
+  }, []);
   // READ-ONLY VIEW of one party (2026-10-01) -- for anybody who may open the
   // Party Master but not change it; until now a click on a row did nothing for
   // them. And FROM THE HEADER SEARCH: the party is fetched by id and opened in
@@ -633,7 +687,8 @@ export function PartyMaster() {
               <div key={g.title} className="pf-section">
                 <h4>{g.title}</h4>
                 {g.note && <div className="muted" style={{ fontSize: 12 }}>{g.note}</div>}
-                <PartyGroupFields fields={g.fields} value={(k) => String(edit[k] ?? '')} set={setEditField} />
+                <PartyGroupFields fields={g.fields} value={(k) => String(edit[k] ?? '')} set={setEditField}
+                  pick={(k) => partyPick(k, fieldOpts, activeUsers, String(edit.state ?? ''))} />
               </div>
             ))}
 
@@ -740,13 +795,20 @@ export function PartyMaster() {
                 onChange={(e) => setAdding((a) => ({ ...(a ?? {}), party_name: e.target.value }))} />
             </div>
             <div className="pf-grid">
-              {([['city', 'City'], ['state', 'State'], ['country', 'Country']] as const).map(([k, l]) => (
-                <div className="ml-field" key={k}>
-                  <label className="field-label">{l} {k !== 'country' && <span style={{ color: 'var(--danger, #c00)' }}>*</span>}</label>
-                  <input className="input" value={adding[k] ?? ''}
-                    onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />
-                </div>
-              ))}
+              {([['city', 'City'], ['state', 'State'], ['country', 'Country']] as const).map(([k, l]) => {
+                const p = partyPick(k, fieldOpts, activeUsers, adding.state ?? '');
+                return (
+                  <div className="ml-field" key={k}>
+                    <label className="field-label">{l} {k !== 'country' && <span style={{ color: 'var(--danger, #c00)' }}>*</span>}</label>
+                    {p
+                      ? <SelectPicker value={adding[k] ?? ''} placeholder={`— ${l.toLowerCase()} —`}
+                          options={p.options} allowFreeText={p.freeText} emptyHint={p.empty}
+                          onChange={(v) => setAdding((a) => ({ ...(a ?? {}), [k]: v }))} />
+                      : <input className="input" value={adding[k] ?? ''}
+                          onChange={(e) => setAdding((a) => ({ ...(a ?? {}), [k]: e.target.value }))} />}
+                  </div>
+                );
+              })}
             </div>
             <div className="muted ml-hint">Everything below is optional and can be filled in later from the party's Edit form. The Party Key is given when it is saved.</div>
             {EDIT_GROUPS.map((g) => (
@@ -755,7 +817,8 @@ export function PartyMaster() {
                 {g.note && <div className="muted ml-hint">{g.note}</div>}
                 <PartyGroupFields fields={g.fields.filter(({ key }) => key !== 'city' && key !== 'state' && key !== 'country')}
                   value={(k) => adding[k] ?? ''}
-                  set={(k, v) => setAdding((a) => ({ ...(a ?? {}), [k]: v }))} />
+                  set={(k, v) => setAdding((a) => ({ ...(a ?? {}), [k]: v }))}
+                  pick={(k) => partyPick(k, fieldOpts, activeUsers, adding.state ?? '')} />
               </div>
             ))}
             <div className="pf-section">

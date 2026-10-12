@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0407 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+-- 0422 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
 --        (second re-review D-027)
 --
 -- The Field Failure Report form refuses a report without Customer Name or
@@ -13,7 +13,7 @@
 -- Not stopped: an import (bulk.upload / import.panel), a connection with no
 -- session, and a function running as its owner (ffr_from_review raises a
 -- report from the Daily Complaint Review and fills both from the call).
--- In the daily_review module, after 0401.
+-- In the daily_review module, after 0416.
 -- ===========================================================================
 
 create or replace function public.ffr_customer_and_problem_required()

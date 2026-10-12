@@ -762,8 +762,8 @@ export function planConsumptionVisitUpload(rows: Record<string, unknown>[], have
 
 /** The spare-line upload's plan. `here` is the request uids already in the
  *  register; `byOrNo` maps an OR number the lines name to the uid of the
- *  request already holding it. Numbers the lines, re-points them, and returns
- *  the stub requests for what is in neither -- as a write, not a write done. */
+ *  request already holding it. Numbers the lines, re-points them, and holds
+ *  back by name a line whose request is in neither (D-158) -- it writes nothing. */
 export function planSpareLineParents(
   rows: Record<string, unknown>[], here: Set<string>, byOrNo: Map<string, string>,
 ): UploadPlan {
@@ -791,22 +791,20 @@ export function planSpareLineParents(
     const held = byOrNo.get(String(r.request_uid ?? ''));
     if (held) { r.request_uid = held; repointed += 1; }
   });
-  // What is in neither file gets a request, MARKED as one -- the gap stays
-  // visible in the register instead of costing the whole load.
-  const orphans = missing.filter((u) => !byOrNo.has(u));
-  return {
-    rows: out,
-    writes: orphans.length ? [{
-      table: 'spare_requests', onConflict: 'uid', ignoreDuplicates: true,
-      rows: orphans.map((uid) => ({
-        uid, or_no: uid, req_type: 'Call Based', status: 'Imported',
-        remarks: 'Created from an imported spare line — the request header was not in the export.',
-      })),
-      noun: ['spare request', 'spare requests'],
-      why: 'status Imported, for lines whose OR number is in neither the header export nor the register',
-    }] : [],
-    note: repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number.` : '',
-  };
+  // A line whose request is in NEITHER file is HELD BACK, counted (the user,
+  // 2026-10-08: "Yes, block uploads with empty engineer"). This used to plan a
+  // stub request for it, marked Imported -- with no engineer, because the lines
+  // export carries none -- and a dispatched line on such a request booked its
+  // spare to NOBODY's hand stock (D-158). Load the Spare Request file, which
+  // must name the engineer, and then this one. Nothing is written for them.
+  const orphans = new Set(missing.filter((u) => !byOrNo.has(u)));
+  const kept = out.filter((r) => !orphans.has(String(r.request_uid ?? '').trim()));
+  const held = out.length - kept.length;
+  const bits = [
+    held ? `${held} line${held === 1 ? '' : 's'} held back — ${orphans.size} request${orphans.size === 1 ? ' is' : 's are'} not in RITHI (load the Spare Request file first, with the engineer named): ${[...orphans].slice(0, 10).join(', ')}${orphans.size > 10 ? ', …' : ''}` : '',
+    repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number` : '',
+  ].filter(Boolean);
+  return { rows: kept, writes: [], note: bits.join('; ') };
 }
 
 export const UPLOADS: UploadDef[] = [
@@ -885,7 +883,11 @@ export const UPLOADS: UploadDef[] = [
       { to: 'or_no', from: ['or no', 'or number', 'request uid'], required: true },
       DATE('or_req_date', 'or req date', 'or date', 'request date'),
       TEXT('req_type', 'req type', 'request type'),
-      TEXT('engineer', 'engineer name', 'engineer'),
+      // REQUIRED (the user, 2026-10-08: "Yes, block uploads with empty
+      // engineer"). A request loaded with no engineer books its dispatch to
+      // nobody's hand stock (D-158: 45 requests, 68 units); such a row is
+      // held back and named instead of written.
+      { to: 'engineer', from: ['engineer', 'engineer name'], required: true },
       TEXT('engineer_email', 'engineer email'),
       TEXT('ucn', 'uc number', 'ucn'), TEXT('call_number', 'call number'),
       TEXT('party_name', 'party name'), TEXT('product_name', 'product name'),
@@ -908,7 +910,7 @@ export const UPLOADS: UploadDef[] = [
     reject: (r) => (Number(r.qty ?? 0) < 1
       ? 'the export asks for no quantity — a dropped line, which the register cannot hold'
       : ''),
-    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. Before writing, each line\u2019s OR number is matched to the request holding it, and a request is created for any the header export does not carry (marked as such, so the gap stays visible) — so this file loads on its own, in any order. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
+    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. Before writing, each line\u2019s OR number is matched to the request holding it; a line whose request is not in RITHI is held back and counted — load the Spare Request file first. (It used to create a request for it, with no engineer, which booked its spares to nobody\u2019s hand stock — D-158.) RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
     cols: [
       // "OR26724|NO-001" — the export's own line identity.
       { to: 'line_uid', from: ['spare request no|part number', 'line uid', 'line id', 'uid'], required: true },
@@ -1109,7 +1111,7 @@ export const UPLOADS: UploadDef[] = [
     conflictFrom: ['engineer', 'part', 'source'], extraInto: 'data',
     stamp: { source: 'WinMax HS', as_of: '2022-06-09' },
     prepare: 'handstock-engineers',
-    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. GOOD AND DEFECTIVE are both counted: a defective part is still in the engineer\u2019s hands until an MRN takes it back, which is exactly how the returns register subtracts it. A missing balance is not counted. Re-loading a corrected sheet replaces this pool rather than adding a second one. ONLY ACTIVE USERS OF THE USER MASTER ARE LOADED: the export\u2019s User Name column also holds dealers and customers, and hand stock is what an engineer carries. The names left out are named before anything is written.',
+    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. ONLY THE GOOD BALANCE is the opening stock: the Defective and Missing balances are not counted, and a row with no Good Balance opens at 0 rather than being left out. Re-loading a corrected sheet replaces this pool rather than adding a second one. ONLY ACTIVE USERS OF THE USER MASTER ARE LOADED: the export\u2019s User Name column also holds dealers and customers, and hand stock is what an engineer carries. The names left out are named before anything is written.',
     cols: [
       { to: 'engineer', from: ['user name', 'engineer name', 'engineer'], required: true },
       { to: 'part', from: ['part', 'item detail', 'spare'], required: true,
@@ -1119,19 +1121,21 @@ export const UPLOADS: UploadDef[] = [
           const d = String(e['Item Name'] ?? '').trim();
           return c && d ? `${c}|${d}` : c;
         } },
-      // Good PLUS defective — what the engineer actually holds.
+      // THE GOOD BALANCE ONLY (the user, 2026-10-12: "Only the Good balance
+      // should be taken as WinMax opening Balance"). It used to add the
+      // Defective Balance -- MP-010 / SUNIL KUMAR.K.V opened at 170 from a
+      // Good Balance of nothing and a Defective Balance of 170 (D-161). The
+      // Defective and Missing balances stay in `data`, as the file had them.
+      // A BLANK GOOD BALANCE IS 0 AND THE ROW IS KEPT (the user, 2026-10-12:
+      // "If the Good Qty is 0 in the WinMax Opening, keep it as 0, dont skip
+      // it"). The sheet writes a zero Good Balance as an empty cell -- 2,443 of
+      // its 4,731 rows -- so empty is the case this is about.
       { to: 'qty', from: ['good balance', 'qty', 'quantity', 'balance'], type: 'num', required: true,
         always: true,
-        derive: (o) => {
-          const e = (o.data ?? {}) as Record<string, unknown>;
-          const good = Number(o.qty ?? 0) || 0;
-          const bad = Number(String(e['Defective Balance'] ?? '').replace(/,/g, '')) || 0;
-          return good + bad;
-        } },
+        derive: (o) => Number(o.qty ?? 0) || 0 },
       DATE('as_of', 'as of', 'as on', 'date'),
       TEXT('remarks'),
     ],
-    reject: (r) => (Number(r.qty ?? 0) > 0 ? '' : 'no balance — good and defective are both zero'),
     // Hand stock is keyed on the part CODE, and two WinMax lines can share one
     // (ACC-081 is both tubings). One balance, so they are ADDED, not replaced.
     fold: {

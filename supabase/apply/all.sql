@@ -22,6 +22,7 @@
 --   0259_directory_rename_carries_the_records.sql
 --   0267_rename_carries_adjustments.sql
 --   0346_rename_carries_pending_indoor_dc.sql
+--   0408_user_tags.sql
 --   0122_user_directory_replay_tail.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
@@ -98,11 +99,11 @@
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
 --   0378_pdqc_number.sql
---   0403_indoor_approval_skips_a_solved_call.sql
+--   0418_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0404_indoor_record_visit_closed_and_comments.sql
---   0412_indoor_reported_to_customer_stamp.sql
+--   0419_indoor_record_visit_closed_and_comments.sql
+--   0427_indoor_reported_to_customer_stamp.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
 --   0376_spare_recycling_delete.sql
@@ -127,7 +128,7 @@
 --   0326_party_country.sql
 --   0366_masters_required_kyc_and_line_names.sql
 --   0371_master_list_delete_key.sql
---   0409_master_value_in_use_kept.sql
+--   0424_master_value_in_use_kept.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
@@ -137,7 +138,7 @@
 --   0368_qms_revision_is_a_new_entry.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
---   0405_user_master_keeps_history.sql
+--   0420_user_master_keeps_history.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -174,9 +175,10 @@
 --   0311_cancel_needs_an_open_call.sql
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
---   0413_field_call_vigilance_answered.sql
---   0408_call_request_attended_not_future.sql
---   0411_call_reopen_reason_recorded.sql
+--   0406_install_call_registers_requests.sql
+--   0428_field_call_vigilance_answered.sql
+--   0423_call_request_attended_not_future.sql
+--   0426_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -214,8 +216,8 @@
 --   0398_dccr_junk_rows.sql
 --   0399_pm_spare_dccr_rerun.sql
 --   0400_pm_spare_blank_review.sql
---   0401_review_answers_read_key.sql
---   0407_ffr_customer_and_problem_required.sql
+--   0416_review_answers_read_key.sql
+--   0422_ffr_customer_and_problem_required.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -307,6 +309,13 @@
 --   0385_stores_dispatch_report.sql
 --   0387_stores_dispatch_2025_history.sql
 --   0388_stores_dispatch_2026_history.sql
+--   0401_negative_handstock_allowed_and_notified.sql
+--   0405_spare_request_engineer_from_history.sql
+--   0411_winmax_opening_good_only.sql
+--   0412_handstock_starts_at_winmax.sql
+--   0413_labour_charges.sql
+--   0414_labour_not_requested.sql
+--   0415_refurb_hidden_in_audit_mode.sql
 --   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
@@ -343,6 +352,11 @@
 --   0362_installation_once_and_no_dealer_request.sql
 --   0383_transfer_fresh_warranty.sql
 --   0391_transfer_ot_number_invoice_files.sql
+--   0401_pm_due.sql
+--   0402_pm_visits_due.sql
+--   0403_pm_due_install_and_customer.sql
+--   0404_pm_due_no_install_call_allowed.sql
+--   0407_pm_schedule.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -377,7 +391,7 @@
 --   0392_objective_status.sql
 --   0393_dccr_failure_cohorts.sql
 --   0396_objective_recalc_active_fast.sql
---   0402_objective_with_figures_kept.sql
+--   0417_objective_with_figures_kept.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -385,8 +399,8 @@
 --   0225_record_audit_on.sql
 --   0246_record_audit_description.sql
 --   0314_record_audit_on_movements_and_training.sql
---   0406_record_audit_on_configuration_objectives_indoor.sql
---   0410_cover_registers_imaged.sql
+--   0421_record_audit_on_configuration_objectives_indoor.sql
+--   0425_cover_registers_imaged.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -398,6 +412,8 @@
 --   0288_feedback_update_visit_key.sql
 --   0348_feedback_update_once_per_query.sql
 --   0381_feedback_lookup_indexes.sql
+--   0409_ffr_update_sheet_import.sql
+--   0410_ffr_log_raised_on_ffr_date.sql
 --   0052_search_indexes.sql
 --   0382_redundant_indexes_dropped.sql
 --   0098_product_register_names.sql
@@ -1714,6 +1730,60 @@ begin
   return null;
 end $$;
 revoke execute on function public.user_directory_carry_rename_records() from public, anon, authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0408_user_tags.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0408 -- TAGS ON THE USER MASTER (the user, 2026-10-10: "in User Master, Add
+-- provision for Tags..").
+--
+-- Asked and answered:
+--   * What for: "I need to add People to list in FFR - CAPA Responsibility".
+--     A person tagged "CAPA Responsibility" is offered in that picker on the
+--     Field Failure Register, beside "No closed in FFR".
+--   * Values: FREE TEXT, several per person. No master list.
+--   * Where: the person's form, a table column, a filter at the top and a
+--     bulk add / remove.
+--
+-- A text[] on `user_directory`, read by everyone signed in like the rest of
+-- the row -- a tag is not private. Written under the directory's own policies
+-- (users.manage.details); nothing new is granted.
+--
+-- TIDIED IN THE DATABASE so every writer -- the table edit, the form, the bulk
+-- action, an import -- stores the same shape: each tag trimmed, blanks
+-- dropped, and a tag repeated in another case kept ONCE, in the spelling that
+-- came first. A free-text tag typed "CAPA responsibility" and "CAPA
+-- Responsibility" on one person is one tag, not two. Case is otherwise kept as
+-- typed, and comparing is done case-blind by whoever reads it.
+-- ===========================================================================
+
+alter table public.user_directory add column if not exists tags text[] not null default '{}';
+create index if not exists user_directory_tags_idx on public.user_directory using gin (tags);
+
+create or replace function public.user_directory_tags_tidy()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.tags := coalesce((
+    select array_agg(t order by first_at)
+      from (select distinct on (lower(btrim(x))) btrim(x) as t, ord as first_at
+              from unnest(coalesce(new.tags, '{}'::text[])) with ordinality u(x, ord)
+             where btrim(coalesce(x, '')) <> ''
+             order by lower(btrim(x)), ord) s), '{}'::text[]);
+  return new;
+end $$;
+
+drop trigger if exists user_directory_tags_tidy on public.user_directory;
+create trigger user_directory_tags_tidy
+  before insert or update of tags on public.user_directory
+  for each row execute function public.user_directory_tags_tidy();
+
+comment on column public.user_directory.tags is
+  'Free-text tags, several per person (0408). "CAPA Responsibility" puts the person on the Field Failure Register''s CAPA Responsibility list. Trimmed, blanks dropped, one per spelling case-blind.';
 
 -- ------------------------------------------------------------------------
 -- 0122_user_directory_replay_tail.sql
@@ -5016,7 +5086,7 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
   ('masters.product_master.delete', 'masters.edit'),
-  -- D-129 (0401, 2026-10-05): an editor of the review reads its answers.
+  -- D-129 (0416, 2026-10-05): an editor of the review reads its answers.
   ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
@@ -11434,11 +11504,11 @@ create trigger zy_pdqc_number before insert or update on public.pdqc_records
 alter table public.pdqc_records alter column pdqc_no set not null;
 
 -- ------------------------------------------------------------------------
--- 0403_indoor_approval_skips_a_solved_call.sql
+-- 0418_indoor_approval_skips_a_solved_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0403 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0418 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -11648,7 +11718,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0403.
+-- In the indoor module, after 0418.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -11837,11 +11907,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0404_indoor_record_visit_closed_and_comments.sql
+-- 0419_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0404 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0419 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --
@@ -11871,11 +11941,11 @@ comment on column public.indoor_jobs.visit_filed_at is
   'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
 
 -- ------------------------------------------------------------------------
--- 0412_indoor_reported_to_customer_stamp.sql
+-- 0427_indoor_reported_to_customer_stamp.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0412 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+-- 0427 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
 --        (second re-review D-039, FRS-143.9)
 --
 -- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
@@ -11886,7 +11956,7 @@ comment on column public.indoor_jobs.visit_filed_at is
 --   * a time in the future is refused (five minutes' grace for a clock);
 --   * clearing the time clears the person.
 -- A connection with no session (a repair, an import) is left alone.
--- In the indoor module, after 0404.
+-- In the indoor module, after 0419.
 -- ===========================================================================
 
 create or replace function public.indoor_reported_to_customer_stamp()
@@ -15256,11 +15326,11 @@ create policy masters_delete on public.masters for delete
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 
 -- ------------------------------------------------------------------------
--- 0409_master_value_in_use_kept.sql
+-- 0424_master_value_in_use_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0409 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
+-- 0424 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
 --        (second re-review D-056, FRS-015, FRS-180.6)
 --
 -- Master Lists offered Delete to a holder of master.<list>.delete, and
@@ -16391,11 +16461,11 @@ AS $function$
 $function$;
 
 -- ------------------------------------------------------------------------
--- 0405_user_master_keeps_history.sql
+-- 0420_user_master_keeps_history.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0405 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+-- 0420 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
 --        (second re-review D-059)
 --
 -- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
@@ -20453,11 +20523,114 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0413_field_call_vigilance_answered.sql
+-- 0406_install_call_registers_requests.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0413 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0406 -- AN INSTALLATION CALL REGISTERS THE PENDING INSTALLATION REQUESTS FOR
+-- ITS MACHINE (the user, 2026-10-08: "When I generate an Installation Call, if
+-- there are any requests for the same (Product + Serial No) in pending
+-- Registrations, then it should be marked as registered and the UCN should be
+-- updated").
+--
+-- Asked and answered:
+--   * Which requests: INSTALLATION requests only. A pending Field or PM request
+--     on the same machine asks for a different visit and stays pending.
+--   * Requests already pending for a machine that already has an installation
+--     call: yes, once, now -- with the machine's LATEST installation call.
+--
+-- THE RULE, in the database so every way an installation call is created --
+-- the Installation register, Create new call on Pending Registrations, a bulk
+-- upload -- does it alike. On INSERT of an installation call that is not
+-- cancelled and names a product AND a serial, every call request that
+--   * is still PENDING (no UCN, status blank or Pending -- Cancelled, Mapped
+--     and Registered are deliberate answers and are never touched),
+--   * is an INSTALLATION request (its call type begins INSTALL, the rule
+--     callFamily() and call_table_for() use), and
+--   * names the same product and serial (case and spaces aside),
+-- takes the call's UCN and becomes Registered, actioned by whoever created the
+-- call, now. call_requests_biu (0083) would set Registered from the UCN on its
+-- own; it is written here so the record does not depend on that. A Pending
+-- request is editable, so call_request_content_frozen does not object, and
+-- none of the request's own content is changed.
+--
+-- SECURITY DEFINER: the person registering the call may not hold the right to
+-- update call requests, and the request must still close. The function is a
+-- trigger and nothing else, so nobody may call it.
+-- ===========================================================================
+
+create or replace function public.install_call_registers_requests()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_by text := coalesce((select p.full_name from public.profiles p where p.id = auth.uid()), '');
+begin
+  if new.cancelled_at is not null
+     or btrim(coalesce(new.ucn, '')) = ''
+     or btrim(coalesce(new.product_name, '')) = ''
+     or btrim(coalesce(new.serial, '')) = '' then
+    return new;
+  end if;
+
+  update public.call_requests q
+     set ucn = new.ucn,
+         status = 'Registered',
+         actioned_by = v_by,
+         actioned_at = now()
+   where btrim(coalesce(q.ucn, '')) = ''
+     and btrim(coalesce(q.status, '')) in ('', 'Pending')
+     and upper(btrim(coalesce(q.call_type, ''))) like 'INSTALL%'
+     and lower(btrim(coalesce(q.product, ''))) = lower(btrim(new.product_name))
+     and lower(btrim(coalesce(q.serial_no, ''))) = lower(btrim(new.serial));
+  return new;
+end $$;
+
+revoke execute on function public.install_call_registers_requests() from public, anon, authenticated;
+
+drop trigger if exists zz_install_call_registers_requests on public.installation_calls;
+create trigger zz_install_call_registers_requests
+  after insert on public.installation_calls
+  for each row execute function public.install_call_registers_requests();
+
+-- ---- ONCE: the requests already pending for a machine already installed ----
+do $once$
+declare n integer;
+begin
+  with latest as (
+    select distinct on (lower(btrim(ic.product_name)), lower(btrim(ic.serial)))
+           lower(btrim(ic.product_name)) as p, lower(btrim(ic.serial)) as s, ic.ucn
+      from public.installation_calls ic
+     where ic.cancelled_at is null
+       and btrim(coalesce(ic.ucn, '')) <> ''
+       and btrim(coalesce(ic.product_name, '')) <> ''
+       and btrim(coalesce(ic.serial, '')) <> ''
+     order by lower(btrim(ic.product_name)), lower(btrim(ic.serial)),
+              ic.reg_at desc nulls last, ic.reg_date desc nulls last, ic.ucn desc
+  )
+  update public.call_requests q
+     set ucn = l.ucn,
+         status = 'Registered',
+         actioned_by = 'Data fix 0406 (its machine already had an installation call)',
+         actioned_at = now()
+    from latest l
+   where btrim(coalesce(q.ucn, '')) = ''
+     and btrim(coalesce(q.status, '')) in ('', 'Pending')
+     and upper(btrim(coalesce(q.call_type, ''))) like 'INSTALL%'
+     and lower(btrim(coalesce(q.product, ''))) = l.p
+     and lower(btrim(coalesce(q.serial_no, ''))) = l.s;
+  get diagnostics n = row_count;
+  raise notice '0406: % pending installation request(s) registered against their machine''s existing installation call', n;
+end $once$;
+
+-- ------------------------------------------------------------------------
+-- 0428_field_call_vigilance_answered.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0428 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -20509,11 +20682,11 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
--- 0408_call_request_attended_not_future.sql
+-- 0423_call_request_attended_not_future.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0408 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+-- 0423 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
 --        (second re-review D-030, part 3)
 --
 -- The Attended Date on Request Registration had no upper bound, and it becomes
@@ -20550,11 +20723,11 @@ create trigger call_request_attended_not_future
   for each row execute function public.call_request_attended_not_future();
 
 -- ------------------------------------------------------------------------
--- 0411_call_reopen_reason_recorded.sql
+-- 0426_call_reopen_reason_recorded.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0411 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+-- 0426 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
 --        (second re-review D-035, FRS-133.4, FRS-120.9)
 --
 -- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
@@ -20615,7 +20788,7 @@ begin
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
   end if;
-  -- 0411 (D-035, FRS-120.9): a re-open says why.
+  -- 0426 (D-035, FRS-120.9): a re-open says why.
   if btrim(coalesce(p_reason, '')) = '' then
     raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
   end if;
@@ -20630,7 +20803,7 @@ begin
      set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
    where ucn = p_ucn;
 
-  -- 0411 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  -- 0426 (D-035, FRS-133.4): the reason, the person and the time, kept.
   insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
   values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
 
@@ -27241,11 +27414,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0401_review_answers_read_key.sql
+-- 0416_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0401 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0416 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -27284,7 +27457,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0401_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0416_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -27292,16 +27465,16 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0401_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0401: % role(s) holding review.edit given review.view', n;
+  values ('0416_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0416: % role(s) holding review.edit given review.view', n;
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0407_ffr_customer_and_problem_required.sql
+-- 0422_ffr_customer_and_problem_required.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0407 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+-- 0422 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
 --        (second re-review D-027)
 --
 -- The Field Failure Report form refuses a report without Customer Name or
@@ -27315,7 +27488,7 @@ end $$;
 -- Not stopped: an import (bulk.upload / import.panel), a connection with no
 -- session, and a function running as its owner (ffr_from_review raises a
 -- report from the Daily Complaint Review and fills both from the call).
--- In the daily_review module, after 0401.
+-- In the daily_review module, after 0416.
 -- ===========================================================================
 
 create or replace function public.ffr_customer_and_problem_required()
@@ -39044,6 +39217,913 @@ comment on view public.stores_dispatch_report is
   'Stores Dispatch Report (0385, 0387, 0388): one row per spare line dispatched, in the AppSheet Stores format -- live dispatches, plus the historical stock outs from 1 January 2025 not already dispatched in RITHI (Source = Historical). Final approval = latest of RM / Commercial / NSM for a live line, the file''s Request Final Approval Date for a historical one; blank where none, band "No approval date"; days to dispatch exact to one decimal, banded 00-03D ... >60D; Year / Month / YY - MM of the dispatch in India time.';
 
 -- ------------------------------------------------------------------------
+-- 0401_negative_handstock_allowed_and_notified.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A SPARE MAY BE CONSUMED BEYOND THE HAND STOCK; THE SPARE COORDINATOR IS TOLD.
+--
+-- The user, 2026-10-08, on a visit that saved while its spares were refused
+-- ("ABHISHEK BISWAS has 0 of ESA-009 in hand, so 1 cannot be consumed"):
+-- "Allow even if it's negative but notify the Spare Coordinator about the
+-- negative spare."
+--
+-- UNTIL NOW consumption was the hand-stock CONTROL POINT (0061): a line larger
+-- than the engineer's balance was refused, and the correction had to come
+-- first. That kept the balance from going below zero, at the price of a part
+-- that WAS fitted not being recorded at all -- the visit saved and its spares
+-- did not. The user has chosen the other order: record what was fitted, then
+-- correct the stock. So:
+--
+--   consumption_reconcile_guard (insert) -- the over-balance line is BOOKED
+--     and notify_negative_handstock() is called in place of the refusal. Every
+--     other rule in it is unchanged: the quantity must be positive, a
+--     reconciliation still needs its UCN, engineer, part and reason, and an
+--     imported line still skips the check.
+--   consumption_adjust_guard (update) -- raising a saved line past the balance
+--     is allowed and notified the same way; its other rules are unchanged.
+--
+-- Both bodies were READ OUT OF A DATABASE built from every migration before
+-- being replaced (CLAUDE.md: a function rewritten from an old revision loses
+-- the rules added since), and only the refusal is changed in each.
+--
+-- NOT CHANGED: stock transfers and material returns still move only what is
+-- held (0339) -- handing over or returning stock you do not have is a
+-- different thing from recording a part you fitted. The recycling stock (0355)
+-- keeps its own limit.
+--
+-- THE NOTIFICATION goes to every ACTIVE profile whose role is
+-- spare_coordinator, on the bell, linking to Hand Stock. Nobody holding that
+-- role means nobody is told -- the line is still booked; _status.sql row 321
+-- says how many coordinators would receive it.
+-- ===========================================================================
+
+create or replace function public.notify_negative_handstock(
+  p_engineer text, p_part text, p_avail numeric, p_qty numeric, p_ucn text, p_how text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare after numeric := coalesce(p_avail, 0) - coalesce(p_qty, 0);
+begin
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  select p.id, coalesce(p.email, ''), 'negative_handstock',
+         'Hand stock gone negative: ' || public.part_code(p_part),
+         concat_ws(' · ',
+           btrim(coalesce(p_engineer, '')),
+           nullif(btrim(coalesce(p_part, '')), ''),
+           'had ' || trim(to_char(coalesce(p_avail, 0), 'FM999999990.##')) || ', '
+             || trim(to_char(coalesce(p_qty, 0), 'FM999999990.##')) || ' consumed, now '
+             || trim(to_char(after, 'FM999999990.##')),
+           nullif('UCN ' || btrim(coalesce(p_ucn, '')), 'UCN '),
+           nullif(btrim(coalesce(p_how, '')), '')),
+         '/handstock'
+    from public.profiles p
+   where p.role = 'spare_coordinator' and coalesce(p.active, true);
+end $$;
+comment on function public.notify_negative_handstock(text, text, numeric, numeric, text, text) is
+  'Tells every active Spare Coordinator that a consumption took an engineer''s hand stock of a part below zero (0401). Called by consumption_reconcile_guard and consumption_adjust_guard only.';
+-- Called only by the two definer triggers above, which run as the owner.
+revoke execute on function public.notify_negative_handstock(text, text, numeric, numeric, text, text) from public, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.consumption_reconcile_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare avail numeric; is_recon boolean;
+begin
+  is_recon := coalesce(new.source, 'Report') = 'Reconciliation';
+
+  if coalesce(new.qty, 0) <= 0 then
+    raise exception 'Quantity must be more than zero';
+  end if;
+
+  -- Everything is required on a hand-booked line: whose stock it came off,
+  -- what was used, and why. A stock adjustment with no stated reason is not
+  -- auditable, which is the point of flagging these separately.
+  if is_recon then
+    if coalesce(btrim(new.ucn), '') = '' then
+      raise exception 'A reconciliation needs the UCN of the call the spare was used on';
+    end if;
+    if not exists (select 1 from public.calls c where c.ucn = btrim(new.ucn)) then
+      raise exception 'No call found with UCN % — check the number', btrim(new.ucn);
+    end if;
+    if coalesce(btrim(new.engineer), '') = '' then
+      raise exception 'A reconciliation needs the engineer whose hand stock the spare came off';
+    end if;
+    if coalesce(btrim(new.part), '') = '' then
+      raise exception 'A reconciliation needs the part';
+    end if;
+    if coalesce(btrim(new.remarks), '') = '' then
+      raise exception 'A reconciliation needs a reason (why the spare is being booked by hand)';
+    end if;
+  end if;
+
+  -- An imported line is a record, not a request: it says what was used, and the
+  -- issues that covered it may be in a file that is not loaded yet.
+  if coalesce(btrim(new.source_ref), '') <> '' then
+    return new;
+  end if;
+
+  -- THE BALANCE CHECK — every line, however it was written. Skipped only when
+  -- the row names no engineer or no part, where there is no balance to check.
+  if coalesce(btrim(new.engineer), '') = '' or coalesce(btrim(new.part), '') = '' then
+    return new;
+  end if;
+
+  select coalesce(b.on_hand, 0) into avail
+    from public.handstock_balance b
+   where b.engineer_key = public.handstock_key(new.engineer)
+     and b.part_code    = public.part_code(new.part);
+
+  -- NO LONGER A REFUSAL (0401, the user, 2026-10-08: "Allow even if it's
+  -- negative but notify the Spare Coordinator about the negative spare").
+  -- The line is booked as reported and the hand stock goes below zero; every
+  -- active Spare Coordinator is told, so the stock is corrected afterwards
+  -- rather than the consumption being refused beforehand.
+  if coalesce(avail, 0) < new.qty then
+    perform public.notify_negative_handstock(
+      new.engineer, new.part, coalesce(avail, 0), new.qty, new.ucn,
+      case when is_recon then 'Reconciliation' else 'Visit' end);
+  end if;
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.consumption_adjust_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare avail numeric; delta numeric;
+begin
+  if coalesce(new.ucn, '')      is distinct from coalesce(old.ucn, '')
+  or (coalesce(new.engineer, '') is distinct from coalesce(old.engineer, '')
+      -- A USER MASTER RENAME (0259): the same person, spelled correctly. It
+      -- changes no quantity, so nothing below has anything to check.
+      and not public.engineer_rename_in_progress(old.engineer, new.engineer))
+  or coalesce(new.source, '')   is distinct from coalesce(old.source, '') then
+    raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+  end if;
+
+  if coalesce(new.part, '') is distinct from coalesce(old.part, '') then
+    -- ONLY the substitution rename_part() filed a ticket for, in THIS
+    -- transaction, for this exact row's current value. Anything else is a line
+    -- being re-pointed, which is what this guard is for.
+    if not exists (
+      select 1 from public.part_rename_ticket t
+       where t.txid = txid_current()
+         and t.old_key = lower(btrim(coalesce(old.part, '')))
+         and t.new_detail = coalesce(new.part, '')
+    ) then
+      raise exception 'A reconciliation can only change the quantity — not the call, part, engineer or source';
+    end if;
+    -- A rename changes no quantity, so the stock arithmetic below has nothing
+    -- to check and the cap cannot be affected.
+    if new.qty is not distinct from old.qty then return new; end if;
+  end if;
+
+  if new.qty is not distinct from old.qty then
+    return new;                        -- nothing quantitative changed
+  end if;
+  if coalesce(new.qty, 0) < 0 then
+    raise exception 'Quantity cannot be negative';
+  end if;
+
+  -- The one exemption: the same imported line, re-loaded from its source --
+  -- by somebody who may load history (0339, D-119).
+  if coalesce(btrim(new.source_ref), '') <> ''
+     and btrim(new.source_ref) is not distinct from btrim(old.source_ref)
+     and public.stock_import_allowed() then
+    return new;
+  end if;
+
+  if coalesce(new.qty, 0) <= 0 and coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the line is being voided — the reason is kept with it';
+  end if;
+  if coalesce(btrim(new.adjustment_reason), '') = '' then
+    raise exception 'Say why the quantity is being adjusted — the reason is kept with the line';
+  end if;
+
+  delta := coalesce(new.qty, 0) - coalesce(old.qty, 0);
+  if delta > 0 then
+    -- THE BALANCE THE INSERT CAP READS (consumption_reconcile_guard), and the
+    -- same skip for a line naming no engineer or no part. 0196 called a
+    -- helper here that no migration defines (see the header).
+    -- A nested test, not an early return: what follows this block stamps
+    -- original_qty and adjusted_at, and must run for every adjustment.
+    if coalesce(btrim(new.engineer), '') <> '' and coalesce(btrim(new.part), '') <> '' then
+      select coalesce(b.on_hand, 0) into avail
+        from public.handstock_balance b
+       where b.engineer_key = public.handstock_key(new.engineer)
+         and b.part_code    = public.part_code(new.part);
+      -- Raising a line past the balance is allowed too, and notified (0401).
+      if delta > coalesce(avail, 0) then
+        perform public.notify_negative_handstock(
+          new.engineer, new.part, coalesce(avail, 0), delta, new.ucn, 'Quantity raised');
+      end if;
+    end if;
+  end if;
+
+  -- RESTORED (0317, D-082): the quantity before the FIRST change, and when the
+  -- line was last adjusted. 0081 had both; 0196 rewrote this function from an
+  -- older body and dropped them, 0261 and 0316 kept the omission.
+  if old.original_qty is null then new.original_qty := old.qty; end if;
+  new.adjusted_at := now();
+  return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0405_spare_request_engineer_from_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0405 -- A SPARE REQUEST WITH NO ENGINEER TAKES THE ONE ITS STOCK OUT NAMES
+-- (the user, 2026-10-08, on ABHISHEK BISWAS / ESA-009: "Stock out should be 6
+-- from history, but its showing 5" -- and, asked how to fix it: "I write a
+-- one-time fix").
+--
+-- WHAT WENT WRONG. A historical stock out (spare_issue_history, the Stock Out
+-- export) is not counted from history when its line_uid is a live request line
+-- marked dispatched -- the live line is counted instead, so nothing is counted
+-- twice. The live line is booked to the REQUEST's engineer. Some requests were
+-- loaded through Bulk Uploads -> Spare Request with Engineer Name empty, so the
+-- unit was booked to NOBODY and left the engineer's hand stock. Measured on the
+-- live project (_stock_outs_lost_to_a_blank_engineer.sql): 57 history rows, 68
+-- units, all early-January 2026 requests; ABHISHEK BISWAS's SO17541 (OR42974)
+-- is one. 8,054 rows reach the same engineer either way; none reach another.
+--
+-- THE FIX, once, and only where it is certain. A request whose engineer is
+-- BLANK takes the engineer the Stock Out history names for its own lines --
+-- matched by line_uid, the same match the hand stock uses -- and ONLY when
+-- every history row of every one of its lines names the SAME engineer. A
+-- request whose lines disagree is left exactly as it is and named in a NOTICE.
+-- A request that already names an engineer is never touched.
+--
+-- ON RECORD, THE WAY "CHANGE ENGINEER" RECORDS IT. The database allows an
+-- engineer change only through reassign_spare_request() (0100), which also
+-- writes spare_request_engineer_log. That function cannot run here -- it needs
+-- a signed-in holder of spare.reassign, and it refuses a dispatched request,
+-- which all of these are. So this does what it does and nothing more: the same
+-- per-request transaction flag (`rithi.reassigning` = the request's uid) that
+-- both engineer guards honour, the same email lookup (the login whose full
+-- name is the engineer's; blank if none), and one log row per request with the
+-- reason saying where the name came from. No guard is switched off.
+--
+-- IDEMPOTENT: a second run finds no blank engineer it can fill.
+-- ===========================================================================
+
+do $fix$
+declare
+  r record;
+  n_fixed integer := 0;
+  n_left integer := 0;
+  v_mail text;
+begin
+  if to_regclass('public.spare_issue_history') is null
+     or to_regclass('public.spare_request_engineer_log') is null then
+    return;
+  end if;
+
+  for r in
+    with blank as (
+      select q.uid, q.or_no, q.engineer_email
+        from public.spare_requests q
+       where btrim(coalesce(q.engineer, '')) = ''
+    ), named as (
+      select b.uid, b.or_no, b.engineer_email,
+             array_agg(distinct btrim(h.engineer)) filter (where btrim(coalesce(h.engineer, '')) <> '') as engineers,
+             string_agg(distinct coalesce(h.so_no, ''), ', ') as so_nos
+        from blank b
+        join public.spare_request_lines l on l.request_uid = b.uid
+        join public.spare_issue_history h
+          on h.line_uid <> '' and lower(btrim(h.line_uid)) = lower(btrim(l.line_uid))
+       group by b.uid, b.or_no, b.engineer_email
+    )
+    select * from named where engineers is not null order by or_no
+  loop
+    -- "The same engineer" is the same NAME, case and spaces aside.
+    if (select count(distinct lower(e)) from unnest(r.engineers) e) <> 1 then
+      n_left := n_left + 1;
+      raise notice '0405: % left as it is -- its Stock Out lines name % different engineers: %',
+        coalesce(nullif(r.or_no, ''), r.uid), array_length(r.engineers, 1), array_to_string(r.engineers, ', ');
+      continue;
+    end if;
+
+    v_mail := lower(btrim(coalesce(nullif(r.engineer_email, ''),
+                (select p.email from public.profiles p
+                  where lower(p.full_name) = lower(r.engineers[1]) order by p.id limit 1), '')));
+
+    perform set_config('rithi.reassigning', r.uid, true);
+
+    insert into public.spare_request_engineer_log
+      (request_uid, or_no, from_engineer, from_email, to_engineer, to_email, reason, changed_by, changed_by_name)
+    values (r.uid, coalesce(r.or_no, ''), '', coalesce(r.engineer_email, ''), r.engineers[1], v_mail,
+            '0405 data fix: the request was loaded with no engineer; the Stock Out history of its lines ('
+              || r.so_nos || ') names ' || r.engineers[1],
+            null, 'Data fix 0405');
+
+    update public.spare_requests
+       set engineer = r.engineers[1],
+           engineer_email = case when btrim(coalesce(engineer_email, '')) = '' then v_mail else engineer_email end
+     where uid = r.uid and btrim(coalesce(engineer, '')) = '';
+
+    perform set_config('rithi.reassigning', '', true);
+    n_fixed := n_fixed + 1;
+  end loop;
+
+  raise notice '0405: % spare request(s) given the engineer their Stock Out history names; % left as they were (their lines disagree)',
+    n_fixed, n_left;
+end $fix$;
+
+-- ------------------------------------------------------------------------
+-- 0411_winmax_opening_good_only.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0411 -- THE WINMAX OPENING IS THE GOOD BALANCE ONLY (the user, 2026-10-12:
+-- "Only the Good balance should be taken as WinMax opening Balance, but the
+-- Defective Balance is taken as Opening Balance -- For Example - MP-010 --
+-- SUNIL KUMAR.K.V - Opening is 170 matches with the Defective QTY from Winmax.
+-- Fix it").
+--
+-- The WinMax upload ("Opening Stock -- the WinMax export") added the Defective
+-- Balance to the Good Balance (D-161). MP-010 / SUNIL KUMAR.K.V: Good Balance
+-- empty, Defective Balance 170, opening 170. The upload now takes the Good
+-- Balance alone; this corrects the rows already loaded.
+--
+-- Measured on the live project first (_winmax_opening_good_vs_defective.sql):
+-- 1,186 WinMax HS rows, 7,816 units; 1,035 carry a Defective Balance, 6,727
+-- units; 815 have no Good Balance at all; on every row qty = good + defective,
+-- so the good balance is qty - defective exactly. Taking it out leaves 53
+-- lines below zero (-91 in all; MP-010 / SUNIL 168 -> -2) -- what the
+-- engineer consumed beyond his good stock, which is the Spare Coordinator's
+-- to settle with a Hand Stock adjustment.
+--
+--   * A row whose Good Balance is nothing (qty = defective) is REMOVED: the
+--     corrected upload holds such a row back, so it is not opening stock. The
+--     row audit (record_audit) keeps its image.
+--   * Any other row keeps qty - defective, and records what was taken out as
+--     data._0411_defective_removed.
+--
+-- ONCE, and safely re-runnable: a row already corrected carries the marker,
+-- and a row written after this file (the corrected upload, which never adds
+-- the defective) is left alone by the cutoff, so nothing is subtracted twice.
+-- A migration writes with no signed-in user, which stock_import_allowed()
+-- (0339) trusts with history, so the cut is not refused as a stock move.
+-- ===========================================================================
+
+do $once$
+declare
+  v_cutoff timestamptz := '2026-10-12T05:50:00Z';
+  n_upd integer; n_del integer; u_upd numeric; u_del numeric;
+begin
+  create temp table _w0411 on commit drop as
+  select o.id, o.qty,
+         coalesce(nullif(replace(btrim(coalesce(o.data ->> 'Defective Balance', '')), ',', ''), '')::numeric, 0) as defective
+    from public.handstock_opening o
+   where o.source_key = 'winmax hs'
+     and not (o.data ? '_0411_defective_removed')
+     and o.updated_at <= v_cutoff;
+  delete from _w0411 where defective <= 0;
+
+  select count(*), coalesce(sum(defective), 0) into n_del, u_del from _w0411 where qty - defective <= 0;
+  delete from public.handstock_opening o using _w0411 w
+   where o.id = w.id and w.qty - w.defective <= 0;
+
+  select count(*), coalesce(sum(defective), 0) into n_upd, u_upd from _w0411 where qty - defective > 0;
+  update public.handstock_opening o
+     set qty = w.qty - w.defective,
+         data = o.data || jsonb_build_object('_0411_defective_removed', w.defective),
+         updated_at = now()
+    from _w0411 w
+   where o.id = w.id and w.qty - w.defective > 0;
+
+  raise notice '0411: WinMax HS opening -- % row(s) with no Good Balance removed (% defective units), % row(s) cut to the Good Balance (% defective units taken out)',
+    n_del, u_del, n_upd, u_upd;
+end $once$;
+
+-- ------------------------------------------------------------------------
+-- 0412_handstock_starts_at_winmax.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0412 -- HAND STOCK STARTS AT THE WINMAX OPENING, 09-JUN-2022 (D-162; the
+-- user, 2026-10-12: "Skip all consumption & Stockout before 10June2022 --
+-- 10June2022 - Winmax Opening Resets all old transactions", then, on being
+-- told the WinMax pool is dated 09-Jun-2022: "correct, its 9 Jun").
+--
+-- The WinMax HS pool is the balance as it stood when the sheet era began,
+-- dated 09-Jun-2022. Everything before it is already inside that figure, so
+-- counting it again is double counting -- MP-010 / SUNIL KUMAR.K.V read -2
+-- because three consumptions of March 2022 were taken off a balance struck
+-- three months after them.
+--
+-- NOTHING NEW IS BUILT FOR IT. 0096's period close is this exact line: every
+-- arm of handstock_movements -- stock outs, consumption, transfers, returns,
+-- adjustments, historical and live, and the opening pools themselves -- counts
+-- only what falls at or after handstock_cutoff(). Closing through 08-Jun-2022
+-- puts the line at the start of 09-Jun-2022, so the WinMax pool counts and
+-- everything older does not. NOTHING IS DELETED: the old rows stay in their
+-- tables and in every report that reads them; only hand stock stops counting
+-- them.
+--
+-- Measured on the live project first (_winmax_cut_and_labour.sql): before the
+-- line, 69 historical consumptions (76 units) and 10 returns (12 units), no
+-- stock out; 41 engineer-and-part lines change, 10 stop being negative and
+-- none becomes negative; MP-010 / SUNIL goes from -2 to 1.
+--
+-- THE LINE IS DRAWN AT MIDNIGHT IN INDIA, NOT AT MIDNIGHT UTC. 0096 cast the
+-- date with `::timestamptz`, which takes the session's zone -- UTC on the
+-- live project -- so the line fell at 05:30 IST, and three consumptions made
+-- on 09-Jun-2022 before 05:30 (4 units) would have been cut with the day
+-- before. A day here is an Indian day. handstock_line() is the ONE place the
+-- line is computed, and close_handstock_period() now reads it too: 0096's
+-- rule is that the close and the arms divide the SAME instant, and moving one
+-- of them alone would put a few hours on both sides.
+--
+-- The close is written by a migration, which runs with no signed-in user, so
+-- it updates handstock_period directly (set_handstock_cutoff() asks for a
+-- role). It never moves an existing line BACKWARDS: a later close stands.
+-- ===========================================================================
+
+-- The first instant still open after closing through p_through: the start of
+-- the next day in India.
+create or replace function public.handstock_line(p_through date)
+returns timestamptz language sql immutable set search_path = public as $$
+  select ((p_through + 1)::timestamp at time zone 'Asia/Kolkata')
+$$;
+comment on function public.handstock_line(date) is
+  'The first instant still open after closing hand stock through a date: the start of the next day in India (0412). handstock_cutoff() and close_handstock_period() both read it, so they divide the same instant.';
+
+create or replace function public.handstock_cutoff()
+returns timestamptz language sql stable security definer set search_path = public as $$
+  select coalesce(public.handstock_line((select closed_through from public.handstock_period limit 1)),
+                  '-infinity'::timestamptz);
+$$;
+grant execute on function public.handstock_cutoff() to authenticated;
+
+-- 0096's body, read out of a database built from every migration; ONE line
+-- changed -- the line is handstock_line(p_through), not a UTC cast.
+create or replace function public.close_handstock_period(p_through date)
+returns table(pools integer, parts numeric)
+language plpgsql security definer set search_path = public as $function$
+declare
+  v_source text := 'Opening ' || to_char(p_through + 1, 'YYYY');
+  v_name   text := coalesce((select full_name from public.profiles where id = auth.uid()), '');
+begin
+  if not (public.is_admin() or public.has_perm('consumption.reconcile')) then
+    raise exception 'Closing a hand-stock period is the Spare Coordinator''s or an administrator''s to do';
+  end if;
+  if p_through is null or p_through >= current_date then
+    raise exception 'Close a period that has ENDED — % is not in the past', p_through;
+  end if;
+
+  -- `< the first open instant` — the exact complement of what the arms keep, so
+  -- the closing day belongs to the figure and to nothing else.
+  create temp table _close on commit drop as
+  select engineer_key,
+         min(engineer) filter (where engineer <> '') as engineer,
+         part_code,
+         min(part)     filter (where part <> '')     as part,
+         sum(case when direction = 'IN' then qty else -qty end) as on_hand
+    from public.handstock_movements
+   where moved_at is null
+      or moved_at < public.handstock_line(p_through)
+   group by engineer_key, part_code
+  having sum(case when direction = 'IN' then qty else -qty end) <> 0;
+
+  insert into public.handstock_opening (engineer, part, qty, as_of, source, remarks, recorded_by, recorded_by_name)
+  select coalesce(engineer, engineer_key), coalesce(part, part_code), on_hand,
+         p_through + 1, v_source,
+         'Closed through ' || to_char(p_through, 'DD-Mon-YYYY') || ' — the net of every movement up to that date.',
+         auth.uid(), v_name
+    from _close
+   where coalesce(engineer, engineer_key) <> '' and coalesce(part, part_code) <> ''
+  on conflict (engineer_key, part_code, source_key) do update
+     set qty = excluded.qty, as_of = excluded.as_of, remarks = excluded.remarks, updated_at = now();
+
+  update public.handstock_period
+     set closed_through = p_through, closed_at = now(), closed_by = auth.uid(), closed_by_name = v_name
+   where singleton;
+
+  return query select count(*)::int, coalesce(sum(on_hand), 0) from _close;
+end $function$;
+revoke all on function public.close_handstock_period(date) from public;
+grant execute on function public.close_handstock_period(date) to authenticated;
+
+-- The line itself: closed through 08-Jun-2022, so 09-Jun-2022 is the first
+-- day counted. Only ever forward.
+insert into public.handstock_period (singleton) values (true) on conflict (singleton) do nothing;
+update public.handstock_period
+   set closed_through = date '2022-06-08', closed_at = now(), closed_by = null,
+       closed_by_name = 'WinMax opening 09-Jun-2022 (0412)'
+ where singleton and (closed_through is null or closed_through < date '2022-06-08');
+
+-- ------------------------------------------------------------------------
+-- 0413_labour_charges.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0413 -- LABOUR CHARGES: BOOKED ON A CONSUMPTION, NEVER HELD AS STOCK (D-163;
+-- the user, 2026-10-12: "These 3 are Labour charges, Stock need not be
+-- maintained since it not something physically accounted for. And Users can
+-- add these to Consumption -- It is meant more for tracking -- the Qty should
+-- always be 1 when it is being selected.
+--   SC001   SERVICE CHARGES (SAC NO:998719)
+--   TC001   TRANSPORTATION CHARGES
+--   INS-001 INSTALLATION CHARGES").
+--
+-- Measured on the live project first (_winmax_cut_and_labour.sql): all three
+-- are on the Part Master (INS-001 and TC001 inactive); 1 consumption and 167
+-- historical consumptions, every one of quantity 1; never issued, never in an
+-- opening pool -- so each shows as hand stock BELOW ZERO: 39 engineer lines,
+-- -168 units, and since 0401 every new one tells the Spare Coordinators to
+-- correct a stock that cannot exist.
+--
+--   * parts.labour_charge -- the Part Master says which parts are labour, so
+--     the list is the master's and not this file's. A COLUMN OF ITS OWN, not a
+--     category: the Spare / Consumable column is the Item Master's word and a
+--     Part Master upload rewrites it, where this column is in no upload. The
+--     three are ticked ONCE, when the column is created; untick or tick on the
+--     Part Master after that and a re-run leaves it alone.
+--   * handstock_movements leaves a labour part out of EVERY arm, so it has no
+--     hand stock line, no balance, no trail -- 0266's ten arms, read out of a
+--     database built from every migration, wrapped in one filter rather than
+--     edited arm by arm. The consumption rows are untouched: every report,
+--     count and download that reads spare_consumption still has them, which
+--     is the tracking they are for.
+--   * notify_negative_handstock() says nothing for a labour part (0401's body,
+--     one guard added): the hand stock it would report does not exist.
+--   * QUANTITY 1. A new labour line must be 1; a saved one may be 1, or 0 when
+--     it is voided (0049: a wrong line is voided, never deleted). Refused, not
+--     rewritten: a silently changed quantity on a quality record is worse than
+--     a message.
+-- ===========================================================================
+
+do $seed$
+begin
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'parts' and column_name = 'labour_charge') then
+    alter table public.parts add column labour_charge boolean not null default false;
+    update public.parts set labour_charge = true
+     where upper(btrim(code)) in ('SC001', 'TC001', 'INS-001');
+  end if;
+end $seed$;
+comment on column public.parts.labour_charge is
+  'A labour charge (service, transport, installation): booked on a consumption for tracking, quantity 1, never held as hand stock (0413).';
+
+-- The labour part codes, upper-case, as part_code() writes them. One array,
+-- asked once per query (an InitPlan where it is wrapped in a sub-select).
+create or replace function public.labour_part_codes()
+returns text[] language sql stable security definer set search_path = public as $$
+  select coalesce(array_agg(distinct upper(btrim(code))), '{}'::text[])
+    from public.parts where labour_charge and btrim(coalesce(code, '')) <> ''
+$$;
+revoke all on function public.labour_part_codes() from public, anon;
+grant execute on function public.labour_part_codes() to authenticated;
+
+create or replace view public.handstock_movements as
+select m.* from (
+   SELECT 'IN'::text AS direction,
+      'Stock out'::text AS movement,
+      handstock_key(r.engineer) AS engineer_key,
+      COALESCE(r.engineer, ''::text) AS engineer,
+      COALESCE(r.engineer_email, ''::text) AS engineer_email,
+      part_code(dl.part) AS part_code,
+      COALESCE(dl.part, ''::text) AS part,
+      COALESCE(dl.qty, 0::numeric) AS qty,
+      COALESCE(d.dispatched_at, dl.created_at) AS moved_at,
+      COALESCE(NULLIF(d.dc_number, ''::text), r.or_no, ''::text) AS ref,
+      'Stores DC'::text AS ref_type,
+      COALESCE(r.uid, ''::text) AS ref_uid,
+      COALESCE(r.ucn, ''::text) AS ucn,
+      COALESCE(r.call_number, ''::text) AS call_number,
+      COALESCE(r.party_name, ''::text) AS party_name,
+      COALESCE(NULLIF(l.dispatch_remarks, ''::text), ''::text) AS remarks
+     FROM spare_dispatch_lines dl
+       JOIN spare_dispatches d ON d.uid = dl.dispatch_uid
+       JOIN spare_request_lines l ON l.id = dl.line_id
+       JOIN spare_requests r ON r.uid = l.request_uid
+    WHERE COALESCE(d.dispatched_at, dl.created_at) >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+  UNION ALL
+   SELECT 'IN'::text AS direction,
+      'Stock out'::text AS movement,
+      handstock_key(r.engineer) AS engineer_key,
+      COALESCE(r.engineer, ''::text) AS engineer,
+      COALESCE(r.engineer_email, ''::text) AS engineer_email,
+      part_code(l.part) AS part_code,
+      COALESCE(l.part, ''::text) AS part,
+          CASE
+              WHEN COALESCE(l.dispatched_qty, 0::numeric) > 0::numeric THEN l.dispatched_qty
+              ELSE COALESCE(l.qty, 0::numeric)
+          END AS qty,
+      COALESCE(l.dispatched_at, r.dispatched_at, l.created_at, r.created_at) AS moved_at,
+      COALESCE(NULLIF(l.dc_number, ''::text), r.or_no, ''::text) AS ref,
+      'Stores DC'::text AS ref_type,
+      COALESCE(r.uid, ''::text) AS ref_uid,
+      COALESCE(r.ucn, ''::text) AS ucn,
+      COALESCE(r.call_number, ''::text) AS call_number,
+      COALESCE(r.party_name, ''::text) AS party_name,
+      COALESCE(NULLIF(l.dispatch_remarks, ''::text), ''::text) AS remarks
+     FROM spare_request_lines l
+       JOIN spare_requests r ON r.uid = l.request_uid
+    WHERE COALESCE(l.dispatched_at, r.dispatched_at, l.created_at, r.created_at) >= (( SELECT handstock_cutoff() AS handstock_cutoff)) AND (COALESCE(l.dispatched_qty, 0::numeric) > 0::numeric OR COALESCE(l.stores_status, ''::text) ~* 'dispatch'::text) AND NOT (EXISTS ( SELECT 1
+             FROM spare_dispatch_lines dl
+            WHERE dl.line_id = l.id))
+  UNION ALL
+   SELECT 'OUT'::text AS direction,
+      'Consumption'::text AS movement,
+      handstock_key(c.engineer) AS engineer_key,
+      COALESCE(c.engineer, ''::text) AS engineer,
+      COALESCE(c.engineer_email, ''::text) AS engineer_email,
+      part_code(c.part) AS part_code,
+      COALESCE(c.part, ''::text) AS part,
+      COALESCE(c.qty, 0::numeric) AS qty,
+      c.created_at AS moved_at,
+      COALESCE(NULLIF(btrim(c.call_number), ''::text), COALESCE(c.ucn, ''::text)) AS ref,
+      'Call'::text AS ref_type,
+      ''::text AS ref_uid,
+      COALESCE(c.ucn, ''::text) AS ucn,
+      COALESCE(c.call_number, ''::text) AS call_number,
+      ''::text AS party_name,
+      ''::text AS remarks
+     FROM spare_consumption c
+    WHERE c.created_at >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+  UNION ALL
+   SELECT 'OUT'::text AS direction,
+      'Transfer out'::text AS movement,
+      handstock_key(t.from_engineer) AS engineer_key,
+      COALESCE(t.from_engineer, ''::text) AS engineer,
+      ''::text AS engineer_email,
+      part_code(l.part) AS part_code,
+      COALESCE(l.part, ''::text) AS part,
+      COALESCE(l.qty, 0::numeric) AS qty,
+      COALESCE(t.transfer_date::timestamp with time zone, t.created_at) AS moved_at,
+      COALESCE(t.uid, ''::text) AS ref,
+      'Transfer'::text AS ref_type,
+      ''::text AS ref_uid,
+      ''::text AS ucn,
+      ''::text AS call_number,
+      COALESCE(t.to_engineer, ''::text) AS party_name,
+      COALESCE(t.remarks, ''::text) AS remarks
+     FROM stock_transfer_lines l
+       JOIN stock_transfers t ON t.uid = l.transfer_uid
+    WHERE COALESCE(t.transfer_date::timestamp with time zone, t.created_at) >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+  UNION ALL
+   SELECT 'IN'::text AS direction,
+      'Transfer in'::text AS movement,
+      handstock_key(t.to_engineer) AS engineer_key,
+      COALESCE(t.to_engineer, ''::text) AS engineer,
+      ''::text AS engineer_email,
+      part_code(l.part) AS part_code,
+      COALESCE(l.part, ''::text) AS part,
+      COALESCE(l.qty, 0::numeric) AS qty,
+      COALESCE(t.transfer_date::timestamp with time zone, t.created_at) AS moved_at,
+      COALESCE(t.uid, ''::text) AS ref,
+      'Transfer'::text AS ref_type,
+      ''::text AS ref_uid,
+      ''::text AS ucn,
+      ''::text AS call_number,
+      COALESCE(t.from_engineer, ''::text) AS party_name,
+      COALESCE(t.remarks, ''::text) AS remarks
+     FROM stock_transfer_lines l
+       JOIN stock_transfers t ON t.uid = l.transfer_uid
+    WHERE COALESCE(t.transfer_date::timestamp with time zone, t.created_at) >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+  UNION ALL
+   SELECT 'OUT'::text AS direction,
+      'Return'::text AS movement,
+      handstock_key(m.engineer) AS engineer_key,
+      COALESCE(m.engineer, ''::text) AS engineer,
+      COALESCE(m.engineer_email, ''::text) AS engineer_email,
+      part_code(m.part) AS part_code,
+      COALESCE(m.part, ''::text) AS part,
+      COALESCE(m.good_qty, 0::numeric) + COALESCE(m.defective_qty, 0::numeric) AS qty,
+      COALESCE(m.mrn_date::timestamp with time zone, m.returned_at, m.created_at) AS moved_at,
+      COALESCE(NULLIF(btrim(m.mrn_no), ''::text), m.uid, ''::text) AS ref,
+      'MRN'::text AS ref_type,
+      COALESCE(m.uid, ''::text) AS ref_uid,
+      ''::text AS ucn,
+      COALESCE(m.report_no, ''::text) AS call_number,
+      COALESCE(m.customer_name, ''::text) AS party_name,
+      btrim(
+          CASE
+              WHEN COALESCE(m.defective_qty, 0::numeric) > 0::numeric THEN ((('good '::text || COALESCE(m.good_qty, 0::numeric)) || ', defective '::text) || m.defective_qty) || ' · '::text
+              ELSE ''::text
+          END || COALESCE(m.remarks, ''::text)) AS remarks
+     FROM material_returns m
+    WHERE COALESCE(m.mrn_date::timestamp with time zone, m.returned_at, m.created_at) >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+  UNION ALL
+   SELECT 'IN'::text AS direction,
+      'Opening'::text AS movement,
+      o.engineer_key,
+      COALESCE(o.engineer, ''::text) AS engineer,
+      ''::text AS engineer_email,
+      o.part_code,
+      COALESCE(o.part, ''::text) AS part,
+      COALESCE(o.qty, 0::numeric) AS qty,
+      o.as_of::timestamp with time zone AS moved_at,
+      COALESCE(o.source, ''::text) AS ref,
+      'Opening balance'::text AS ref_type,
+      ''::text AS ref_uid,
+      ''::text AS ucn,
+      ''::text AS call_number,
+      ''::text AS party_name,
+      COALESCE(o.remarks, ''::text) AS remarks
+     FROM handstock_opening o
+    WHERE o.as_of::timestamp with time zone >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+  UNION ALL
+   SELECT 'OUT'::text AS direction,
+      'Consumption'::text AS movement,
+      h.engineer_key,
+      COALESCE(h.engineer, ''::text) AS engineer,
+      ''::text AS engineer_email,
+      h.part_code,
+      COALESCE(h.part, ''::text) AS part,
+      COALESCE(h.qty, 0::numeric) AS qty,
+      COALESCE(h.consumed_at, h.created_at) AS moved_at,
+      COALESCE(NULLIF(h.ref, ''::text), h.source, ''::text) AS ref,
+      'Historical'::text AS ref_type,
+      ''::text AS ref_uid,
+      COALESCE(h.ucn, ''::text) AS ucn,
+      COALESCE(h.call_number, ''::text) AS call_number,
+      COALESCE(h.party_name, ''::text) AS party_name,
+      COALESCE(h.remarks, ''::text) AS remarks
+     FROM spare_consumption_history h
+    WHERE COALESCE(h.consumed_at, h.created_at) >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+  UNION ALL
+   SELECT 'IN'::text AS direction,
+      'Stock out'::text AS movement,
+      h.engineer_key,
+      COALESCE(h.engineer, ''::text) AS engineer,
+      ''::text AS engineer_email,
+      h.part_code,
+      COALESCE(h.part, ''::text) AS part,
+      COALESCE(h.qty, 0::numeric) AS qty,
+      COALESCE(h.issued_at, h.created_at) AS moved_at,
+      COALESCE(NULLIF(h.so_no, ''::text), NULLIF(h.ref, ''::text), h.source, ''::text) AS ref,
+      'Historical'::text AS ref_type,
+      ''::text AS ref_uid,
+      ''::text AS ucn,
+      ''::text AS call_number,
+      ''::text AS party_name,
+      COALESCE(h.remarks, ''::text) AS remarks
+     FROM spare_issue_history h
+    WHERE COALESCE(h.issued_at, h.created_at) >= (( SELECT handstock_cutoff() AS handstock_cutoff)) AND NOT (EXISTS ( SELECT 1
+             FROM spare_request_lines l
+            WHERE lower(btrim(l.line_uid)) = lower(btrim(h.line_uid)) AND h.line_uid <> ''::text AND (COALESCE(l.dispatched_qty, 0::numeric) > 0::numeric OR COALESCE(l.stores_status, ''::text) ~* 'dispatch'::text)))
+  UNION ALL
+   SELECT
+          CASE
+              WHEN a.qty > 0::numeric THEN 'IN'::text
+              ELSE 'OUT'::text
+          END AS direction,
+      'Adjustment'::text AS movement,
+      a.engineer_key,
+      COALESCE(a.engineer, ''::text) AS engineer,
+      ''::text AS engineer_email,
+      a.part_code,
+      COALESCE(a.part, ''::text) AS part,
+      abs(a.qty) AS qty,
+      a.adjusted_at AS moved_at,
+      COALESCE(NULLIF(btrim(a.reference), ''::text), 'ADJ-'::text || a.id::text) AS ref,
+      'Adjustment'::text AS ref_type,
+      a.id::text AS ref_uid,
+      ''::text AS ucn,
+      ''::text AS call_number,
+      COALESCE(a.recorded_by_name, ''::text) AS party_name,
+      COALESCE(a.reason, ''::text) AS remarks
+     FROM handstock_adjustments a
+    WHERE a.adjusted_at >= (( SELECT handstock_cutoff() AS handstock_cutoff))
+) m
+where not (m.part_code = any ((select public.labour_part_codes())::text[]));
+alter view public.handstock_movements set (security_invoker = on);
+grant select on public.handstock_movements to authenticated;
+
+create or replace function public.notify_negative_handstock(
+  p_engineer text, p_part text, p_avail numeric, p_qty numeric, p_ucn text, p_how text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare after numeric := coalesce(p_avail, 0) - coalesce(p_qty, 0);
+begin
+  -- A labour charge is never held, so it has no stock to go below zero (0413).
+  if public.part_code(p_part) = any (public.labour_part_codes()) then
+    return;
+  end if;
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  select p.id, coalesce(p.email, ''), 'negative_handstock',
+         'Hand stock gone negative: ' || public.part_code(p_part),
+         concat_ws(' · ',
+           btrim(coalesce(p_engineer, '')),
+           nullif(btrim(coalesce(p_part, '')), ''),
+           'had ' || trim(to_char(coalesce(p_avail, 0), 'FM999999990.##')) || ', '
+             || trim(to_char(coalesce(p_qty, 0), 'FM999999990.##')) || ' consumed, now '
+             || trim(to_char(after, 'FM999999990.##')),
+           nullif('UCN ' || btrim(coalesce(p_ucn, '')), 'UCN '),
+           nullif(btrim(coalesce(p_how, '')), '')),
+         '/handstock'
+    from public.profiles p
+   where p.role = 'spare_coordinator' and coalesce(p.active, true);
+end $$;
+revoke execute on function public.notify_negative_handstock(text, text, numeric, numeric, text, text) from public, anon, authenticated;
+
+create or replace function public.labour_charge_qty_one()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.part_code(new.part) = any (public.labour_part_codes()) then
+    if tg_op = 'INSERT' and coalesce(new.qty, 0) <> 1 then
+      raise exception '% is a labour charge: it is booked once, quantity 1', public.part_code(new.part)
+        using errcode = '23514';
+    end if;
+    if tg_op = 'UPDATE' and coalesce(new.qty, 0) not in (0, 1) then
+      raise exception '% is a labour charge: its quantity is 1, or 0 to void the line', public.part_code(new.part)
+        using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.labour_charge_qty_one() from public, anon, authenticated;
+drop trigger if exists labour_charge_qty_one on public.spare_consumption;
+create trigger labour_charge_qty_one before insert or update of qty, part on public.spare_consumption
+  for each row execute function public.labour_charge_qty_one();
+
+-- ------------------------------------------------------------------------
+-- 0414_labour_not_requested.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0414 -- A LABOUR CHARGE IS NOT REQUESTED AS A SPARE (FRS-275.6; the user,
+-- 2026-10-12, asked whether SC001 / TC001 / INS-001 should come off the Spare
+-- Request list: "Yes, remove them from Spare Request").
+--
+-- A labour charge is booked on a consumption and never held (0413), so there
+-- is nothing for Stores to send. The Spare Request form no longer lists them;
+-- this refuses one written any other way -- a new line naming a labour part,
+-- or a line re-pointed at one.
+--
+-- NOT REFUSED: an import (stock_import_allowed(), 0339 -- a migration, or a
+-- holder of bulk.upload / import.panel), which records what happened rather
+-- than asking for something. LEFT AS THEY ARE: the 2 SC001 lines already on
+-- the live register (none dispatched); an UPDATE that does not change the
+-- part does not fire this.
+-- ===========================================================================
+create or replace function public.labour_not_requested()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.part_code(new.part) = any (public.labour_part_codes())
+     and (tg_op = 'INSERT' or public.part_code(new.part) is distinct from public.part_code(old.part))
+     and not public.stock_import_allowed() then
+    raise exception '% is a labour charge -- add it to the consumption on the visit, it is not requested as a spare',
+      public.part_code(new.part) using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.labour_not_requested() from public, anon, authenticated;
+drop trigger if exists labour_not_requested on public.spare_request_lines;
+create trigger labour_not_requested before insert or update of part on public.spare_request_lines
+  for each row execute function public.labour_not_requested();
+
+-- ------------------------------------------------------------------------
+-- 0415_refurb_hidden_in_audit_mode.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0415 -- ISSUING A REFURBISHED SPARE IS NOT AUDITABLE: NOT WHILE AUDIT MODE IS
+-- ON (D-165 / FRS-276; the user, 2026-10-12: "refurb - in Stockout is a Non
+-- Auditable Requirement. And it should disappear when i turn on the Audit
+-- mode.").
+--
+-- 0064's ♻ Refurb on Pending Dispatch issues the recycled equivalent of a part
+-- under its R-prefixed code. While Audit Mode is on the button and the
+-- Refurbished badge are not shown; this refuses a refurbished issue written any
+-- other way, the rule Spare Recycling (0355) already follows. A dispatch line
+-- is only ever written by dispatch_spare_lines(), so a trigger on the line
+-- refuses the whole stock out (one statement, all or nothing) without
+-- rewriting that function, which is four revisions past 0027.
+--
+-- Turning Audit Mode OFF brings it back; nothing already issued is changed.
+-- ===========================================================================
+create or replace function public.refurb_not_in_audit_mode()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(new.refurbished, false) and coalesce(public.audit_mode(), false) then
+    raise exception 'A refurbished part cannot be issued while Audit Mode is on -- issue the part itself, or turn Audit Mode off'
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.refurb_not_in_audit_mode() from public, anon, authenticated;
+drop trigger if exists refurb_not_in_audit_mode on public.spare_dispatch_lines;
+create trigger refurb_not_in_audit_mode before insert or update of refurbished on public.spare_dispatch_lines
+  for each row execute function public.refurb_not_in_audit_mode();
+
+-- ------------------------------------------------------------------------
 -- 0384_handstock_balance_all.sql
 -- ------------------------------------------------------------------------
 
@@ -44447,6 +45527,889 @@ comment on column public.ownership_transfers.reference_no is
   'The OT number: OT + the next number after the highest on file, given by the database on insert when none is sent (0391).';
 comment on column public.ownership_transfers.attachments is
   'Files kept with the transfer: a list of {name, url, at, by}, uploaded to the "Ownership Transfers" Drive folder (0391).';
+
+-- ------------------------------------------------------------------------
+-- 0401_pm_due.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0401 — PM DUE: THE MONTH'S PM VISITS, FROM THE WARRANTY AND CONTRACT
+-- REGISTERS (the user, 2026-10-08: "Can we do PM generation from Contract and
+-- warranty register?").
+--
+-- What was asked, answer by answer:
+--   * A PM Due screen lists the machines due in a chosen month; the
+--     coordinator reviews and creates the PM calls. PM Bulk Upload stays as it
+--     is ("don't replace the monthly upload for now").
+--   * VISIT k IS DUE ON start + k x (months x 30 / visits) DAYS, rounded to the
+--     nearest day, and falls in the month that date falls in. The user's own
+--     example: start 10 January, 3 visits in 12 months -> 120 days -> the first
+--     visit is due 10 May, so it is a May PM. Never after the cover's end date.
+--   * ONLY WHAT REMAINS: a machine is due in the month when the visits
+--     scheduled up to that month outnumber the PM calls already raised for it
+--     (model + serial, not cancelled) between the cover's start month and the
+--     end of that month.
+--   * The engineer is the Product Database's Service Engineer for the machine.
+--
+-- ONE ROW PER MACHINE. A machine whose warranty and contract both have a visit
+-- in the month is listed once, from the WARRANTY -- the order Product
+-- Database 2.0 already decides cover in (0218).
+--
+-- The party, city and state are the Product Database's -- the machine's
+-- CURRENT owner after any transfer (0238) -- and the register's where the
+-- machine has no Product Database row.
+--
+-- SECURITY DEFINER, WITH ITS OWN CHECK: counting the PM calls already raised
+-- must see ALL of them, or a reader whose row-level security hides some would
+-- be told a visit is still owed and raise it twice. So it runs as the owner,
+-- refuses anybody without pm.generate, and is not executable by the public key.
+-- `pm_due_latest_reg_at` is the same rule for the batch's registration time:
+-- the LARGEST registration date-and-time in the month, whoever's call it is.
+--
+-- KEYS: mod:/pm-due opens the page (admin + technical_support only, the 0241
+-- pattern); pm.generate reads the list, granted to NO role -- an administrator
+-- passes has_perm() anyway. Creating the calls still passes pm_calls' own
+-- insert policy (pm.create), exactly as PM Bulk Upload does.
+-- ===========================================================================
+
+create or replace function public.pm_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  raised           integer   -- PM calls already raised in the period up to this month
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined: a count per machine as a
+    -- correlated subquery scanned it once per machine due, and a month owes
+    -- over a thousand.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.reg_date
+      from public.pm_calls pc
+     where pc.cancelled_at is null and pc.reg_date <= m_end
+  ), cnt as (
+    select vi.src, vi.ref, vi.mk, count(*)::int as n
+      from visits vi
+      join pm on pm.mk = vi.mk
+             and pm.reg_date between date_trunc('month', vi.cs)::date and least(m_end, vi.ce)
+     group by 1, 2, 3
+  ), counted as (
+    select vi.*, coalesce(cnt.n, 0) as n_raised
+      from visits vi
+      left join cnt on cnt.src = vi.src and cnt.ref = vi.ref and cnt.mk = vi.mk
+  ), owed as (
+    select distinct on (co.mk) co.*
+      from counted co
+     where co.kk > co.n_raised
+     order by co.mk, (co.src = 'Warranty') desc, co.cs desc
+  )
+  select o.src, o.ref, o.p, o.s,
+         coalesce(nullif(btrim(pr.party_name), ''), o.party),
+         coalesce(nullif(btrim(pr.city), ''), o.cty),
+         coalesce(nullif(btrim(pr.state), ''), o.st),
+         nullif(btrim(coalesce(pr.service_engineer, '')), ''),
+         pr.id is not null,
+         o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due, o.n_raised
+    from owed o
+    left join lateral (
+      select * from public.products x
+       where x.machine_key = o.mk
+       order by x.id desc limit 1) pr on true
+   order by 6 nulls last, 5, 3, 4;
+end $$;
+
+comment on function public.pm_due(date) is
+  'The PM visits due in a month from the Warranty and Contract Registers: visit k on start + k x months x 30 / visits days, only where the visits scheduled so far outnumber the PM calls raised in the period. One row per machine, warranty first. Needs pm.generate (0401).';
+
+create or replace function public.pm_due_latest_reg_at(p_month date)
+returns timestamptz
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+  return (select max(pc.reg_at) from public.pm_calls pc
+           where pc.reg_date >= date_trunc('month', p_month)::date
+             and pc.reg_date < (date_trunc('month', p_month) + interval '1 month')::date);
+end $$;
+
+comment on function public.pm_due_latest_reg_at(date) is
+  'The largest registration date-and-time among ALL PM calls of a month, so a generated batch starts 10 seconds after it. Needs pm.generate (0401).';
+
+revoke execute on function public.pm_due(date) from public, anon;
+revoke execute on function public.pm_due_latest_reg_at(date) from public, anon;
+grant execute on function public.pm_due(date) to authenticated;
+grant execute on function public.pm_due_latest_reg_at(date) to authenticated;
+
+-- THE SCREEN'S KEY, IN THE ADMIN AND TECHNICAL SUPPORT ROLES ONLY (0241, 0377).
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (select jsonb_array_elements_text(ar.permissions) as v
+                   union select unnest(array['mod:/pm-due']) as v) u),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support')
+     and not (ar.permissions ? 'mod:/pm-due');
+  get diagnostics n = row_count;
+  raise notice '0401: PM Due screen key given to admin + technical_support (% of 2 rows) -- grant the rest on Roles & Permissions', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0402_pm_visits_due.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0402 — PM DUE, BY THE VISIT AND NOT BY A COUNT: GENERATED OR MISSED PM,
+-- PRODUCTS AND ACCESSORIES (the user, 2026-10-08).
+--
+-- WHY 0401'S RULE IS REPLACED. It listed a machine when the visits scheduled
+-- since its cover started outnumbered the PM calls raised in that time. RITHI
+-- holds almost no PM call from before 2026 (37 of 2024, 500 of 2025), so a
+-- three-year contract from 2024 read every 2024-25 visit as missed and was
+-- listed again even with this month's call raised. Measured on the live
+-- project (`_pm_due_by_month.sql`): October listed 2,348 machines, 1,098 of
+-- which ALREADY had an October PM call -- Create would have duplicated them.
+--
+-- THE RULE NOW, in the user's words: a visit is GENERATED "when the visit is
+-- created -- like 1/12, 2/12 like that and it is not in Cancelled state". So
+-- each machine with a visit due in the month is listed, and is
+--   GENERATED  a PM call exists for that product + serial, not cancelled,
+--              registered within that cover's period (its start month to its
+--              end), whose Reported Problem reads "k / N" with the SAME visit
+--              number and the SAME number of visits -- in whatever month it was
+--              raised;
+--   MISSED PM  otherwise.
+-- The visit numbering is the existing one: visit k on start + round(k x months
+-- x 30 / visits) days, never after the cover's end (0401, the user's 120-day
+-- example). One row per machine, warranty first (0218's order).
+--
+-- ACCESSORIES ARE LISTED AND MARKED, not dropped: "Give me an option to
+-- segregate Product and Accessory". An accessory is a product whose Product
+-- Master category reads ACCESSORY (the user, 2026-09-30, `isAccessoryCategory`);
+-- anything else is a product.
+--
+-- `last_pm_on` is the machine's latest PM call ever (not cancelled), so a
+-- Missed PM raised under a different visit number or a month off is visible.
+--
+-- A NEW NAME, pm_visits_due, because the columns differ: `create or replace`
+-- cannot change a function's result columns, and re-running 0401's bundle on a
+-- database holding a changed pm_due would fail on exactly that. 0401's pm_due
+-- is dropped here; re-running the bundle recreates it in 0401 and drops it
+-- again here. pm_due_latest_reg_at (0401) is unchanged.
+--
+-- SECURITY DEFINER with its own pm.generate check, as 0401: whether a visit was
+-- generated must be answered from EVERY PM call, not only those the reader's
+-- row-level security shows, or a hidden call reads as Missed and is raised
+-- twice. Not executable by the public key.
+-- ===========================================================================
+
+drop function if exists public.pm_due(date);
+-- Dropped first as well: 0403 gives pm_visits_due more result columns, and a
+-- re-run of this bundle on a database holding 0403's would otherwise fail on
+-- `create or replace` (it cannot change result columns). 0403 recreates it.
+drop function if exists public.pm_visits_due(date);
+
+create or replace function public.pm_visits_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  is_accessory     boolean,  -- Product Master category ACCESSORY
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  generated        boolean,  -- a PM call "k / N" exists for this visit, not cancelled
+  generated_ucn    text,
+  generated_on     date,     -- that call's registration date
+  last_pm_on       date      -- the machine's latest PM call, any visit
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), one as (
+    -- One row per machine, the warranty's visit first (0218's order).
+    select distinct on (vi.mk) vi.*
+      from visits vi
+     order by vi.mk, (vi.src = 'Warranty') desc, vi.cs desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined, with the "k / N" of its
+    -- Reported Problem parsed. Only machines in this month's list.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select o.mk from one o)
+  ), gen as (
+    select distinct on (o.mk) o.mk, pm.ucn, pm.reg_date
+      from one o
+      join pm on pm.mk = o.mk
+             and pm.kn[1] = o.kk and pm.kn[2] = o.v
+             and pm.reg_date between date_trunc('month', o.cs)::date and o.ce
+     order by o.mk, pm.reg_date desc, pm.ucn desc
+  ), last_pm as (
+    select pm.mk, max(pm.reg_date) as d from pm group by pm.mk
+  ), acc as (
+    select distinct lower(btrim(pmx.product_name)) as p
+      from public.product_master pmx
+     where upper(btrim(coalesce(pmx.item_category, ''))) = 'ACCESSORY'
+  )
+  select o.src, o.ref, o.p, o.s,
+         lower(o.p) in (select acc.p from acc),
+         coalesce(nullif(btrim(pr.party_name), ''), o.party),
+         coalesce(nullif(btrim(pr.city), ''), o.cty),
+         coalesce(nullif(btrim(pr.state), ''), o.st),
+         nullif(btrim(coalesce(pr.service_engineer, '')), ''),
+         pr.id is not null,
+         o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
+         g.ucn is not null, g.ucn, g.reg_date, lp.d
+    from one o
+    left join gen g on g.mk = o.mk
+    left join last_pm lp on lp.mk = o.mk
+    left join lateral (
+      select * from public.products x
+       where x.machine_key = o.mk
+       order by x.id desc limit 1) pr on true
+   order by 6 nulls last, 3, 4;
+end $$;
+
+comment on function public.pm_visits_due(date) is
+  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked by the Product Master category. One row per machine, warranty first. Needs pm.generate (0402).';
+
+revoke execute on function public.pm_visits_due(date) from public, anon;
+grant execute on function public.pm_visits_due(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0403_pm_due_install_and_customer.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0403 — PM DUE: TWO MORE RULES, EACH ALSO A FILTER (the user, 2026-10-08:
+-- "Add 2 more logics - But add these as rules + Filters").
+--
+--   1. "The installation call associated with it should be in solved state" --
+--      the machine's call in the Installation register (product + serial, the
+--      match 0331's warranty start already uses) reads open_state = 'Solved'.
+--      A Solved call is taken over a cancelled or later one, so a cancelled
+--      first attempt does not hide the solved second. No installation call
+--      fails the rule.
+--   2. "Party the device is associated to should be a customer" -- the
+--      machine's party (the Product Database's, which follows transfers; else
+--      the register's) has Type CUSTOMER on the Party Master. DEALER is a
+--      dealer (0328); a party not in the master, or with no Type, fails.
+--
+-- Every row is still listed, with its installation call, its state, its
+-- party's Type and the two answers, so the screen can filter by each; a row
+-- may be CREATED (`can_create`) only when it is a Missed PM passing both.
+--
+-- Same name, more columns: `create or replace` cannot change result columns,
+-- so the function is dropped and recreated (0402 now drops it first too, so
+-- re-running that bundle does not fail on this one). Definer with its own
+-- pm.generate check and not executable by anon, as 0402.
+-- ===========================================================================
+
+drop function if exists public.pm_visits_due(date);
+
+create or replace function public.pm_visits_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  is_accessory     boolean,  -- Product Master category ACCESSORY
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  generated        boolean,  -- a PM call "k / N" exists for this visit, not cancelled
+  generated_ucn    text,
+  generated_on     date,     -- that call's registration date
+  last_pm_on       date,     -- the machine's latest PM call, any visit
+  installation_ucn   text,   -- the machine's installation call (product + serial)
+  installation_state text,   -- its state: Solved, Unsolved, ... ; NULL = none
+  install_solved     boolean,-- RULE 1: that call reads Solved
+  party_type         text,   -- the Party Master's Type for the machine's party; NULL = not in it
+  party_is_customer  boolean,-- RULE 2: that Type is CUSTOMER
+  can_create         boolean -- a Missed PM passing both rules
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), one as (
+    -- One row per machine, the warranty's visit first (0218's order).
+    select distinct on (vi.mk) vi.*
+      from visits vi
+     order by vi.mk, (vi.src = 'Warranty') desc, vi.cs desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined, with the "k / N" of its
+    -- Reported Problem parsed. Only machines in this month's list.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select o.mk from one o)
+  ), gen as (
+    select distinct on (o.mk) o.mk, pm.ucn, pm.reg_date
+      from one o
+      join pm on pm.mk = o.mk
+             and pm.kn[1] = o.kk and pm.kn[2] = o.v
+             and pm.reg_date between date_trunc('month', o.cs)::date and o.ce
+     order by o.mk, pm.reg_date desc, pm.ucn desc
+  ), last_pm as (
+    select pm.mk, max(pm.reg_date) as d from pm group by pm.mk
+  ), inst as (
+    -- RULE 1. The machine's installation call: a Solved one if it has one,
+    -- else the latest not cancelled, else the latest -- so a cancelled first
+    -- attempt does not hide the solved second one.
+    select distinct on (lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))))
+           lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))) as mk,
+           ic.ucn, ic.open_state
+      from public.installation_calls ic
+     where lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, '')))
+           in (select o.mk from one o)
+     order by lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))),
+              (ic.open_state = 'Solved') desc, (ic.cancelled_at is null) desc,
+              ic.reg_date desc nulls last, ic.ucn desc
+  ), acc as (
+    select distinct lower(btrim(pmx.product_name)) as p
+      from public.product_master pmx
+     where upper(btrim(coalesce(pmx.item_category, ''))) = 'ACCESSORY'
+  )
+  , rowz as (
+    select o.src, o.ref, o.p, o.s,
+           lower(o.p) in (select acc.p from acc) as is_acc,
+           coalesce(nullif(btrim(pr.party_name), ''), o.party) as party,
+           coalesce(nullif(btrim(pr.city), ''), o.cty) as cty,
+           coalesce(nullif(btrim(pr.state), ''), o.st) as st,
+           nullif(btrim(coalesce(pr.service_engineer, '')), '') as eng,
+           pr.id is not null as on_pd,
+           o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
+           g.ucn is not null as gen, g.ucn as gucn, g.reg_date as gon, lp.d as lpd,
+           i.ucn as iucn, i.open_state as istate
+      from one o
+      left join gen g on g.mk = o.mk
+      left join last_pm lp on lp.mk = o.mk
+      left join inst i on i.mk = o.mk
+      left join lateral (
+        select * from public.products x
+         where x.machine_key = o.mk
+         order by x.id desc limit 1) pr on true
+  )
+  -- RULE 2. The party the machine is with -- the Product Database's, else the
+  -- register's -- is a CUSTOMER on the Party Master (its Type; DEALER is a
+  -- dealer, 0328). A party not in the master, or with no Type, is not shown as
+  -- a customer: the rule asks for one, and a blank says nothing.
+  select r.src, r.ref, r.p, r.s, r.is_acc, r.party, r.cty, r.st, r.eng, r.on_pd,
+         r.ctype, r.cs, r.ce, r.m, r.v, r.kk, r.due, r.gen, r.gucn, r.gon, r.lpd,
+         r.iucn, r.istate, coalesce(r.istate = 'Solved', false),
+         pt.party_type,
+         coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false),
+         not r.gen and coalesce(r.istate = 'Solved', false) and coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false)
+    from rowz r
+    left join public.parties pt on pt.name_key = lower(btrim(r.party))
+   order by r.party nulls last, r.p, r.s;
+end $$;
+
+comment on function public.pm_visits_due(date) is
+  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked; its installation call and whether it is Solved; its party''s Party Master Type and whether it is CUSTOMER; can_create when a Missed PM passes both. Needs pm.generate (0403).';
+
+revoke execute on function public.pm_visits_due(date) from public, anon;
+grant execute on function public.pm_visits_due(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0404_pm_due_no_install_call_allowed.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0404 — PM DUE: A MACHINE WITH NO INSTALLATION CALL MAY BE CREATED (the
+-- user, 2026-10-08: "Allow machines with no installation call").
+--
+-- 0403's rule 1 held back every machine with no installation call in RITHI --
+-- measured live, 1,152 of October's 1,242 Missed PM, most of them accessories
+-- and machines installed before RITHI held installation calls. Now only an
+-- installation call that EXISTS and is not Solved holds a machine back;
+-- `install_solved` still says whether there is a Solved call, and
+-- `installation_ucn` is NULL where there is none, so the screen can show and
+-- filter each case. Rule 2 (the party a CUSTOMER) is unchanged.
+--
+-- Only `can_create` changes, so the result columns are 0403's and `create or
+-- replace` is enough. Definer with its own pm.generate check, not executable
+-- by anon, as 0403.
+-- ===========================================================================
+
+create or replace function public.pm_visits_due(p_month date)
+returns table (
+  source           text,     -- 'Warranty' or 'Contract'
+  ref_no           text,     -- the SA number or the MC number
+  product_name     text,
+  serial           text,
+  is_accessory     boolean,  -- Product Master category ACCESSORY
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,     -- the Product Database's Service Engineer
+  on_product_database boolean,
+  cover_type       text,     -- WGP, or the contract's type as keyed
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,  -- the visit due this month, k of pm_visits
+  due_date         date,
+  generated        boolean,  -- a PM call "k / N" exists for this visit, not cancelled
+  generated_ucn    text,
+  generated_on     date,     -- that call's registration date
+  last_pm_on       date,     -- the machine's latest PM call, any visit
+  installation_ucn   text,   -- the machine's installation call (product + serial)
+  installation_state text,   -- its state: Solved, Unsolved, ... ; NULL = none
+  install_solved     boolean,-- RULE 1: that call reads Solved
+  party_type         text,   -- the Party Master's Type for the machine's party; NULL = not in it
+  party_is_customer  boolean,-- RULE 2: that Type is CUSTOMER
+  can_create         boolean -- a Missed PM passing both rules (no installation call passes rule 1, 0404)
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  m_start date := date_trunc('month', p_month)::date;
+  m_end   date := (date_trunc('month', p_month) + interval '1 month - 1 day')::date;
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'Listing the PM visits due needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+       and w.warranty_start <= m_end
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+       and c.contract_start <= m_end
+  ), visits as (
+    -- Every visit of every cover, dated by the rule; keep the LAST one that
+    -- falls in the month (two can, when the interval is under 30 days).
+    select distinct on (cv.src, cv.ref, cv.mk)
+           cv.*, k as kk,
+           least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv
+      cross join lateral generate_series(1, cv.v) k
+     where least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) between m_start and m_end
+     order by cv.src, cv.ref, cv.mk, k desc
+  ), one as (
+    -- One row per machine, the warranty's visit first (0218's order).
+    select distinct on (vi.mk) vi.*
+      from visits vi
+     order by vi.mk, (vi.src = 'Warranty') desc, vi.cs desc
+  ), pm as materialized (
+    -- The PM register read ONCE and hash-joined, with the "k / N" of its
+    -- Reported Problem parsed. Only machines in this month's list.
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select o.mk from one o)
+  ), gen as (
+    select distinct on (o.mk) o.mk, pm.ucn, pm.reg_date
+      from one o
+      join pm on pm.mk = o.mk
+             and pm.kn[1] = o.kk and pm.kn[2] = o.v
+             and pm.reg_date between date_trunc('month', o.cs)::date and o.ce
+     order by o.mk, pm.reg_date desc, pm.ucn desc
+  ), last_pm as (
+    select pm.mk, max(pm.reg_date) as d from pm group by pm.mk
+  ), inst as (
+    -- RULE 1. The machine's installation call: a Solved one if it has one,
+    -- else the latest not cancelled, else the latest -- so a cancelled first
+    -- attempt does not hide the solved second one.
+    select distinct on (lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))))
+           lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))) as mk,
+           ic.ucn, ic.open_state
+      from public.installation_calls ic
+     where lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, '')))
+           in (select o.mk from one o)
+     order by lower(btrim(coalesce(ic.product_name, ''))) || '|' || lower(btrim(coalesce(ic.serial, ''))),
+              (ic.open_state = 'Solved') desc, (ic.cancelled_at is null) desc,
+              ic.reg_date desc nulls last, ic.ucn desc
+  ), acc as (
+    select distinct lower(btrim(pmx.product_name)) as p
+      from public.product_master pmx
+     where upper(btrim(coalesce(pmx.item_category, ''))) = 'ACCESSORY'
+  )
+  , rowz as (
+    select o.src, o.ref, o.p, o.s,
+           lower(o.p) in (select acc.p from acc) as is_acc,
+           coalesce(nullif(btrim(pr.party_name), ''), o.party) as party,
+           coalesce(nullif(btrim(pr.city), ''), o.cty) as cty,
+           coalesce(nullif(btrim(pr.state), ''), o.st) as st,
+           nullif(btrim(coalesce(pr.service_engineer, '')), '') as eng,
+           pr.id is not null as on_pd,
+           o.ctype, o.cs, o.ce, o.m, o.v, o.kk, o.due,
+           g.ucn is not null as gen, g.ucn as gucn, g.reg_date as gon, lp.d as lpd,
+           i.ucn as iucn, i.open_state as istate
+      from one o
+      left join gen g on g.mk = o.mk
+      left join last_pm lp on lp.mk = o.mk
+      left join inst i on i.mk = o.mk
+      left join lateral (
+        select * from public.products x
+         where x.machine_key = o.mk
+         order by x.id desc limit 1) pr on true
+  )
+  -- RULE 2. The party the machine is with -- the Product Database's, else the
+  -- register's -- is a CUSTOMER on the Party Master (its Type; DEALER is a
+  -- dealer, 0328). A party not in the master, or with no Type, is not shown as
+  -- a customer: the rule asks for one, and a blank says nothing.
+  select r.src, r.ref, r.p, r.s, r.is_acc, r.party, r.cty, r.st, r.eng, r.on_pd,
+         r.ctype, r.cs, r.ce, r.m, r.v, r.kk, r.due, r.gen, r.gucn, r.gon, r.lpd,
+         r.iucn, r.istate, coalesce(r.istate = 'Solved', false),
+         pt.party_type,
+         coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false),
+         -- RULE 1 as amended (0404): a machine with NO installation call passes;
+         -- only an installation call that exists and is not Solved holds it back.
+         not r.gen and (r.istate is null or r.istate = 'Solved') and coalesce(upper(btrim(pt.party_type)) = 'CUSTOMER', false)
+    from rowz r
+    left join public.parties pt on pt.name_key = lower(btrim(r.party))
+   order by r.party nulls last, r.p, r.s;
+end $$;
+
+comment on function public.pm_visits_due(date) is
+  'The machines with a PM visit due in a month from the Warranty and Contract Registers (visit k on start + k x months x 30 / visits days), each GENERATED when a PM call "k / N" exists for it in the cover period and is not cancelled, else MISSED PM; accessories marked; its installation call and whether it is Solved; its party''s Party Master Type and whether it is CUSTOMER; can_create when a Missed PM has no installation call or a Solved one, and a CUSTOMER party. Needs pm.generate (0404).';
+
+revoke execute on function public.pm_visits_due(date) from public, anon;
+grant execute on function public.pm_visits_due(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0407_pm_schedule.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0407 -- THE PM SCHEDULE OF ONE SALE OR ONE CONTRACT (the user, 2026-10-09:
+-- "Can I have the schedules listed in Warranty and contract pages as well..
+-- also a provision to generate from there").
+--
+-- Every visit of every machine on ONE Warranty Register entry (SA number) or
+-- ONE Contract Register entry (MC number), by the rules PM Due uses (0402):
+--   * visit k is due on start + round(k x months x 30 / visits) days, never
+--     after the cover's end;
+--   * it is GENERATED when a PM call for that product + serial, not cancelled,
+--     registered within the cover's period, reads "k / N" with the same visit
+--     number and number of visits -- in whatever month it was raised.
+-- The entry window lists them, and offers Generate on a visit that is not
+-- generated and whose due month has come ("Due or past due, dated its due
+-- month" -- the call is shaped and dated exactly as PM Due shapes it).
+--
+-- ONE ENTRY AT A TIME, so it is a lookup and never a whole-register scan: the
+-- reference is required. The party, city, state and engineer are the machine's
+-- Product Database row's (the machine's current owner), else the register's,
+-- as on PM Due.
+--
+-- SECURITY DEFINER with pm.generate, as pm_visits_due: whether a visit was
+-- generated must be answered from EVERY PM call, not only those the reader may
+-- see. Not executable by the public key.
+-- ===========================================================================
+
+create or replace function public.pm_schedule(p_source text, p_ref text)
+returns table (
+  source           text,
+  ref_no           text,
+  product_name     text,
+  serial           text,
+  party_name       text,
+  city             text,
+  state            text,
+  engineer         text,
+  on_product_database boolean,
+  cover_type       text,
+  cover_start      date,
+  cover_end        date,
+  period_months    integer,
+  pm_visits        integer,
+  visit_no         integer,
+  due_date         date,
+  generated        boolean,
+  generated_ucn    text,
+  generated_on     date
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  if not coalesce(public.has_perm('pm.generate'), false) then
+    raise exception 'The PM schedule needs “Generate PM calls from the registers” (pm.generate) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+  if btrim(coalesce(p_ref, '')) = '' or p_source not in ('Warranty', 'Contract') then
+    raise exception 'Name the register (Warranty or Contract) and the SA or MC number.';
+  end if;
+
+  return query
+  with cover as materialized (
+    select 'Warranty'::text as src, w.sa_number as ref, btrim(w.product_name) as p, btrim(w.serial_number) as s,
+           lower(btrim(w.product_name)) || '|' || lower(btrim(w.serial_number)) as mk,
+           w.party_name as party, w.city as cty, w.state as st, 'WGP'::text as ctype,
+           w.warranty_start as cs,
+           coalesce(w.warranty_end, (w.warranty_start + make_interval(months => w.warranty_months))::date - 1) as ce,
+           w.warranty_months as m, w.pm_visits as v
+      from public.warranty_sale_details w
+     where p_source = 'Warranty' and w.sa_number = btrim(p_ref)
+       and w.warranty_start is not null and coalesce(w.warranty_months, 0) > 0 and coalesce(w.pm_visits, 0) > 0
+       and btrim(coalesce(w.product_name, '')) <> '' and btrim(coalesce(w.serial_number, '')) <> ''
+    union all
+    select 'Contract', c.mc_number, btrim(c.product_name), btrim(c.serial_number),
+           lower(btrim(c.product_name)) || '|' || lower(btrim(c.serial_number)),
+           c.party_name, null::text, null::text, coalesce(c.contract_type, ''),
+           c.contract_start,
+           coalesce(c.contract_end, (c.contract_start + make_interval(months => c.contract_months))::date - 1),
+           c.contract_months, c.pm_visits_total
+      from public.contract_details c
+     where p_source = 'Contract' and c.mc_number = btrim(p_ref)
+       and c.contract_start is not null and coalesce(c.contract_months, 0) > 0 and coalesce(c.pm_visits_total, 0) > 0
+       and btrim(coalesce(c.product_name, '')) <> '' and btrim(coalesce(c.serial_number, '')) <> ''
+  ), visits as (
+    select cv.*, k as kk, least(cv.cs + round(k * cv.m * 30.0 / cv.v)::int, cv.ce) as due
+      from cover cv cross join lateral generate_series(1, cv.v) k
+  ), pm as materialized (
+    select lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, ''))) as mk,
+           pc.ucn, pc.reg_date,
+           (regexp_match(coalesce(pc.complaint_reported, ''), '(\d+)\s*/\s*(\d+)'))::int[] as kn
+      from public.pm_calls pc
+     where pc.cancelled_at is null
+       and lower(btrim(coalesce(pc.product_name, ''))) || '|' || lower(btrim(coalesce(pc.serial, '')))
+           in (select c.mk from cover c)
+  ), gen as (
+    select distinct on (vi.mk, vi.kk) vi.mk, vi.kk, pm.ucn, pm.reg_date
+      from visits vi
+      join pm on pm.mk = vi.mk and pm.kn[1] = vi.kk and pm.kn[2] = vi.v
+             and pm.reg_date between date_trunc('month', vi.cs)::date and vi.ce
+     order by vi.mk, vi.kk, pm.reg_date desc, pm.ucn desc
+  )
+  select vi.src, vi.ref, vi.p, vi.s,
+         coalesce(nullif(btrim(pr.party_name), ''), vi.party),
+         coalesce(nullif(btrim(pr.city), ''), vi.cty),
+         coalesce(nullif(btrim(pr.state), ''), vi.st),
+         nullif(btrim(coalesce(pr.service_engineer, '')), ''),
+         pr.id is not null,
+         vi.ctype, vi.cs, vi.ce, vi.m, vi.v, vi.kk, vi.due,
+         g.ucn is not null, g.ucn, g.reg_date
+    from visits vi
+    left join gen g on g.mk = vi.mk and g.kk = vi.kk
+    left join lateral (
+      select * from public.products x where x.machine_key = vi.mk order by x.id desc limit 1) pr on true
+   order by vi.p, vi.s, vi.kk;
+end $$;
+
+comment on function public.pm_schedule(text, text) is
+  'Every PM visit of every machine on one Warranty (SA) or Contract (MC) entry -- visit k on start + k x months x 30 / visits days -- each GENERATED when a not-cancelled PM call "k / N" exists for it in the cover period. Needs pm.generate (0407).';
+
+revoke execute on function public.pm_schedule(text, text) from public, anon;
+grant execute on function public.pm_schedule(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
@@ -51496,11 +53459,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0402_objective_with_figures_kept.sql
+-- 0417_objective_with_figures_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0402 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+-- 0417 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
 --        (second re-review D-021, FRS-121.7)
 --
 -- Quality Objectives deleted an objective with its twelve figures after a
@@ -51509,7 +53472,7 @@ end $function$;
 -- row erased the measurement with it. FRS-121.7: the database shall refuse to
 -- delete an objective that carries any recorded figure -- a month m01..m12 or
 -- the Total. An objective added in error, with nothing recorded yet, can still
--- be deleted. 0406 images every change and delete in record_audit.
+-- be deleted. 0421 images every change and delete in record_audit.
 -- Not stopped: a connection with no session and a function running as its
 -- owner (a repair in the SQL editor).
 -- In the objective module, last.
@@ -51999,11 +53962,11 @@ begin
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0406_record_audit_on_configuration_objectives_indoor.sql
+-- 0421_record_audit_on_configuration_objectives_indoor.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0406 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
+-- 0421 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
 --        (second re-review D-067, D-021, D-039)
 --
 -- record_audit (0225, 0314) images fifteen tables. Three groups that decide
@@ -52123,15 +54086,15 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0406: record_audit armed on % of 13 tables.', n;
+  raise notice '0421: record_audit armed on % of 13 tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0410_cover_registers_imaged.sql
+-- 0425_cover_registers_imaged.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0410 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
+-- 0425 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
 --
 -- sale_entries, sale_items, contract_entries, contract_items,
 -- ownership_transfers and product_additional_entries were outside 0225's
@@ -52139,13 +54102,13 @@ end $on$;
 -- corrected, or an entry deleted with every machine under it left no image of
 -- what was there. FRS-187.3: a correction shall be recorded with its before and
 -- after values by a trigger that cannot be bypassed. The same statement-level
--- triggers as 0225 / 0314 / 0406, so a cover import is one event.
+-- triggers as 0225 / 0314 / 0421, so a cover import is one event.
 --
 -- DELETION ITSELF STAYS -- the user's decision of 2026-10-06 ("Keep deleting,
 -- recorded"): an entry, a machine, a transfer or an additional entry may still
 -- be deleted by the holder of that register's delete authority, and what it
 -- removed is read back from record_audit. FRS-187 was rewritten to match.
--- In data_integrity, after 0406: every cover table is created earlier in
+-- In data_integrity, after 0421: every cover table is created earlier in
 -- ALL_ORDER.
 -- ===========================================================================
 
@@ -52153,7 +54116,7 @@ do $on$
 declare t text; n int := 0;
 begin
   if to_regproc('public.record_audit_fn') is null then
-    raise notice '0410: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
+    raise notice '0425: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
     return;
   end if;
   foreach t in array array[
@@ -52177,7 +54140,7 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0410: record_audit armed on % of 6 cover tables.', n;
+  raise notice '0425: record_audit armed on % of 6 cover tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
@@ -52992,6 +54955,393 @@ create index if not exists feedback_created_id_idx
   on public.feedback (created_at desc, id desc);
 
 analyze public.feedback;
+
+-- ------------------------------------------------------------------------
+-- 0409_ffr_update_sheet_import.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0409 -- THE OLD FFR UPDATE LOG, LOADED (the user, 2026-10-10: "Add a
+-- provision to update the old Logs for FFR - Attached the Sheet that needs to
+-- be imported" -- the "Field Failure Register - Update" form's responses:
+-- Timestamp, UCN Number, FFR NO, Problem Status, Service Dept Observation,
+-- CAPA Responsibility, CAPA NO, CAPA Status, FFR Status, Attachment,
+-- Additional Problem Description, Generate FFR Word Copy?).
+--
+-- Asked and answered:
+--   * Effect: LOG + APPLY LATEST. Every sheet row becomes a dated entry in that
+--     report's update log (ffr_history, 0174), at the sheet's Timestamp; the
+--     report then carries its latest update's values.
+--   * Matching: FFR NO + UCN. A row goes to the register row with that FFR
+--     number AND that UCN, and to nothing else. Measured on the live project
+--     before this was written: the register has ONE row per FFR number and
+--     the sheet's UCN differs from it on 809 of 1,529 rows; the user kept this
+--     rule with those numbers in front of them. A row that matches is loaded;
+--     one that does not is RETURNED, with the register's UCN for that FFR
+--     number beside it, and nothing is written for it.
+--   * A BLANK CELL KEEPS THE EARLIER VALUE: it is no part of the log entry and
+--     never empties the report.
+--   * Signed "FFR Update sheet (import)" -- the sheet has no updated-by column.
+--     Who loaded it is recorded on each loaded row (loaded_by).
+--
+-- "Generate FFR Word Copy?" is an instruction the form gave, not a value of
+-- the report: it is kept on the loaded row and applied to nothing.
+--
+-- LATEST, PER FIELD, AND NEWER WINS. A field takes the value of the latest
+-- sheet row that filled it -- unless the update log records a change to that
+-- same field made AFTER that row (an edit on the form, a re-load of the
+-- register), which is newer and is kept. So a report edited in RITHI after the
+-- sheet's last update is not put back to what the sheet said.
+--
+-- RE-RUNNABLE. A loaded row is keyed by its report and Timestamp; loading the
+-- same sheet again adds nothing and changes nothing.
+--
+-- The apply is NOT logged a second time: each sheet row is already its own
+-- entry, so ffr_history_write() (0174) stays silent while this function writes
+-- the report (the transaction-local flag rithi.ffr_sheet_import).
+--
+-- SECURITY DEFINER with its own check: the update log has no insert policy,
+-- by design (0174). Needs ffr.manage (the register's edit right) AND
+-- bulk.upload (loading historical data) -- both existing keys; no role gains
+-- anything.
+-- ===========================================================================
+
+create table if not exists public.ffr_sheet_updates (
+  id                  bigserial primary key,
+  ffr_id              bigint      not null references public.field_failure_reports (id),
+  ffr_no              text        not null default '',
+  ucn                 text        not null default '',
+  updated_at          timestamptz not null,
+  problem_status      text        not null default '',
+  service_observation text        not null default '',
+  capa_responsibility text        not null default '',
+  capa_no             text        not null default '',
+  capa_status         text        not null default '',
+  ffr_status          text        not null default '',
+  attachment_url      text        not null default '',
+  additional_problem  text        not null default '',
+  word_copy           text        not null default '',
+  source_row          integer,
+  loaded_at           timestamptz not null default now(),
+  loaded_by           uuid,
+  loaded_by_name      text        not null default '',
+  unique (ffr_id, updated_at)
+);
+
+comment on table public.ffr_sheet_updates is
+  'The old "Field Failure Register - Update" sheet as loaded (0409), one row per update, keyed by report + Timestamp. Each is also an entry in ffr_history; the report carries the latest values, a newer logged change winning per field.';
+
+alter table public.ffr_sheet_updates enable row level security;
+-- Read as the update log is read (0177).
+drop policy if exists ffrsu_read on public.ffr_sheet_updates;
+create policy ffrsu_read on public.ffr_sheet_updates for select to authenticated
+  using ((select public.has_perm('ffr.view')) or (select public.has_perm('ffr.manage')) or (select public.is_admin()));
+-- No write policy: rows arrive through ffr_load_sheet_updates() only.
+revoke all on public.ffr_sheet_updates from anon;
+revoke insert, update, delete, truncate on public.ffr_sheet_updates from authenticated;
+grant select on public.ffr_sheet_updates to authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.block_hard_delete()') is not null then
+    execute 'drop trigger if exists zz_no_delete on public.ffr_sheet_updates';
+    execute 'create trigger zz_no_delete before delete on public.ffr_sheet_updates
+               for each row execute function public.block_hard_delete()';
+  end if;
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.ffr_sheet_updates'::regclass);
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 0174's function, word for word, with ONE addition: silent while the sheet
+-- load writes the report (its rows are logged already).
+-- ---------------------------------------------------------------------------
+create or replace function public.ffr_history_write()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_old  jsonb := to_jsonb(old);
+  v_new  jsonb := to_jsonb(new);
+  v_diff jsonb := '{}'::jsonb;
+  k      text;
+  v_name text;
+  -- Not worth an entry: set by the database on every write, or never changed.
+  skip   text[] := array['updated_at', 'id', 'ffr_no', 'raised_by', 'created_at'];
+begin
+  -- 0409: the old update sheet's apply. Each of its rows is its own entry.
+  if coalesce(current_setting('rithi.ffr_sheet_import', true), '') = 'on' then return null; end if;
+
+  for k in select jsonb_object_keys(v_new) loop
+    if k = any (skip) then continue; end if;
+    if v_new -> k is distinct from v_old -> k then
+      v_diff := v_diff || jsonb_build_object(k, jsonb_build_object('from', v_old -> k, 'to', v_new -> k));
+    end if;
+  end loop;
+
+  -- Nothing actually changed: re-saving a form untouched is not an event.
+  if v_diff = '{}'::jsonb then return null; end if;
+
+  select coalesce(nullif(btrim(d.name), ''), nullif(btrim(p.full_name), ''), p.email)
+    into v_name
+    from public.profiles p
+    left join public.user_directory d
+      on lower(btrim(d.email)) = lower(btrim(p.email))
+      or lower(btrim(d.gmail)) = lower(btrim(p.email))
+   where p.id = auth.uid();
+
+  insert into public.ffr_history (ffr_id, ffr_no, changed_by, changed_by_name, action, changes)
+  values (new.id, coalesce(new.ffr_no, ''), auth.uid(), coalesce(v_name, ''), 'update', v_diff);
+
+  return null;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- THE LOAD. p_rows is a JSON array, one object per sheet row:
+--   {row, ffr_no, ucn, at (timestamp), problem_status, service_observation,
+--    capa_responsibility, capa_no, capa_status, ffr_status, attachment_url,
+--    additional_problem, word_copy}
+-- Returns {loaded, unchanged, already, reports, fields_applied, kept_newer,
+-- rejected: [{row, ffr_no, ucn, reason, register_ucn}]}.
+-- ---------------------------------------------------------------------------
+create or replace function public.ffr_load_sheet_updates(p_rows jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  c_fields  constant text[] := array['problem_status', 'service_observation', 'capa_responsibility',
+                                     'capa_no', 'capa_status', 'ffr_status', 'attachment_url', 'additional_problem'];
+  r         record;
+  v_ids     bigint[];
+  v_match   bigint[];
+  v_regucn  text;
+  v_new_id  bigint;
+  v_row     jsonb;
+  v_prev    text;
+  v_changes jsonb;
+  v_f       text;
+  v_by      text := coalesce((select nullif(btrim(p.full_name), '') from public.profiles p where p.id = auth.uid()), '');
+  v_touched bigint[] := '{}';
+  v_loaded  integer := 0;
+  v_same    integer := 0;
+  v_already integer := 0;
+  v_applied integer := 0;
+  v_kept    integer := 0;
+  v_reports integer := 0;
+  v_rejects jsonb := '[]'::jsonb;
+  v_id      bigint;
+  v_latest  record;
+  v_set     jsonb;
+  v_cur     jsonb;
+begin
+  if not (coalesce(public.has_perm('ffr.manage'), false) and coalesce(public.has_perm('bulk.upload'), false)) then
+    raise exception 'Loading the old FFR update log needs “Raise and complete Field Failure Reports” (ffr.manage) and “Bulk uploads” (bulk.upload) on Roles & Permissions.'
+      using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_rows) is distinct from 'array' then
+    raise exception 'Send the sheet rows as a list.';
+  end if;
+
+  for r in
+    select x.*
+      from jsonb_to_recordset(p_rows) as x(
+             "row" integer, ffr_no text, ucn text, at timestamptz,
+             problem_status text, service_observation text, capa_responsibility text, capa_no text,
+             capa_status text, ffr_status text, attachment_url text, additional_problem text, word_copy text)
+     order by x.at nulls first, x."row"
+  loop
+    if btrim(coalesce(r.ffr_no, '')) = '' then
+      v_rejects := v_rejects || jsonb_build_object('row', r."row", 'ffr_no', '', 'ucn', coalesce(r.ucn, ''),
+                     'reason', 'No FFR number', 'register_ucn', '');
+      continue;
+    end if;
+    if r.at is null then
+      v_rejects := v_rejects || jsonb_build_object('row', r."row", 'ffr_no', r.ffr_no, 'ucn', coalesce(r.ucn, ''),
+                     'reason', 'No Timestamp -- it is when the update was made, and what orders the log', 'register_ucn', '');
+      continue;
+    end if;
+
+    -- The FFR number as the register writes it, spaces aside ("FFR - 001/21").
+    select array_agg(f.id order by f.id), string_agg(distinct nullif(btrim(f.ucn), ''), ', ')
+      into v_ids, v_regucn
+      from public.field_failure_reports f
+     where regexp_replace(upper(f.ffr_no), '\s', '', 'g') = regexp_replace(upper(r.ffr_no), '\s', '', 'g');
+    if v_ids is null then
+      v_rejects := v_rejects || jsonb_build_object('row', r."row", 'ffr_no', r.ffr_no, 'ucn', coalesce(r.ucn, ''),
+                     'reason', 'This FFR number is not on the register', 'register_ucn', '');
+      continue;
+    end if;
+    select array_agg(f.id order by f.id) into v_match
+      from public.field_failure_reports f
+     where f.id = any (v_ids) and upper(btrim(f.ucn)) = upper(btrim(coalesce(r.ucn, '')));
+    if v_match is null then
+      v_rejects := v_rejects || jsonb_build_object('row', r."row", 'ffr_no', r.ffr_no, 'ucn', coalesce(r.ucn, ''),
+                     'reason', 'The register has this FFR number with a different UCN', 'register_ucn', coalesce(v_regucn, ''));
+      continue;
+    end if;
+    if array_length(v_match, 1) > 1 then
+      v_rejects := v_rejects || jsonb_build_object('row', r."row", 'ffr_no', r.ffr_no, 'ucn', coalesce(r.ucn, ''),
+                     'reason', 'Several register rows carry this FFR number and UCN', 'register_ucn', coalesce(v_regucn, ''));
+      continue;
+    end if;
+
+    insert into public.ffr_sheet_updates (ffr_id, ffr_no, ucn, updated_at, problem_status, service_observation,
+             capa_responsibility, capa_no, capa_status, ffr_status, attachment_url, additional_problem, word_copy,
+             source_row, loaded_by, loaded_by_name)
+    values (v_match[1], btrim(r.ffr_no), btrim(coalesce(r.ucn, '')), r.at,
+            btrim(coalesce(r.problem_status, '')), btrim(coalesce(r.service_observation, '')),
+            btrim(coalesce(r.capa_responsibility, '')), btrim(coalesce(r.capa_no, '')),
+            btrim(coalesce(r.capa_status, '')), btrim(coalesce(r.ffr_status, '')),
+            btrim(coalesce(r.attachment_url, '')), btrim(coalesce(r.additional_problem, '')),
+            btrim(coalesce(r.word_copy, '')), r."row", auth.uid(), v_by)
+    on conflict (ffr_id, updated_at) do nothing
+    returning id into v_new_id;
+
+    if v_new_id is null then
+      v_already := v_already + 1;
+      continue;
+    end if;
+    v_loaded := v_loaded + 1;
+    v_touched := v_touched || v_match[1];
+
+    -- THE LOG ENTRY: each field this row filled that differs from the value
+    -- the sheet held for it before this row (the latest earlier non-blank).
+    select to_jsonb(s) into v_row from public.ffr_sheet_updates s where s.id = v_new_id;
+    v_changes := '{}'::jsonb;
+    foreach v_f in array c_fields loop
+      if coalesce(v_row ->> v_f, '') = '' then continue; end if;
+      execute format('select %1$I from public.ffr_sheet_updates where ffr_id = $1 and updated_at < $2 and %1$I <> '''' order by updated_at desc, id desc limit 1', v_f)
+        into v_prev using v_match[1], r.at;
+      if v_prev is distinct from (v_row ->> v_f) then
+        v_changes := v_changes || jsonb_build_object(v_f, jsonb_build_object('from', v_prev, 'to', v_row ->> v_f));
+      end if;
+    end loop;
+
+    if v_changes = '{}'::jsonb then
+      v_same := v_same + 1;   -- the same as the update before it: not an event (0174's rule)
+    else
+      insert into public.ffr_history (ffr_id, ffr_no, changed_at, changed_by, changed_by_name, action, changes)
+      select v_match[1], f.ffr_no, r.at, null, 'FFR Update sheet (import)', 'sheet', v_changes
+        from public.field_failure_reports f where f.id = v_match[1];
+    end if;
+  end loop;
+
+  -- APPLY THE LATEST, per field, unless the log holds a newer change to it.
+  perform set_config('rithi.ffr_sheet_import', 'on', true);
+  foreach v_id in array (select coalesce(array_agg(distinct t), '{}') from unnest(v_touched) t) loop
+    v_set := '{}'::jsonb;
+    select to_jsonb(f) into v_cur from public.field_failure_reports f where f.id = v_id;
+    foreach v_f in array c_fields loop
+      execute format('select %1$I as v, updated_at as at from public.ffr_sheet_updates where ffr_id = $1 and %1$I <> '''' order by updated_at desc, id desc limit 1', v_f)
+        into v_latest using v_id;
+      if v_latest.v is null then continue; end if;
+      if exists (select 1 from public.ffr_history h
+                  where h.ffr_id = v_id and h.action = 'update' and h.changed_at > v_latest.at and h.changes ? v_f) then
+        v_kept := v_kept + 1;
+        continue;
+      end if;
+      if (v_cur ->> v_f) is distinct from v_latest.v then
+        v_set := v_set || jsonb_build_object(v_f, v_latest.v);
+      end if;
+    end loop;
+    if v_set <> '{}'::jsonb then
+      update public.field_failure_reports f
+         set problem_status      = coalesce(v_set ->> 'problem_status', f.problem_status),
+             service_observation = coalesce(v_set ->> 'service_observation', f.service_observation),
+             capa_responsibility = coalesce(v_set ->> 'capa_responsibility', f.capa_responsibility),
+             capa_no             = coalesce(v_set ->> 'capa_no', f.capa_no),
+             capa_status         = coalesce(v_set ->> 'capa_status', f.capa_status),
+             ffr_status          = coalesce(v_set ->> 'ffr_status', f.ffr_status),
+             attachment_url      = coalesce(v_set ->> 'attachment_url', f.attachment_url),
+             additional_problem  = coalesce(v_set ->> 'additional_problem', f.additional_problem),
+             updated_at          = now()
+       where f.id = v_id;
+      v_applied := v_applied + (select count(*) from jsonb_object_keys(v_set));
+      v_reports := v_reports + 1;
+    end if;
+  end loop;
+  perform set_config('rithi.ffr_sheet_import', '', true);
+
+  return jsonb_build_object('loaded', v_loaded, 'unchanged', v_same, 'already', v_already,
+                            'reports', v_reports, 'fields_applied', v_applied, 'kept_newer', v_kept,
+                            'rejected', v_rejects);
+end $$;
+
+comment on function public.ffr_load_sheet_updates(jsonb) is
+  'Loads rows of the old "Field Failure Register - Update" sheet (0409): matched on FFR No + UCN, each a dated entry in ffr_history signed "FFR Update sheet (import)", the report taking the latest non-blank value per field unless the log holds a newer change to it. Needs ffr.manage and bulk.upload.';
+
+revoke execute on function public.ffr_load_sheet_updates(jsonb) from public, anon;
+grant execute on function public.ffr_load_sheet_updates(jsonb) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0410_ffr_log_raised_on_ffr_date.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0410 -- AN IMPORTED REPORT WAS RAISED ON ITS FFR DATE, NOT ON THE DAY IT WAS
+-- LOADED (the user, 2026-10-11: "The FFR Date in the Log has to match with
+-- Actual FFR Date, it is showing the import date").
+--
+-- ffr_history_created() (0174) writes the "Report raised" entry of the update
+-- log at now(). For a report raised in RITHI that is the truth. For a report
+-- LOADED from the old register it is the moment of the load: measured on the
+-- live project, all 560 imported reports read "raised" on 14-Sep-2026 (the
+-- load), none on its FFR Date -- so the log of a 2020 report began in 2026,
+-- after the 2020 updates loaded from the old update sheet (0409).
+--
+-- NOW: a report carrying imported_from is logged as raised on its FFR DATE
+-- (midnight, India time); the load time is KEPT on the entry as
+-- changes._loaded_at, and the Update log shows it as "loaded into RITHI on",
+-- so nothing the old timestamp said is lost. A report raised in RITHI is
+-- unchanged -- logged at the moment it was raised (the 44 such reports read
+-- their raising time today, and that is what they were).
+--
+-- ONCE, the existing entries: every imported report's "Report raised" entry
+-- not already on its FFR Date moves to it, its old time kept the same way.
+-- Idempotent -- an entry already on its FFR Date is skipped.
+--
+-- The log is append-only to everybody through the API (0174: no update
+-- policy); this correction is the migration's, and touches only the date of
+-- the one system-written entry per report.
+-- ===========================================================================
+
+create or replace function public.ffr_history_created()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_imported boolean := coalesce(btrim(new.imported_from), '') <> '';
+  v_changes  jsonb := jsonb_build_object('ffr_date', jsonb_build_object('from', null, 'to', new.ffr_date),
+                                         'ucn',      jsonb_build_object('from', null, 'to', new.ucn));
+begin
+  -- 0410: a report loaded from the old register was raised on its FFR Date;
+  -- when it was loaded is kept beside it.
+  if v_imported and new.ffr_date is not null then
+    insert into public.ffr_history (ffr_id, ffr_no, changed_at, changed_by, changed_by_name, action, changes)
+    values (new.id, coalesce(new.ffr_no, ''), (new.ffr_date::timestamp at time zone 'Asia/Kolkata'),
+            new.raised_by, coalesce(new.raised_by_name, ''), 'create',
+            v_changes || jsonb_build_object('_loaded_at', now()));
+  else
+    insert into public.ffr_history (ffr_id, ffr_no, changed_by, changed_by_name, action, changes)
+    values (new.id, coalesce(new.ffr_no, ''), new.raised_by, coalesce(new.raised_by_name, ''), 'create', v_changes);
+  end if;
+  return null;
+end $$;
+
+do $once$
+declare n integer;
+begin
+  update public.ffr_history h
+     set changes    = h.changes || jsonb_build_object('_loaded_at', coalesce(h.changes -> '_loaded_at', to_jsonb(h.changed_at))),
+         changed_at = (f.ffr_date::timestamp at time zone 'Asia/Kolkata')
+    from public.field_failure_reports f
+   where h.ffr_id = f.id
+     and h.action = 'create'
+     and coalesce(btrim(f.imported_from), '') <> ''
+     and f.ffr_date is not null
+     and h.changed_at is distinct from (f.ffr_date::timestamp at time zone 'Asia/Kolkata');
+  get diagnostics n = row_count;
+  raise notice '0410: % imported report(s) now read raised on their FFR Date', n;
+end $once$;
 
 -- ------------------------------------------------------------------------
 -- 0052_search_indexes.sql

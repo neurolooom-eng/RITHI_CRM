@@ -11,6 +11,8 @@ import {
   handstockForEngineer, supabaseConfigured,
 } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
+import { useLabourParts } from '../lib/useLabourParts';
+import { LABOUR_QTY, labourOptionLabel } from '../lib/labour';
 import { formatDay } from '../lib/dates';
 import { isReviewable, REVIEW_DONE } from '../lib/callreview';
 import { CallContext } from '../components/callcontext/CallContext';
@@ -176,6 +178,10 @@ export function CallReview() {
     return () => { alive = false; };
   }, [recoOpen, callEngineer]);
 
+  // LABOUR CHARGES (0413): offered whatever the engineer holds, quantity 1.
+  const labour = useLabourParts(recoOpen);
+  const recoIsLabour = labour.isLabour(recoPart);
+
   const refreshOne = async () => { await load(); };
 
   const doMark = async () => {
@@ -204,7 +210,7 @@ export function CallReview() {
 
   const doReco = async () => {
     if (!sel || !current) return;
-    const qty = Math.floor(Number(recoQty) || 0);
+    const qty = recoIsLabour ? LABOUR_QTY : Math.floor(Number(recoQty) || 0);
     if (!recoPart.trim()) { setErr('Pick the part that was fitted.'); return; }
     if (qty < 1) { setErr('Quantity must be at least 1.'); return; }
     if (!recoWhy.trim()) { setErr('A reconciliation needs a reason — why it is being booked by hand.'); return; }
@@ -217,7 +223,8 @@ export function CallReview() {
     setBusy(false);
     if (!res.ok) { setErr(res.error ?? 'Could not book the reconciliation.'); return; }
     logAudit({ action: 'callreview.reco', target: sel, status: 'ok', meta: { part: recoPart, qty } });
-    setNote(`Booked ${qty} × ${recoPart} against ${sel}, off ${callEngineer}'s hand stock.`);
+    setNote(recoIsLabour ? `Booked the labour charge ${recoPart} against ${sel}.`
+      : `Booked ${qty} × ${recoPart} against ${sel}, off ${callEngineer}'s hand stock.`);
     setRecoOpen(false); setRecoPart(''); setRecoQty('1'); setRecoGrir(''); setRecoWhy('');
     const s = await consumptionForCall(sel, g(current, 'callNumber'));
     setSpares(s);
@@ -369,18 +376,26 @@ export function CallReview() {
                     <p className="muted cr-note">
                       It comes off <b>{callEngineer || 'the attending engineer'}</b>&rsquo;s hand stock, not yours, and is
                       capped at what they hold. The line is recorded as a Reconciliation with your name on it.
+                      A labour charge is listed too: quantity 1, and no hand stock.
                     </p>
                     <PickList
                       value={recoPart}
-                      options={stock.map((r) => r.part)}
-                      onPick={setRecoPart}
+                      options={[...stock.map((r) => r.part),
+                        ...labour.parts.map((p) => p.part).filter((p) => !stock.some((r) => r.part === p))]}
+                      onPick={(v) => { setRecoPart(v); if (labour.isLabour(v)) setRecoQty(String(LABOUR_QTY)); }}
                       placeholder="Type any part of the code…"
-                      labelFor={(v) => { const r = stock.find((x) => x.part === v); return r ? stockOptionLabel(r) : v; }}
-                      isDisabled={(v) => num(stock.find((x) => x.part === v)?.on_hand) <= 0}
-                      emptyLabel={stock.length ? '— pick a part —' : '— nothing in that engineer’s hand stock —'}
+                      labelFor={(v) => {
+                        const lp = labour.parts.find((x) => x.part === v);
+                        if (lp) return labourOptionLabel(lp);
+                        const r = stock.find((x) => x.part === v); return r ? stockOptionLabel(r) : v;
+                      }}
+                      isDisabled={(v) => !labour.isLabour(v) && num(stock.find((x) => x.part === v)?.on_hand) <= 0}
+                      emptyLabel={stock.length || labour.parts.length ? '— pick a part —' : '— nothing in that engineer’s hand stock —'}
                     />
                     <div className="cr-reco-row">
-                      <input className="input" type="number" min={1} value={recoQty} onChange={(e) => setRecoQty(e.target.value)} placeholder="Qty" />
+                      <input className="input" type="number" min={1} value={recoIsLabour ? String(LABOUR_QTY) : recoQty}
+                        onChange={(e) => setRecoQty(e.target.value)} placeholder="Qty"
+                        disabled={recoIsLabour} title={recoIsLabour ? 'A labour charge is always 1' : undefined} />
                       <input className="input" value={recoGrir} onChange={(e) => setRecoGrir(e.target.value)} placeholder="GRIR / traceability" />
                     </div>
                     <textarea className="input" rows={2} value={recoWhy} onChange={(e) => setRecoWhy(e.target.value)} placeholder="Why is this being booked by hand? (required)" />

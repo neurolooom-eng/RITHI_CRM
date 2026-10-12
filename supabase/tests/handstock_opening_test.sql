@@ -30,7 +30,7 @@ begin
 end $$;
 call public.be('hso@x.com');
 
-\echo '--- 1. with no opening, the engineer holds nothing (expect ERROR: the cap) ---'
+\echo '--- 1. with no opening, the engineer holds nothing (a line beyond it is booked since 0401) ---'
 -- 0214: A SPARE NEEDS A VISIT BEHIND IT. `zz_consumption_needs_visit` refuses a
 -- consumption row whose call has no `reports` entry, so without these the
 -- inserts below are REFUSED and every assertion after them reads as the failure
@@ -40,8 +40,15 @@ insert into public.reports (ucn, uid, visit_at, updated_at)
 select v.u, 'T-VISIT-' || v.u, now(), now() from (values ('HSO-U1')) v(u)
 on conflict (uid) do nothing;
 
+-- Since 0401 (the user, 2026-10-08) a line beyond the balance is BOOKED and the
+-- Spare Coordinator told, not refused. Rolled back so the balances below are
+-- the ones this suite was written for.
+begin;
 insert into public.spare_consumption (ucn, part, qty, engineer)
   values ('HSO-U1','HSO-1|Legacy valve', 2, 'HSO Engineer');
+select 'booked beyond nothing (0401)' as check, on_hand::text as should_be_minus_2
+  from public.handstock_balance where part_code = 'HSO-1';
+rollback;
 
 \echo '--- 2. the WinMax pool, struck as the opening balance in June 2022 ---'
 insert into public.handstock_opening (engineer, part, qty, as_of, source)
@@ -74,9 +81,16 @@ insert into public.spare_consumption (ucn, part, qty, engineer)
   values ('HSO-U1','HSO-1|Legacy valve', 4, 'HSO Engineer');
 select opening, consumed, on_hand from public.handstock_balance where part_code = 'HSO-1';
 
-\echo '--- 7. ...and still capped at what is actually held (expect ERROR) ---'
+\echo '--- 7. ...and beyond what is actually held, booked and told (0401) ---'
+-- Since 0401 (the user, 2026-10-08) a line beyond the balance is BOOKED and the
+-- Spare Coordinator told, not refused. Rolled back so the balances below are
+-- the ones this suite was written for.
+begin;
 insert into public.spare_consumption (ucn, part, qty, engineer)
   values ('HSO-U1','HSO-1|Legacy valve', 99, 'HSO Engineer');
+select 'beyond the balance (0401)' as check, (on_hand < 0)::text as negative_should_be_true
+  from public.handstock_balance where part_code = 'HSO-1';
+rollback;
 
 \echo '--- 8. engineer_stock, which the TRANSFER guard reads, agrees ---'
 \echo 'expect: the same 2 as on_hand above — the two derivations cannot disagree'

@@ -1381,6 +1381,14 @@ var DCCR_PAGE = 1000;
 // first. id breaks a tie so a page boundary cannot double or drop a row.
 var DCCR_VIEW  = 'field_call_review';
 var DCCR_ORDER = 'reg_date.asc.nullslast,id.asc';  // OLDEST FIRST (the user, 2026-10-04)
+// ONLY 2026 CALLS (the user, 2026-10-08: "In DCCR mirror, don't send old calls.
+// During the scheduled run. old Calls meaning 2025 calls. Only 2026 calls should
+// be sent to DCCR mirror"). The register also holds the old DCCR register's
+// 2025 calls (0394/0395); the mirror reads from this registration date on. The
+// tab is cleared and rewritten every run, so the first run after this change
+// takes the 2025 rows off it. A call with no registration date is not a 2026
+// call either, and is left out with them.
+var DCCR_FROM  = '2026-01-01';
 
 // THE COLUMNS, AND THEY ARE A COPY. `DCCR_EXPORT_COLUMNS` in src/lib/dccr.ts is
 // the original -- the WRR-2026 shape, so an export pastes into that workbook
@@ -1576,7 +1584,8 @@ function _dccrFetchAll() {
   for (var from = 0; ; from += DCCR_PAGE) {
     var to = from + DCCR_PAGE - 1;
     var res = UrlFetchApp.fetch(
-      auth.url + '/rest/v1/' + DCCR_VIEW + '?select=*&order=' + encodeURIComponent(DCCR_ORDER),
+      auth.url + '/rest/v1/' + DCCR_VIEW + '?select=*&reg_date=gte.' + DCCR_FROM
+        + '&order=' + encodeURIComponent(DCCR_ORDER),
       {
         method: 'get',
         headers: {

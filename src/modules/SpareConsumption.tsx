@@ -18,6 +18,8 @@ import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
 import { formatDayTime } from '../lib/dates';
+import { useLabourParts } from '../lib/useLabourParts';
+import { LABOUR_QTY, labourOptionLabel } from '../lib/labour';
 
 const CACHE_KEY = 'spareConsumption';
 
@@ -84,8 +86,12 @@ export function SpareConsumption() {
   const [saving, setSaving] = useState(false);
   const setF = (k: 'ucn' | 'call_number' | 'engineer' | 'remarks', v: string) =>
     setForm((f) => f && ({ ...f, [k]: v }));
+  // LABOUR CHARGES (0413): offered whatever the engineer holds, quantity 1.
+  const labour = useLabourParts(onDb);
   const setLine = (i: number, k: keyof Line, v: string) =>
-    setForm((f) => f && ({ ...f, lines: f.lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
+    setForm((f) => f && ({ ...f, lines: f.lines.map((l, j) => (j !== i ? l
+      : k === 'part' && labour.isLabour(v) ? { ...l, part: v, qty: String(LABOUR_QTY) }
+      : { ...l, [k]: v })) }));
   const addLine = () => setForm((f) => f && ({ ...f, lines: [...f.lines, { part: '', qty: '1', grir: '' }] }));
   const dropLine = (i: number) => setForm((f) => f && ({ ...f, lines: f.lines.filter((_, j) => j !== i) }));
 
@@ -142,6 +148,11 @@ export function SpareConsumption() {
       if (!l.part.trim()) continue;
       const q = Number(l.qty);
       if (!Number.isFinite(q) || q <= 0) return `Quantity for ${l.part} must be more than zero.`;
+      // A labour charge is not hand stock: quantity 1, no balance to check.
+      if (labour.isLabour(l.part)) {
+        if (q !== LABOUR_QTY) return `${l.part} is a labour charge — its quantity is always ${LABOUR_QTY}.`;
+        continue;
+      }
       if (q > remainingFor(i, l.part)) {
         return `${l.part}: only ${onHand(l.part)} in ${form.engineer}'s hand stock.`;
       }
@@ -199,6 +210,8 @@ export function SpareConsumption() {
     const cur = Number(g(row, 'qty')) || 0;
     setMsg(null);
     setAdjust({ row, qty: String(cur), reason: '', max: cur });
+    // A labour charge is 1, or 0 to void it — never more (0413).
+    if (labour.isLabour(g(row, 'part'))) { setAdjust({ row, qty: String(cur), reason: '', max: LABOUR_QTY }); return; }
     // Raising it consumes more, so the ceiling is what is still in hand plus
     // what this line already accounts for.
     const eng = pick(row, ENGINEER_KEYS);
@@ -478,7 +491,8 @@ export function SpareConsumption() {
                 value={adjust.qty} autoFocus
                 onChange={(e) => setAdjust((a) => a && ({ ...a, qty: e.target.value }))} />
               <span className="muted" style={{ fontSize: 12 }}>
-                Reported {g(adjust.row, 'original_qty') || g(adjust.row, 'qty')} · up to {adjust.max} (what is in hand).
+                Reported {g(adjust.row, 'original_qty') || g(adjust.row, 'qty')} · up to {adjust.max}
+                {labour.isLabour(g(adjust.row, 'part')) ? ' (a labour charge is always 1).' : ' (what is in hand).'}
                 Set it to <b>0</b> to void the line — it stays on record and the spare goes back to the engineer's stock.
               </span>
             </div>
@@ -550,21 +564,26 @@ export function SpareConsumption() {
                       matches the PART, and what is stored is still the part. */}
                   <PickList
                     value={l.part}
-                    options={stock.map((r) => r.part)}
+                    options={[...stock.map((r) => r.part),
+                      ...labour.parts.map((p) => p.part).filter((p) => !stock.some((r) => r.part === p))]}
                     onPick={(v) => setLine(i, 'part', v)}
-                    disabled={!stock.length}
+                    disabled={!stock.length && !labour.parts.length}
                     placeholder="Type any part of the code…"
                     emptyLabel={stock.length ? '— pick a part —' : 'Enter the UCN first'}
                     emptyHint="Only what this engineer holds can be consumed."
                     labelFor={(v) => {
+                      const lp = labour.parts.find((x) => x.part === v);
+                      if (lp) return labourOptionLabel(lp);
                       const r = stock.find((x) => x.part === v);
                       return r ? `${r.part} — ${r.qty} in hand` : v;
                     }}
                   />
                   <input className="input" type="number" min={1} step={1} style={{ width: 110 }}
-                    max={l.part ? remainingFor(i, l.part) : undefined}
+                    max={l.part && !labour.isLabour(l.part) ? remainingFor(i, l.part) : undefined}
                     value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)}
-                    title={l.part ? `Up to ${remainingFor(i, l.part)}` : 'Pick a part first'} />
+                    disabled={labour.isLabour(l.part)}
+                    title={labour.isLabour(l.part) ? 'A labour charge is always 1'
+                      : l.part ? `Up to ${remainingFor(i, l.part)}` : 'Pick a part first'} />
                   <input className="input" style={{ width: 180 }} placeholder="GRIR / traceability"
                     title="Which part was actually fitted — batch, goods-receipt or serial number"
                     value={l.grir} onChange={(e) => setLine(i, 'grir', e.target.value)} />
@@ -572,7 +591,7 @@ export function SpareConsumption() {
                     onClick={() => dropLine(i)} disabled={form.lines.length === 1}>✕</button>
                 </div>
               ))}
-              <button className="btn btn-sm" onClick={addLine} disabled={!stock.length}>＋ Add another part</button>
+              <button className="btn btn-sm" onClick={addLine} disabled={!stock.length && !labour.parts.length}>＋ Add another part</button>
             </div>
 
             <div className="field">

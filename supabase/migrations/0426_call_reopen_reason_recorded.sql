@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0411 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+-- 0426 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
 --        (second re-review D-035, FRS-133.4, FRS-120.9)
 --
 -- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
@@ -60,7 +60,7 @@ begin
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
   end if;
-  -- 0411 (D-035, FRS-120.9): a re-open says why.
+  -- 0426 (D-035, FRS-120.9): a re-open says why.
   if btrim(coalesce(p_reason, '')) = '' then
     raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
   end if;
@@ -75,7 +75,7 @@ begin
      set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
    where ucn = p_ucn;
 
-  -- 0411 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  -- 0426 (D-035, FRS-133.4): the reason, the person and the time, kept.
   insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
   values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
 

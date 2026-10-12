@@ -478,6 +478,16 @@ eq('the request is keyed on the OR number', [sr.rows[0].or_no, def('spare_reques
 eq('...and no uid is sent, so the database keeps the one it has', sr.rows[0].uid, undefined);
 eq('...and the sheet row id is kept, not lost', (sr.rows[0].extra as Record<string, unknown>)['UID'], 'S1-30793a25');
 eq('the wide Spare (n) columns ride along', (sr.rows[0].extra as Record<string, unknown>)['Spare (1)'], 'MP-010|SENSOR');
+// A REQUEST WITH NO ENGINEER IS HELD BACK (the user, 2026-10-08: "Yes, block
+// uploads with empty engineer"). One loaded blank booked its dispatch to
+// nobody's hand stock (D-158).
+const srBlank = shapeUpload(def('spare_requests'), [
+  { 'OR NO': 'OR90001', 'Req Type': 'Call Based', 'ENGINEER NAME': '' },
+  { 'OR NO': 'OR90002', 'Req Type': 'Call Based', 'ENGINEER NAME': '  ' },
+  { 'OR NO': 'OR90003', 'Req Type': 'Call Based', 'ENGINEER NAME': 'MEGHANATH' },
+]);
+eq('a request row with no engineer is held back, named', srBlank.skipped.map((x) => x.why), ['no engineer', 'no engineer']);
+eq('...and the one naming an engineer still loads', srBlank.rows.map((r) => r.or_no), ['OR90003']);
 
 const srl = shapeUpload(def('spare_request_lines'), [
   { 'Spare Request No|Part Number': 'OR42608|MWP-026', 'OR NO': 'OR42608', 'Spare': 'MWP-026|COMPRESSOR',
@@ -765,6 +775,20 @@ console.log('\n-- hand stock belongs to an active engineer --');
   eq(`${k} filters to active User Master names`, def(k).prepare, 'handstock-engineers');
 });
 
+console.log('\n-- the WinMax opening is the GOOD balance only (D-161), a blank Good kept at 0 --');
+{
+  // The user, 2026-10-12: MP-010 / SUNIL KUMAR.K.V opened at 170, which was
+  // its DEFECTIVE balance -- the Good Balance cell was empty.
+  const w = shapeUpload(def('handstock_winmax'), [
+    { 'User Name': 'SUNIL KUMAR.K.V', 'Item Code': 'MP-010', 'Item Name': 'OXYGEN SENSOR', 'Good Balance': '', 'Defective Balance': '170.00', 'Missing Balance': '8.00' },
+    { 'User Name': 'SUNIL KUMAR.K.V', 'Item Code': 'EM-851', 'Item Name': 'ORG-FUSE', 'Good Balance': '5.00', 'Defective Balance': '2.00', 'Missing Balance': '' },
+  ]);
+  // The user, 2026-10-12: "If the Good Qty is 0 in the WinMax Opening, keep
+  // it as 0, dont skip it." The sheet writes that 0 as an empty cell.
+  eq('a row with no Good Balance is KEPT, not held back', w.skipped.length, 0);
+  eq('the opening is the Good Balance (blank = 0), the defective never added', w.rows.map((r) => r.qty), [0, 5]);
+}
+
 console.log('\n-- the Party Master names who looks after the customer (0200) --');
 {
   // The supplied export's own headings, in its own order — 25 columns, four of
@@ -976,15 +1000,16 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   // OR1 is here; OR2 is here under uid U-2; OR3 is in neither.
   const p = planSpareLineParents(lines, new Set(['OR1']), new Map([['OR2', 'U-2']]));
   eq('the spare-line plan does not touch the caller\'s rows', JSON.stringify(lines), before);
-  eq('...numbers the lines per request, in file order', p.rows.map((r) => r.row_no), [1, 2, 1, 1]);
+  eq('...numbers the lines per request, in file order (the held-back line is not among them)', p.rows.map((r) => r.row_no), [1, 2, 1]);
   eq('...re-points a line at the request already holding its OR number', p.rows[2].request_uid, 'U-2');
-  eq('...and RETURNS the one stub request to create, rather than creating it',
-    p.writes.map((w) => [w.table, w.rows.map((r) => r.uid), w.onConflict, w.ignoreDuplicates]),
-    [['spare_requests', ['OR3'], 'uid', true]]);
-  eq('...marked Imported', p.writes[0].rows[0].status, 'Imported');
+  // D-158 (the user, 2026-10-08): a line whose request is in NEITHER file is
+  // HELD BACK and named -- no stub request, which had no engineer and booked
+  // its spare to nobody's hand stock.
+  eq('...holds back the line whose request is in neither, and plans no request for it',
+    [p.rows.map((r) => r.request_uid), p.writes.length], [['OR1', 'OR1', 'U-2'], 0]);
+  eq('...and names it in the note', /1 line held back — 1 request is not in RITHI.*OR3/.test(p.note), true);
   eq('...the re-pointing is in the note', /1 line pointed/.test(p.note), true);
-  eq('the confirmation names the count it will write first',
-    /FIRST write/.test(prepWritesQuestion(p.writes)) && /• 1 spare request \(/.test(prepWritesQuestion(p.writes)), true);
+  eq('the confirmation asks nothing when nothing is written first', prepWritesQuestion(p.writes), '');
   eq('all parents present: nothing to write, no question',
     [planSpareLineParents(lines, new Set(['OR1', 'OR2', 'OR3']), new Map()).writes.length, prepWritesQuestion([])], [0, '']);
 

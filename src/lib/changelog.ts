@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.144',
+    version: '0.10.175',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -25,7 +25,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.143',
+    version: '0.10.174',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -38,7 +38,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.142',
+    version: '0.10.173',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -48,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.141',
+    version: '0.10.172',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -59,7 +59,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.140',
+    version: '0.10.171',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -73,7 +73,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.139',
+    version: '0.10.170',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -87,7 +87,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.138',
+    version: '0.10.169',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -98,6 +98,299 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.168',
+    date: '2026-10-12',
+    title: 'Refurb on Stock Out disappears in Audit Mode',
+    auditHidden: true,
+    changes: [
+      'While Audit Mode is on, Pending Dispatch no longer shows the ♻ Refurb button, and the Stock outs list no longer shows the ♻ Refurbished badge. Turning Audit Mode off brings both back.',
+      'A refurbished part cannot be issued while Audit Mode is on, however the stock out is written.',
+    ],
+  },
+  {
+    version: '0.10.167',
+    date: '2026-10-12',
+    title: 'Labour charges are not requested as spares',
+    changes: [
+      'Service, Transportation and Installation charges (SC001, TC001, INS-001) are no longer listed on a Spare Request. A labour charge is added to the consumption on the visit, and there is nothing for Stores to send. A request naming one is refused, however it is written.',
+      'The two SC001 lines already on spare requests are left as they are.',
+    ],
+  },
+  {
+    version: '0.10.166',
+    date: '2026-10-12',
+    title: 'Hand Stock starts at the WinMax opening; labour charges on a consumption',
+    changes: [
+      'Hand stock now counts from 09-Jun-2022, the WinMax opening. Consumption, stock outs and returns from before that day are inside the opening balance, so they are no longer counted again. For example, MP-010 / SUNIL KUMAR.K.V now reads 1 instead of −2. Nothing is deleted: the old records stay where they were, and the Hand Stock page says the day it counts from.',
+      'A day now starts at midnight India time for hand stock, not at 05:30.',
+      'Labour charges (SC001 Service Charges, TC001 Transportation Charges, INS-001 Installation Charges) can be added to a consumption on a visit, on Spare Consumption and on Call Review. They are always offered whatever the engineer holds, and their quantity is always 1.',
+      'Labour charges are not hand stock. They no longer appear on Hand Stock, no longer read below zero and no longer send the Spare Coordinator a negative-stock notice. They still appear in every consumption report.',
+      'The Part Master has a new Labour Charge tick, on the list and on the add and edit forms. The three charges above are ticked already.',
+      'WinMax opening stock: a row whose Good Balance is blank (zero) is now kept as an opening of 0 instead of being left out. To bring back the rows the last fix left out, load the WinMax export again (Bulk Uploads → Opening Stock — the WinMax export).',
+    ],
+  },
+  {
+    version: '0.10.165',
+    date: '2026-10-12',
+    title: 'Hand Stock: the WinMax opening is the Good Balance only',
+    changes: [
+      'FIXED: the WinMax opening stock counted the Defective Balance as well as the Good Balance. For example, MP-010 / SUNIL KUMAR.K.V opened at 170, which was its defective quantity. The opening is now the Good Balance alone.',
+      'The opening stock already loaded has been corrected. Lines with no Good Balance were removed (815), and the rest were cut to their Good Balance. Each corrected line records how many defective units were taken out. 53 lines now read below zero; the Spare Coordinator settles them with ± Adjust stock.',
+      'Loading the WinMax export again (Bulk Uploads → Opening Stock — the WinMax export) takes only the Good Balance, and a row with no Good Balance is held back by name.',
+    ],
+  },
+  {
+    version: '0.10.164',
+    date: '2026-10-12',
+    title: 'Hand Stock: what "From history" means, said on screen',
+    changes: [
+      'The From history column is part of the total, not something added to it. It is opening + imported stock outs − imported consumption: the share of the line that came from the old system, and it is already inside Opening, Stock out and Consumed. Hover the heading or the figure to see this, and a line\'s drawer now says it in words.',
+    ],
+  },
+  {
+    version: '0.10.163',
+    date: '2026-10-12',
+    title: 'Hand Stock: Balance after no longer counts the opening twice',
+    changes: [
+      'FIXED: in a line\'s Movements table, Balance after read too high by the opening balance on every row. For example, EM-851 / SIVAKUMAR showed 10 and 9 where the stock level is 4. The opening is itself the first movement on the trail and was being added a second time. The column now ends on the stock level.',
+      'If a line\'s full movement trail ever adds up to something other than its stock level, the drawer now says so, with both figures, so it can be looked into.',
+    ],
+  },
+  {
+    version: '0.10.162',
+    date: '2026-10-11',
+    title: 'FFR Update log: a loaded report starts on its FFR Date',
+    changes: [
+      'A Field Failure Report loaded from the old register now reads "Report raised" on its FFR DATE in the Update log, not on the day it was loaded (14-Sep-2026 for all 560 of them). The load date is still shown beside it, as "loaded into RITHI on". Reports raised in RITHI are unchanged.',
+    ],
+  },
+  {
+    version: '0.10.161',
+    date: '2026-10-10',
+    title: '"Need more details" mail: sivarani.a@airliquide.com always in Cc',
+    changes: [
+      'Every "Need more details" mail now copies sivarani.a@airliquide.com, as well as the requestor\'s Reporting Manager. The panel shows it in the Cc line as "always copied".',
+    ],
+  },
+  {
+    version: '0.10.160',
+    date: '2026-10-10',
+    title: '"Need more details" mail: the request\'s attachments',
+    changes: [
+      'Where a request carries an Installation Report or a KYC document, the mail\'s table now has a row for each, with a link that opens the document. A request with no attachment gets no such row. Gmail cannot attach a file from a link, so the document goes in as its link.',
+      'The Request details panel on Pending Registrations shows the Installation Report and KYC too, as links.',
+    ],
+  },
+  {
+    version: '0.10.159',
+    date: '2026-10-10',
+    title: '"Need more details" mail: the details as a table',
+    changes: [
+      'The mail now carries a TABLE of just twelve details: Request ID, Product, Serial No, Party Name, Call Type, Standard Complaint, Reported Problem, Raised on, City, State, Customer Contact and Contact Number. A field the request left empty shows "—", which is what you are asking about.',
+      'A Gmail link can only carry plain text, so Compose in Gmail now COPIES the mail and opens Gmail with To, Cc and the subject filled in. Click in the message body and press Ctrl+V. "Copy the table again" copies it once more.',
+    ],
+  },
+  {
+    version: '0.10.158',
+    date: '2026-10-10',
+    title: 'Pending Registrations: "Need more details" opens in Gmail',
+    changes: [
+      'Ask the requestor for more details now opens a new mail in GMAIL, in a new tab, from your own account — To, Cc, subject and the request\'s details already filled in. It used to open the computer\'s default mail program, which was Outlook. If more than one Google account is signed in, it uses the one you sign in to RITHI with.',
+    ],
+  },
+  {
+    version: '0.10.157',
+    date: '2026-10-10',
+    title: 'User Master tags; the FFR CAPA list from them; the old FFR update log loads',
+    changes: [
+      'NEW on the User Master: Tags. Give a person as many tags as you like (type one and press Enter), filter the list by tag at the top, and tick people to Add or Remove a tag on all of them at once.',
+      'The Field Failure Register\'s CAPA (if reqd) Responsibility now lists "No closed in FFR" and every active person tagged CAPA Responsibility on the User Master. The old fixed names are gone from the list; a report that already names one still shows it.',
+      'NEW on the Field Failure Register: ⭱ Load old update log. Choose the Field Failure Register – Update sheet (CSV). Each row is added to its report\'s Update log, dated by the sheet\'s Timestamp, and the report then shows its latest values. A row is matched on FFR No + UCN; one that does not match is listed back, with the register\'s UCN beside it, to correct and load again. A blank never erases anything, a newer change made in RITHI is kept, and loading the same file twice adds nothing. Needs the Field Failure Register right and Bulk uploads.',
+    ],
+  },
+  {
+    version: '0.10.156',
+    date: '2026-10-09',
+    title: 'Warranty: installation calls in the entry; status on every generated call',
+    changes: [
+      'NEW on a Warranty entry, under the PM schedule: Installation calls — each machine\'s installation call and its status. A machine without one reads "not raised", with a Raise button there (or "Raise N pending" for all of them), the same raising as the ＋ Installation calls button.',
+      'Every generated call now shows its STATUS — Unattended, Unsolved, Report Pending or Solved, in the usual colours: PM calls on the PM schedule and on PM Due, and installation calls on the Warranty entry. A call you are not allowed to see shows its number without a colour.',
+    ],
+  },
+  {
+    version: '0.10.155',
+    date: '2026-10-09',
+    title: 'Warranty and Contract: each entry shows its PM schedule, and generates from there',
+    changes: [
+      'NEW: open a sale or a contract and, under its products, PM schedule lists every visit of each machine — visit 2 / 3, its due date, and Generated (with the call), Missed PM, Due or Upcoming.',
+      'Generate on a visit that is due or missed creates its PM call, dated the 1st of that visit\'s due month and registered the same way PM Due does it. "Generate all due / missed" does every one of the entry at once. A visit that is not due yet cannot be generated early.',
+      'NEW: a PM Schedule tab beside Entries and Register — PM Due for that register alone, with all its filters and Create.',
+      'Both need “Generate PM calls from the registers”; creating also needs “Create PM calls”.',
+    ],
+  },
+  {
+    version: '0.10.154',
+    date: '2026-10-09',
+    title: 'PM Due: the rules are filters now; Product, Serial No, Party and Engineer filters',
+    changes: [
+      'Installation (solved / none / not solved) and Customer are now ordinary filters. They start on Any, and they no longer stop a call being created: every Missed PM you can see can be ticked and created.',
+      'NEW filters: Product, Serial No, Party and Engineer, each a type-to-search list of what the other filters leave, with a Clear button.',
+    ],
+  },
+  {
+    version: '0.10.153',
+    date: '2026-10-08',
+    title: 'An installation call closes the pending installation requests for its machine',
+    changes: [
+      'When an Installation call is created for a product and serial — on the Installation register, from Pending Registrations, or by a bulk upload — every pending INSTALLATION request for the same product and serial is marked Registered with that call\'s UCN, and drops off Pending Registrations.',
+      'A Field or PM request for the same machine stays pending. A cancelled call closes nothing, and a request already Cancelled, Mapped or Registered is not touched.',
+      'Once, now: installation requests that were already pending for a machine that already has an installation call were registered against its latest one.',
+    ],
+  },
+  {
+    version: '0.10.152',
+    date: '2026-10-08',
+    title: 'Bulk Uploads: a spare request must name its engineer',
+    changes: [
+      'SPARE REQUEST upload: a row with no Engineer Name is held back and listed, not loaded. A request with no engineer books its spares to nobody\'s hand stock — the fault fixed on 08-Oct.',
+      'SPARE REQUEST LINES upload: a line whose request is not in RITHI is held back and its OR numbers listed, instead of a request being created for it with no engineer. Load the Spare Request file first, then the Lines file.',
+    ],
+  },
+  {
+    version: '0.10.151',
+    date: '2026-10-08',
+    title: 'Hand Stock: stock outs on requests loaded with no engineer now reach the engineer',
+    changes: [
+      'FIXED: some spare requests were loaded with no engineer, so their stock out counted for nobody and the engineer\'s hand stock read one short — ABHISHEK BISWAS\'s ESA-009 showed 5 stock outs where the Stock Out history has 6 (SO17541). 57 stock outs, 68 units, were affected, all from early January 2026.',
+      'Each such request now names the engineer its Stock Out history names for its lines, only where those lines all agree. The change is on the request\'s engineer-change record with the reason, the same record Change engineer keeps. A request whose lines name different engineers is left as it was.',
+    ],
+  },
+  {
+    version: '0.10.150',
+    date: '2026-10-08',
+    title: 'Hand Stock: the movements of a line as a table you can download',
+    changes: [
+      'Opening a line on Hand Stock now shows its movements as a TABLE: number, date and time, movement, In, Out, the BALANCE AFTER each one (worked from the opening balance, oldest first), reference, UCN, party and remarks.',
+      'Download (Excel) and CSV: the movements, and a second sheet with the stock level they explain. Dates are real Excel dates.',
+    ],
+  },
+  {
+    version: '0.10.149',
+    date: '2026-10-08',
+    title: 'New CallReg address (DCCR mirror: 2026 calls only)',
+    changes: [
+      'The CallReg (Google Apps Script) address was updated to the new deployment, the one carrying the DCCR mirror that sends 2026 calls only. Every device switches to it automatically on the next load.',
+    ],
+  },
+  {
+    version: '0.10.148',
+    date: '2026-10-08',
+    title: 'DCCR Google Sheet mirror: 2026 calls only',
+    changes: [
+      'The scheduled DCCR mirror now sends only calls registered from 01-Jan-2026. The old register\'s 2025 calls stay in RITHI but are no longer written to the DCCR_Mirror tab, and they come off it on the first run after the change.',
+      '⚠ Needs the new CallReg.gs pasted into the Apps Script project and saved. The scheduled runs use the saved code, so the Web App address does not change.',
+    ],
+  },
+  {
+    version: '0.10.147',
+    date: '2026-10-08',
+    title: 'Pending Registrations: ask the requestor for more details by mail',
+    changes: [
+      'NEW: in a pending request\'s action panel, Ask the requestor for more details. Compose mail opens a new mail in your own mail program, from you: To the requestor, Cc their Reporting Manager, subject Need more details | product and serial | Installation Call (or Field / PM Call), and the request\'s details in the body. Read it and send it from there; RITHI sends nothing itself.',
+      'The To and Cc addresses are shown before the mail opens. The Reporting Manager is the one named on the requestor\'s User Master row, with the email on that manager\'s own row; if there is none, the screen says nobody will be copied.',
+      'It needs the new permission “Ask the requestor for more details (compose a mail)” — give it to the Commercial team on Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.146',
+    date: '2026-10-08',
+    title: 'PM Due: machines with no installation call can be created',
+    changes: [
+      'A machine with NO installation call in RITHI now passes the installation rule and can be created, as long as its party is a customer. Only an installation call that exists and is not Solved holds a machine back.',
+      'The Installation filter now reads: Solved or none (the default), Solved, No installation call, Not solved, Any.',
+    ],
+  },
+  {
+    version: '0.10.145',
+    date: '2026-10-08',
+    title: 'PM Due: only installed machines at customers can be created',
+    changes: [
+      'TWO RULES decide which Missed PM can be created: the machine\'s installation call is Solved, and the party it is with is a CUSTOMER on the Party Master. Anything else is listed but cannot be ticked.',
+      'Each rule is also a filter at the top: Installation solved / not solved / any, and Customer / not a customer / any. They start on what the rules allow.',
+      'Each row now shows the machine\'s installation call with its state, and its party\'s Type. A machine with no installation call, or a party that is not in the Party Master or has no Type, does not pass.',
+    ],
+  },
+  {
+    version: '0.10.144',
+    date: '2026-10-08',
+    title: 'PM Due: Generated or Missed PM, products and accessories apart, and a product filter',
+    changes: [
+      'Each machine with a PM visit in the month is now shown as GENERATED — its PM call for that visit (for example SCHEDULED PM VISIT 2 / 3) exists and is not cancelled, whatever month it was raised in — or as a MISSED PM.',
+      'Filters at the top: Missed PM / Generated / All, Products / Accessories, and a Product picker. Each button shows how many it would list.',
+      'Only a Missed PM can be ticked and created, and each row shows the PM call that generated it and the machine\'s last PM call.',
+      'FIXED: the first version counted every PM call since a cover started; RITHI has almost no PM calls from before 2026, so machines with this month\'s call already raised were listed again (1,098 in October) and Create would have duplicated them. No call had been created with it.',
+    ],
+  },
+  {
+    version: '0.10.143',
+    date: '2026-10-08',
+    title: 'Party Master: a new State or Country can be entered',
+    changes: [
+      'STATE and COUNTRY on the Party Master now take a new value, as City already did: type it and pick it. TYPE and PROFILE still take only their listed values, and SERVICEMAN only active people on the User Master.',
+    ],
+  },
+  {
+    version: '0.10.142',
+    date: '2026-10-08',
+    title: 'Party Master: Type, Profile, Serviceman, City, State and Country are dropdowns',
+    changes: [
+      'TYPE, PROFILE, SERVICEMAN, CITY, STATE AND COUNTRY on the Party Master are now dropdowns: type to search and pick. This applies to editing a customer and to Add to Party Master.',
+      'SERVICEMAN lists only the people who are ACTIVE on the User Master. A customer whose Serviceman is no longer active says so, so it can be changed.',
+      'TYPE and PROFILE offer the standard values (the same as Warranty Entry) plus any already on file. STATE and COUNTRY offer what the Party Master already holds. CITY offers the cities already on file for the State chosen, and a new town can still be typed.',
+    ],
+  },
+  {
+    version: '0.10.141',
+    date: '2026-10-08',
+    title: 'A spare can be booked beyond the hand stock — the Spare Coordinator is told',
+    changes: [
+      'VISIT ENTRY: a spare the engineer fitted is now saved even when it is more than their hand stock. Before, the visit saved but the spares were refused ("has 0 of … in hand, so 1 cannot be consumed").',
+      'The visit form lists every part on the engineer\'s hand stock, including ones at zero or below, and warns before saving which part will go below zero.',
+      'Every Spare Coordinator gets a notification on the bell: "Hand stock gone negative", naming the engineer, the part, how many they had, how many were consumed, the new balance and the call. The same happens when a saved line\'s quantity is raised past the balance.',
+      'Stock transfers and material returns still cannot move more than the engineer holds.',
+    ],
+  },
+  {
+    version: '0.10.140',
+    date: '2026-10-08',
+    title: 'PM Due: the month\'s PM calls from the Warranty and Contract Registers',
+    changes: [
+      'NEW: PM Due, under Administration beside PM Bulk Upload. Pick a month and it lists every machine whose warranty or contract owes a PM visit that month, with the visit number (for example 2 / 3), the due date, the engineer and how many PM calls have been raised so far.',
+      'A visit is due on the start date plus its share of the period counted in days, a month being 30 days: a warranty from 10 January with 3 visits in 12 months is due on day 120 (10 May), day 240 (7 September) and day 360 (5 January). Never after the cover ends.',
+      'Only visits not already raised are listed: the PM calls already registered for that machine in that period are counted, so a machine done in an uploaded batch does not appear again. A machine with both a warranty and a contract visit in the month is listed once, from the warranty.',
+      'Untick any machine that should not get a call, then Create. Each call is dated the 1st of the month, registered 10 seconds after the month\'s latest PM call (and 10 seconds apart), Added On today, allotted to the engineer on the Product Database, and reads SCHEDULED PM VISIT and SCHEDULED PM VISIT 2 / 3, as this year\'s PM calls do. The SA or MC number and the cover dates go on the call.',
+      'PM Bulk Upload is unchanged. PM Due needs the new permission “Generate PM calls from the registers”, which no role has yet apart from administrators; creating the calls also needs “Create PM calls”.',
+    ],
+  },
+  {
+    version: '0.10.139',
+    date: '2026-10-08',
+    title: 'Dropdowns on a phone open where you can see them',
+    changes: [
+      'On a phone with the keyboard up, or with the page zoomed in, a dropdown list could open behind the keyboard, so the field looked empty: Standard Complaint and Add Consumption? on the Visit Entry, and any other dropdown near the bottom of the screen. The list now opens in the part of the screen you can see.',
+      'A short dropdown (Yes / No, Add Consumption?) no longer shows two boxes when opened. It shows one, with the list under it.',
+    ],
+  },
+  {
+    version: '0.10.138',
+    date: '2026-10-06',
+    title: 'Old DCCR calls are kept but not listed in the call registers',
+    changes: [
+      'The calls loaded from the old DCCR register (2025) no longer appear in the Field Calls and PM Calls registers, their searches, the Dashboard, Pending Calls or the SLA flags. They stay in RITHI for the Daily Complaint Review and the failure rate, and still show in a machine\'s history.',
+      'MY WORKLOAD counts the review stages from the start of this year, as the register opens, so the old register\'s loaded reviews are not counted as work waiting.',
     ],
   },
   {

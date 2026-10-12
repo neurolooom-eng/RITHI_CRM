@@ -118,6 +118,9 @@ export const MODULES: ModuleDef[] = [
   // nav to MODULES rather than by reading either (check:ui now does that
   // comparison on every run).
   { path: '/pm-bulk-upload', label: 'PM Bulk Upload', admin: true },
+  // PM DUE (0401) -- administrators to begin with; 0401 merges the key into
+  // admin and technical_support only.
+  { path: '/pm-due', label: 'PM Due', admin: true },
   { path: '/bulk-uploads', label: 'Bulk Uploads', admin: true },
   { path: '/data-export', label: 'Data Export', admin: true },
   // DEVICE CACHE STATUS -- administrators to begin with. `admin: true` keeps the
@@ -272,7 +275,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
   // D-129 (the user, 2026-10-05: "visible only to a selected few as set through
   // roles & permissions"): reading the review answers is its own key, given once
-  // to the roles that held review.edit (0401); review.edit grants it, since an
+  // to the roles that held review.edit (0416); review.edit grants it, since an
   // editor reads what they edit.
   { group: 'Calls', key: 'review.view', label: 'Read Daily Complaint Review answers' },
   // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
@@ -329,6 +332,11 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'PM Calls', key: 'pm.reopen', label: 'Re-open, close or close again a PM call' },
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
+  // A mail asking the requestor for more details (the user, 2026-10-08: "This
+  // is for Pending Registrations - Commercial Team will be doing it"). It only
+  // opens a new mail in the person's own Gmail; granted to no role by a migration --
+  // given to Commercial on Roles & Permissions.
+  { group: 'Requests', key: 'pending.mail', label: 'Ask the requestor for more details (compose a mail)' },
   { group: 'Spares', key: 'spare.request', label: 'Request spares' },
   { group: 'Spares', key: 'spare.approve_rm', label: 'Approve spare — RM stage' },
   { group: 'Spares', key: 'spare.approve_commercial', label: 'Approve spare — Commercial' },
@@ -447,6 +455,8 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'objective.lock', label: 'Lock or unlock the objective cut-off' },
   { group: 'Admin', key: 'bulk.upload', label: 'Load registers in bulk (Bulk Uploads)' },
   { group: 'Admin', key: 'pm.bulk_upload', label: 'Upload PM calls in bulk' },
+  // PM Due's list (0401). Creating the calls is pm.create, the PM register's.
+  { group: 'Admin', key: 'pm.generate', label: 'Generate PM calls from the registers' },
   { group: 'Admin', key: 'import.panel', label: 'Load data through the Data Import panel' },
   { group: 'Admin', key: 'export.tables', label: 'Export whole tables (Data Export)' },
   { group: 'Admin', key: 'export.schedules', label: 'Create, pause or delete an export schedule' },
@@ -707,7 +717,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Quality & Analytics', pages: [
     { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.view', 'review.edit', 'review.auto', 'review.correct_date', 'ffr.manage'] },
-    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage', 'review.view'] },
+    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage', 'review.view', 'bulk.upload'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks
     // for the screen; the ROUTE did not change, so `mod:/product-failure` and
@@ -756,7 +766,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create', 'calls.create', 'pending.register'] },
-    { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register', 'calls.create', 'install.create', 'calls.edit', 'install.edit'] },
+    { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register', 'calls.create', 'install.create', 'calls.edit', 'install.edit', 'pending.mail'] },
     { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.report.visit', 'visit.spares', 'visit.others', 'visit.feedback', 'calls.cancel', 'calls.reopen', 'spare.request', 'consumption.reconcile'] },
     { path: '/installations', label: 'Installation Calls', actions: ['calls.view', 'install.create', 'install.edit', 'install.edit.complaint', 'install.edit.customer', 'install.edit.vigilance', 'install.edit.contact', 'install.allot', 'install.report', 'install.report.visit', 'visit.spares', 'visit.others', 'visit.feedback', 'install.cancel', 'install.reopen', 'spare.request', 'consumption.reconcile'] },
     { path: '/pm-calls', label: 'Preventive (PM)', actions: ['calls.view', 'pm.create', 'pm.edit', 'pm.edit.complaint', 'pm.edit.customer', 'pm.edit.vigilance', 'pm.edit.contact', 'pm.allot', 'pm.report', 'pm.report.visit', 'visit.spares', 'visit.others', 'visit.feedback', 'pm.cancel', 'pm.reopen', 'spare.request', 'consumption.reconcile'] },
@@ -827,6 +837,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/data-export', label: 'Data Export', actions: ['export.tables', 'export.schedules'] },
     { path: '/device-cache', label: 'Device Cache Status', actions: [] },
     { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: ['pm.bulk_upload'] },
+    { path: '/pm-due', label: 'PM Due', actions: ['pm.generate', 'pm.create'] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage', 'import.panel', 'audit.mode'] },
     { path: '/sla-objective-config', label: 'SLA / Objective Configuration', actions: ['config.manage', 'objective.manage'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['validation.manage'] },

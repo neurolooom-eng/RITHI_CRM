@@ -89,10 +89,15 @@ select 'only the reconciliation got in' as check,
 \echo '--- 3. the other reconciliation guards still bite ---'
 call public.be('rec-coord@x.com');
 set role authenticated;
-\echo 'expect ERROR: has 1 of KY550200 in hand (the hand-stock cap)'
+-- More than is in hand is BOOKED since 0401 (the user, 2026-10-08) and the
+-- Spare Coordinator told; rolled back so the counts below are unchanged.
+begin;
 insert into public.spare_consumption (ucn, call_number, part, qty, engineer, remarks, source)
 values ('REC-NOVISIT', 'CN-REC', 'KY550200|MOTHER BOARD - OSIRIS 3', 5, 'REC ENG',
         'more than is in hand', 'Reconciliation');
+select 'beyond the balance is booked (0401)' as check,
+       (select count(*) from public.spare_consumption where ucn = 'REC-NOVISIT' and qty = 5)::text as should_be_1;
+rollback;
 \echo 'expect ERROR: No call found with UCN (a mistyped UCN is not waved through)'
 insert into public.spare_consumption (ucn, call_number, part, qty, engineer, remarks, source)
 values ('REC-NO-SUCH-CALL', '', 'KY550200|MOTHER BOARD - OSIRIS 3', 1, 'REC ENG',

@@ -149,6 +149,10 @@ const MODULES = {
             // D-144: an Indoor DC still waiting for its authoriser follows a
             // rename (0346). Redefines 0267's function, so it follows it.
             '0346_rename_carries_pending_indoor_dc.sql',
+            // Free-text tags on a person (0408); "CAPA Responsibility" feeds
+            // the Field Failure Register's CAPA list. A column and its tidy
+            // trigger only, so anywhere before the tail is right.
+            '0408_user_tags.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -379,13 +383,17 @@ const MODULES = {
       // PM calls already uploaded: complaint / breakdown date = registration
       // date, and the serial their upload carried (2026-10-05). Data only.
       '0386_pm_dates_are_registration.sql',
+      // An installation call registers the pending INSTALLATION requests for
+      // its product + serial (the user, 2026-10-08), and once, the ones
+      // already pending for a machine already installed.
+      '0406_install_call_registers_requests.sql',
       // D-033: a field call is registered with its three vigilance questions
-      // answered (0413). Before the cr_read tail, which must stay last.
-      '0413_field_call_vigilance_answered.sql',
-      // D-030: the Attended Date of a call request is not in the future (0408).
-      '0408_call_request_attended_not_future.sql',
-      // D-035: a re-open records its reason, person and time (0411).
-      '0411_call_reopen_reason_recorded.sql',
+      // answered (0428). Before the cr_read tail, which must stay last.
+      '0428_field_call_vigilance_answered.sql',
+      // D-030: the Attended Date of a call request is not in the future (0423).
+      '0423_call_request_attended_not_future.sql',
+      // D-035: a re-open records its reason, person and time (0426).
+      '0426_call_reopen_reason_recorded.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -532,10 +540,10 @@ const MODULES = {
             // SPARE on a PM review row that is blank; restates 0397's trigger function.
             '0400_pm_spare_blank_review.sql',
             // D-129: review answers are read by holders of review.view, given
-            // once to the roles that held review.edit (0401).
-            '0401_review_answers_read_key.sql',
-            // D-027: a Field Failure Report names its customer and problem (0407).
-            '0407_ffr_customer_and_problem_required.sql'],
+            // once to the roles that held review.edit (0416).
+            '0416_review_answers_read_key.sql',
+            // D-027: a Field Failure Report names its customer and problem (0422).
+            '0422_ffr_customer_and_problem_required.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -619,8 +627,8 @@ const MODULES = {
             // once per month (2026-10-06). Restates 0349's recalc and 0393's
             // two helpers, so after both.
             '0396_objective_recalc_active_fast.sql',
-            // D-021: an objective carrying a recorded figure is not deleted (0402).
-            '0402_objective_with_figures_kept.sql'],
+            // D-021: an objective carrying a recorded figure is not deleted (0417).
+            '0417_objective_with_figures_kept.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -654,10 +662,10 @@ const MODULES = {
             // triggers it copies; here, after every module that creates them.
             '0314_record_audit_on_movements_and_training.sql',
             // D-067/D-021/D-039: configuration, quality objectives and the indoor
-            // workshop imaged too; the audit key gains role / key / sys_id (0406).
-            '0406_record_audit_on_configuration_objectives_indoor.sql',
-            // D-055 (FRS-187.3): the six cover tables imaged (0410).
-            '0410_cover_registers_imaged.sql',
+            // workshop imaged too; the audit key gains role / key / sys_id (0421).
+            '0421_record_audit_on_configuration_objectives_indoor.sql',
+            // D-055 (FRS-187.3): the six cover tables imaged (0425).
+            '0425_cover_registers_imaged.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -697,7 +705,14 @@ const MODULES = {
             '0348_feedback_update_once_per_query.sql',
             // Indexes for the call-number, serial and newest-first lookups
             // (0381). Indexes only; no policy or function.
-            '0381_feedback_lookup_indexes.sql'],
+            '0381_feedback_lookup_indexes.sql',
+            // The old FFR update sheet, loaded into the update log (0409).
+            // Redefines 0174's ffr_history_write(), which is in THIS module,
+            // so it must come after it; reads block_hard_delete() from here.
+            '0409_ffr_update_sheet_import.sql',
+            // An imported report's "Report raised" log entry on its FFR Date
+            // (0410). Redefines 0174's ffr_history_created(), in THIS module.
+            '0410_ffr_log_raised_on_ffr_date.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',
@@ -875,9 +890,9 @@ const MODULES = {
             // Its number, PDQC/YY/NNNN (2026-10-05).
             '0378_pdqc_number.sql',
             // D-145 (the user's decision): approving a DC skips filing the visit
-            // of a unit whose call is already Solved, and says so (0403).
+            // of a unit whose call is already Solved, and says so (0418).
             // Redefines 0327's approve_indoor_dc(), so after it.
-            '0403_indoor_approval_skips_a_solved_call.sql',
+            '0418_indoor_approval_skips_a_solved_call.sql',
             // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be
@@ -888,10 +903,10 @@ const MODULES = {
             // 0323's indoor_dc_may_approve(), so after it.
             '0367_indoor_dc_approver_is_the_login.sql',
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
-            // the visit columns say the visit is filed at approval (0404).
-            '0404_indoor_record_visit_closed_and_comments.sql',
-            // D-039: who reported damage to the customer is the session (0412).
-            '0412_indoor_reported_to_customer_stamp.sql'],
+            // the visit columns say the visit is filed at approval (0419).
+            '0419_indoor_record_visit_closed_and_comments.sql',
+            // D-039: who reported damage to the customer is the session (0427).
+            '0427_indoor_reported_to_customer_stamp.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -938,8 +953,8 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0295_user_profile_details_key.sql',
             // D-059: a User Master entry with a profile or R&R history is not
-            // deleted -- set Active to No instead (0405).
-            '0405_user_master_keeps_history.sql'],
+            // deleted -- set Active to No instead (0420).
+            '0420_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -999,8 +1014,8 @@ const MODULES = {
             // masters.edit, not "Add / edit master records" (0371). 0121's tail
             // mirrors it.
             '0371_master_list_delete_key.sql',
-            // D-056: a value records carry is deactivated, not deleted (0409).
-            '0409_master_value_in_use_kept.sql'],
+            // D-056: a value records carry is deactivated, not deleted (0424).
+            '0424_master_value_in_use_kept.sql'],
   },
   reports: {
     title: 'Reports',
@@ -1044,7 +1059,7 @@ const MODULES = {
       'Needs the spare workflow through per-spare approvals and the stock-transfer',
       'tables; _status.sql says which of those are missing.',
     ],
-    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables', 'engineerRename'],
+    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables', 'engineerRename', 'auditMode'],
     // MRN lives here rather than in a bundle of its own: it adds a term to the
     // same two views, so a later re-run of this file must carry it or it would
     // redefine them back without returns.
@@ -1142,6 +1157,30 @@ const MODULES = {
             '0387_stores_dispatch_2025_history.sql',
             // And the 2026 historical stock outs (0388); replaces 0387's view.
             '0388_stores_dispatch_2026_history.sql',
+            // Consumption beyond the hand stock is booked and the Spare Coordinator
+            // told (0401). Redefines 0089's insert guard and 0339's adjust guard.
+            '0401_negative_handstock_allowed_and_notified.sql',
+            // A spare request loaded with no engineer takes the one its Stock
+            // Out history names (2026-10-08), so its unit reaches that
+            // engineer's hand stock. A one-time, idempotent data fix.
+            '0405_spare_request_engineer_from_history.sql',
+            // The WinMax opening is the Good Balance only (D-161, 0411): a
+            // one-time, re-runnable data fix of the WinMax HS pool.
+            '0411_winmax_opening_good_only.sql',
+            // Hand stock starts at the WinMax opening, 09-Jun-2022 (D-162, 0412):
+            // the period line, drawn at midnight in India, and the close reads
+            // the same line. Redefines 0096's handstock_cutoff and close.
+            '0412_handstock_starts_at_winmax.sql',
+            // Labour charges (D-163, 0413): parts.labour_charge, out of every arm
+            // of handstock_movements (wraps 0266's view), no negative-stock
+            // notice (redefines 0401's), quantity 1 on a consumption.
+            '0413_labour_charges.sql',
+            // A labour charge is not requested as a spare (FRS-275.6, 0414): a
+            // trigger on spare_request_lines reading 0413's labour_part_codes().
+            '0414_labour_not_requested.sql',
+            // A refurbished issue is refused while Audit Mode is on (0415): a
+            // trigger on spare_dispatch_lines reading 0114's audit_mode().
+            '0415_refurb_hidden_in_audit_mode.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
@@ -1264,7 +1303,24 @@ const MODULES = {
             // The OT number given by the database, the transfer's invoice on
             // the machine, and its files (the user, 2026-10-06); redefines
             // 0383's sync_product_machine.
-            '0391_transfer_ot_number_invoice_files.sql'],
+            '0391_transfer_ot_number_invoice_files.sql',
+            // PM Due (the user, 2026-10-08): the month's PM visits from the
+            // Warranty and Contract Registers, visit k on start + k x months x
+            // 30 / visits days, only what the raised PM calls have not covered.
+            '0401_pm_due.sql',
+            // PM Due by the visit (the user, 2026-10-08): GENERATED when the
+            // "k / N" PM call exists, MISSED PM otherwise; accessories marked.
+            // Replaces 0401's count-based pm_due, so after it.
+            '0402_pm_visits_due.sql',
+            // Two more rules, each a filter (the user, 2026-10-08): the
+            // installation call Solved, the party a CUSTOMER. Recreates 0402's.
+            '0403_pm_due_install_and_customer.sql',
+            // A machine with no installation call may be created (the user,
+            // 2026-10-08); restates 0403's pm_visits_due, so after it.
+            '0404_pm_due_no_install_call_allowed.sql',
+            // The PM schedule of one Warranty / Contract entry (the user,
+            // 2026-10-09), listed and generated from the entry window.
+            '0407_pm_schedule.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

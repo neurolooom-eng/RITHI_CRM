@@ -4,11 +4,14 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-10-06 (REVIEW BATCH 9 — v0.10.144: D-056 (0409 masters.sql), D-055 (0410 data_integrity.sql; the user decided: keep deleting, recorded), D-035 (0411 call_requests.sql: call_reopens), D-053 on the screens; rows 346-348; OQ-273; suite review_batch_9_test. Not merged until you ask.) Before that: 2026-10-06 (REVIEW BATCH 8 — v0.10.143: D-067/D-021/D-039 imaged (0406 data_integrity.sql), D-027 (0407 daily_review.sql), D-030 (0408 call_requests.sql), D-039 damage stamp (0412 indoor.sql), D-021 objective with figures kept (0402 objective.sql), D-069 View as read-only and D-067 upload/settings records on the screens; rows 332-335, 338; OQ-272; suite review_batch_8_test. D-039 void (FRS-143.8) still open. Not merged until you ask.) Before that: 2026-10-05 (REVIEW BATCH 7 — v0.10.142: D-044 (0392 HandStock_X.sql: save_spare_request / save_stock_transfer / save_material_return), D-041 (0393 Spare_1.sql), D-075 on the screens (plan, confirm, then write); rows 330-331; OQ-271; suite review_batch_7_test. Not merged until you ask.)
-_Last updated: 2026-10-05 (YOUR DECISIONS OF 2026-10-05 BUILT — v0.10.141: D-033 (0413 call_requests.sql), D-049 (0375 HandStock_X.sql; key stock.transfer.others), D-129 (0401 daily_review.sql; key review.view, given once to review.edit holders), D-104 on the screens; rows 322-324; OQ-270; suite review_decisions_2_test. Merged main again: my 0360/0370/0372/0374/0376 became 0403/0404/0405/0413/0401 -- 0403 re-states main's 0372 approve_indoor_dc with the D-145 skip; rows 305-309 became 315-319; OQ-251-253 became 254-256; v0.10.90-92 became 0.10.138-102. Not merged until you ask.)
-_Last updated: 2026-10-04 (REVIEW BATCH 6 — v0.10.140: D-108/D-116 (0404 indoor.sql), D-086 (0371 masters.sql), D-059 (0405 training.sql), D-050 (0373 HandStock_X.sql); D-018/D-065, D-031, D-032, D-040, D-105, D-099 follow-up on the screens; rows 328-321; OQ-269; suite review_batch_6_test. D-107 parked by you; D-102 waiting on your read of _d102_calls_mapped_by_call_number.sql. Not merged until you ask.)
-_Last updated: 2026-10-04 (REVIEW BATCH 5 — v0.10.139: D-140, D-058 (KYC half), D-138 (0366 masters.sql), D-143 (0367 indoor.sql), D-061 (0368 documents.sql), D-054, D-099, D-100, D-106, D-052 on the screens; rows 300-302; OQ-268; suite review_batch_5_test. Needs your decision: D-102 (call number or the call's serial wins), D-107 (only an issued Indoor DC sends a unit out). Not merged until you ask.)
-_Last updated: 2026-10-04 (YOUR DECISIONS BUILT — v0.10.138: D-125 (0369 HandStock_X.sql; keys visit.others and spare.request.others), D-145 (0403 indoor.sql), D-149 (0361 sales_contracts.sql), D-150 and D-154 (0362 sales_contracts.sql), D-111, D-112 and D-114 (0363 indoor.sql; key indoor.pdt_unsign), D-151 and the D-152 flag on the screens; rows 303-327; OQ-267; suite review_decisions_test. Not merged until you ask; on merge the Apply database migrations run applies 0361–0363, 0369 and 0403 -- read its log before calling anything live. D-152's database half stays open by your decision: observe the flagged values first.)
+_Last updated: 2026-10-12 (REFURB HIDDEN IN AUDIT MODE — 0415 (HandStock_X.sql), v0.10.168, NAR-009: the ♻ Refurb button and the ♻ Refurbished badge are hidden, and refurb_not_in_audit_mode refuses a refurbished issue, while Audit Mode is on. ⏳ THE USER'S DECISION: URS-027 / FRS-033 / OQ-20 / R-16 / FM-17 (the refurbished issue) are still in the auditable package, and SR-016 cites URS-027 -- move them under NAR-009 or keep them?)
+_Last updated: 2026-10-12 (LABOUR CHARGES OFF THE SPARE REQUEST — 0414 (HandStock_X.sql), v0.10.167: the form leaves them out and labour_not_requested refuses a line naming one, imports excepted; the 2 SC001 lines already raised are left as they are.)
+_Last updated: 2026-10-12 (HAND STOCK FROM THE WINMAX OPENING + LABOUR CHARGES — 0412 / 0413 (HandStock_X.sql), v0.10.166: the period closed through 08-Jun-2022 at midnight IST (D-162); parts.labour_charge, SC001 / TC001 / INS-001 out of hand stock, quantity 1, no negative notice (D-163); the WinMax upload keeps a blank Good Balance as 0. ⏳ THE USER'S STEP: re-load the WinMax export on Bulk Uploads to restore the 815 rows 0411 removed — the row audit holds no image of them, a >150-row delete is one BULK event.)
+_Last updated: 2026-10-06 (REVIEW BATCH 9 — v0.10.175: D-056 (0424 masters.sql), D-055 (0425 data_integrity.sql; the user decided: keep deleting, recorded), D-035 (0426 call_requests.sql: call_reopens), D-053 on the screens; rows 356-358; OQ-282; suite review_batch_9_test. Not merged until you ask.) Before that: 2026-10-06 (REVIEW BATCH 8 — v0.10.174: D-067/D-021/D-039 imaged (0421 data_integrity.sql), D-027 (0422 daily_review.sql), D-030 (0423 call_requests.sql), D-039 damage stamp (0427 indoor.sql), D-021 objective with figures kept (0417 objective.sql), D-069 View as read-only and D-067 upload/settings records on the screens; rows 342-345, 348; OQ-281; suite review_batch_8_test. D-039 void (FRS-143.8) still open. Not merged until you ask.) Before that: 2026-10-05 (REVIEW BATCH 7 — v0.10.173: D-044 (0392 HandStock_X.sql: save_spare_request / save_stock_transfer / save_material_return), D-041 (0393 Spare_1.sql), D-075 on the screens (plan, confirm, then write); rows 340-341; OQ-280; suite review_batch_7_test. Not merged until you ask.)
+_Last updated: 2026-10-05 (YOUR DECISIONS OF 2026-10-05 BUILT — v0.10.172: D-033 (0428 call_requests.sql), D-049 (0375 HandStock_X.sql; key stock.transfer.others), D-129 (0416 daily_review.sql; key review.view, given once to review.edit holders), D-104 on the screens; rows 322-324; OQ-279; suite review_decisions_2_test. Merged main again: my 0360/0370/0372/0374/0376 became 0418/0419/0420/0428/0416 -- 0418 re-states main's 0372 approve_indoor_dc with the D-145 skip; rows 305-309 became 315-319; OQ-251-253 became 254-256; v0.10.90-92 became 0.10.169-102. Not merged until you ask.)
+_Last updated: 2026-10-04 (REVIEW BATCH 6 — v0.10.171: D-108/D-116 (0419 indoor.sql), D-086 (0371 masters.sql), D-059 (0420 training.sql), D-050 (0373 HandStock_X.sql); D-018/D-065, D-031, D-032, D-040, D-105, D-099 follow-up on the screens; rows 328-321; OQ-278; suite review_batch_6_test. D-107 parked by you; D-102 waiting on your read of _d102_calls_mapped_by_call_number.sql. Not merged until you ask.)
+_Last updated: 2026-10-04 (REVIEW BATCH 5 — v0.10.170: D-140, D-058 (KYC half), D-138 (0366 masters.sql), D-143 (0367 indoor.sql), D-061 (0368 documents.sql), D-054, D-099, D-100, D-106, D-052 on the screens; rows 300-302; OQ-277; suite review_batch_5_test. Needs your decision: D-102 (call number or the call's serial wins), D-107 (only an issued Indoor DC sends a unit out). Not merged until you ask.)
+_Last updated: 2026-10-04 (YOUR DECISIONS BUILT — v0.10.169: D-125 (0369 HandStock_X.sql; keys visit.others and spare.request.others), D-145 (0418 indoor.sql), D-149 (0361 sales_contracts.sql), D-150 and D-154 (0362 sales_contracts.sql), D-111, D-112 and D-114 (0363 indoor.sql; key indoor.pdt_unsign), D-151 and the D-152 flag on the screens; rows 303-327; OQ-276; suite review_decisions_test. Not merged until you ask; on merge the Apply database migrations run applies 0361–0363, 0369 and 0418 -- read its log before calling anything live. D-152's database half stays open by your decision: observe the flagged values first.)
 _Last updated: 2026-10-04 (OBJECTIVE RE-CALCULATE TIMED OUT after 0357 — 0359 (objective), v0.10.89: the failure rate is one hashed join, EXECUTEd so it is never generic-planned; 0.7 s for 6 objectives x 10 months on 20k machines / 40k calls against ~47 s, identical figures and evidence. Also 0358: SLA / Objective Configuration to Technical Support (page only), and the Frequent Failure card moved there from Admin Config. Auto-applied on merge; _status.sql rows 290-291. PENDING: press Re-Calculate on Objective once 0359 is live.)_
 _Last updated: 2026-10-05 (UNMAP A CALL REQUEST — v0.10.98, no migration: ↩ Unmap on a Mapped request (pending.register) clears ucn / actioned_by / actioned_at and returns it to Pending, the status test in the UPDATE and the rows counted; the call untouched. Hand-run supabase/apply/_unmap_call_request.sql for R18884 (mapped to 26H01P0365 by mistake) — the user's step. FRS-122.10, OQ-251, suite call_request_unmap_test. Before that: OBJECTIVE RE-CALCULATE TIMED OUT after 0357 — 0359 (objective), v0.10.89: the failure rate is one hashed join, EXECUTEd so it is never generic-planned; 0.7 s for 6 objectives x 10 months on 20k machines / 40k calls against ~47 s, identical figures and evidence. Also 0358: SLA / Objective Configuration to Technical Support (page only), and the Frequent Failure card moved there from Admin Config. Auto-applied on merge; _status.sql rows 290-291. PENDING: press Re-Calculate on Objective once 0359 is live.)_
 _Last updated: 2026-10-05 (PM CALL NUMBER YEAR — ONE-TIME, the user's step: supabase/apply/_pm_call_number_year.sql makes a 2025 / 2026 PM call's number start with the year of its Call Registration Date (first two digits only), and carries the new number to the same UCN's visit reports, spare requests, spare consumption, feedback and Daily Call Review rows that held the old one; report-only until `false` -> `true`; numbers not starting with two digits are listed and left alone. Tested on a local database, re-run safe. Before that: STORES DISPATCH REPORT — 0385 (handstock), v0.10.118: Reports → Stores Dispatch Report in the AppSheet Stores format (stores_dispatch_report), exact days from the final approval (latest of RM / Commercial / NSM) to one decimal, banded 00-03D … >60D, "No approval date" where none was recorded; parts.ind_imp on the Part Master forms and upload, blank until loaded. mod:/exports/stores-dispatch to admin, technical_support, stores_incharge, spare_coordinator. FRS-264, OQ-261, _status.sql row 318, suite stores_dispatch_report_test. Applied by the merge's "Apply database migrations" run — read its log. Before that: UNMAP A CALL REQUEST — v0.10.98, no migration: ↩ Unmap on a Mapped request (pending.register) clears ucn / actioned_by / actioned_at and returns it to Pending, the status test in the UPDATE and the rows counted; the call untouched. Hand-run supabase/apply/_unmap_call_request.sql for R18884 (mapped to 26H01P0365 by mistake) — the user's step. FRS-122.10, OQ-251, suite call_request_unmap_test. Before that: OBJECTIVE RE-CALCULATE TIMED OUT after 0357 — 0359 (objective), v0.10.89: the failure rate is one hashed join, EXECUTEd so it is never generic-planned; 0.7 s for 6 objectives x 10 months on 20k machines / 40k calls against ~47 s, identical figures and evidence. Also 0358: SLA / Objective Configuration to Technical Support (page only), and the Frequent Failure card moved there from Admin Config. Auto-applied on merge; _status.sql rows 290-291. PENDING: press Re-Calculate on Objective once 0359 is live.)_
@@ -85,6 +88,133 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-10-11 — FFR Update log: a loaded report starts on its FFR Date (D-159, 0410, v0.10.162)
+
+- The user: "The FFR Date in the Log has to match with Actual FFR Date, it is
+  showing the import date". Measured live: all 560 imported reports read
+  Report raised on 14-Sep-2026 (the load); the 44 raised in RITHI were right.
+  0410: ffr_history_created() dates an imported report's entry on its FFR Date
+  (the load time kept as changes._loaded_at, shown "loaded into RITHI on"), and
+  moves the 560 existing entries once.
+
+## 2026-10-10 — User Master tags; FFR CAPA list from them; old FFR update log loads (0408, 0409, v0.10.157)
+
+- The user: "in User Master, Add provision for Tags.." -- for "People to list in
+  FFR - CAPA Responsibility". Answers: free text, several per person; form +
+  column, filter, bulk add/remove; keep only "No closed in FFR" of the old fixed
+  names; tag "CAPA Responsibility"; shown by User Master name. 0408
+  (user_directory.tags + tidy trigger). Active people only on the CAPA list.
+- The user: "Add a provision to update the old Logs for FFR" with the
+  Field Failure Register - Update sheet (1,529 rows, 581 FFR numbers,
+  09-Mar-2020 to 15-Aug-2026). Answers: log + apply latest; FFR No + UCN; a
+  blank keeps the earlier value; signed "FFR Update sheet (import)". Measured
+  live first: the register has ONE row per FFR number and only 720 of the
+  1,529 rows match on FFR No + UCN (170 FFRs get nothing); the user kept the
+  rule with those numbers. 0409: ffr_sheet_updates + ffr_load_sheet_updates();
+  ffr_history_write() silent during the apply. PENDING (the user): load the
+  sheet from Field Failure Register -> Load old update log; the 809 rows not
+  loaded come back as a list to correct (most name another UCN of the same FFR).
+
+## 2026-10-09 — Warranty: installation calls in the entry; call status everywhere generated (v0.10.156)
+
+- The user: "Similar to PM schedule, add Installation Call as well in warranty.
+  Add status for generated calls". Installation calls section on the sale entry
+  (raiseInstallCalls, one or all pending); call status via useCallStates on the
+  PM schedule, PM Due and the installation section. No SQL.
+
+## 2026-10-09 — PM schedule on the Warranty and Contract pages (0407, v0.10.155)
+
+- The user: schedules on the Warranty and Contract pages, and generate from
+  there. Answers: in each entry/machine window AND a PM Schedule tab; generate
+  only due or past-due visits, dated their due month. pm_schedule(source, ref)
+  for one entry; createPmCalls() shared with PM Due; the tab is PM Due narrowed
+  to the register (a machine with both covers in a month shows on Warranty's).
+
+## 2026-10-08 — Installation call registers pending installation requests (CR-033, 0406, v0.10.153)
+
+- The user: an installation call should mark pending requests for the same
+  Product + Serial Registered with its UCN. Answers: Installation requests only;
+  the existing backlog once, against the machine's latest installation call.
+  AFTER INSERT trigger on installation_calls (definer, not callable).
+
+## 2026-10-08 — Hand stock: requests loaded with no engineer (D-158, 0405, v0.10.151)
+
+- 57 history stock outs / 68 units were booked to nobody: the live request line
+  (counted instead of history) had a blank engineer. 0405 fills the engineer
+  from the lines' Stock Out history where they agree, logged in
+  spare_request_engineer_log; disagreeing requests are left and named.
+  Prevented from v0.10.152: the Spare Request upload requires Engineer Name, and
+  the Lines upload holds back lines whose request is not in RITHI instead of
+  creating engineer-less stub requests (how these came in).
+
+## 2026-10-08 — DCCR mirror: 2026 calls only (CallReg.gs, v0.10.148)
+
+- The user: "Only 2026 calls should be sent to DCCR mirror". `_dccrFetchAll` reads
+  `reg_date=gte.2026-01-01` (DCCR_FROM). The tab is rewritten each run, so 2025
+  rows leave on the first run. The user redeployed on 08-Oct; the new /exec is
+  baked into DEFAULT_SHEETS_URL with DEFAULT_URL_VERSION 16 (v0.10.149).
+
+## 2026-10-08 — Pending Registrations: Need more details mail (v0.10.147)
+
+- The user: compose a mail to the requestor for more details, Commercial team.
+  mailto: (from the person's own mail program), To the request's E-Mail ID, Cc
+  the Reporting Manager by the User Master (name -> that row's email), subject
+  "Need more details | Product Serial | <call family> Call", the request's
+  details in the body. Key `pending.mail`, granted to no role -- to be given to
+  Commercial on Roles & Permissions. CR-032, URS-182, FRS-271, OQ-269. No SQL.
+
+## 2026-10-08 — PM Due: no installation call passes rule 1 (0404, v0.10.146)
+
+- The user: "Allow machines with no installation call" -- 0403 held back 1,152 of
+  October's 1,242 Missed PM for having none. can_create now needs no installation
+  call OR a Solved one, and a CUSTOMER party. Filter: Solved or none (default) /
+  Solved / None / Not solved / Any.
+
+## 2026-10-08 — PM Due: installation Solved and party a CUSTOMER, as rules and filters (0403, v0.10.145)
+
+- The user: "Add 2 more logics - But add these as rules + Filters": the
+  installation call Solved (Installation register by product + serial, a Solved
+  call over a cancelled one) and the party a CUSTOMER (Party Master Type, the
+  Product Database's party). can_create = Missed PM passing both. 0402 now drops
+  pm_visits_due first so its bundle re-runs over 0403's wider function.
+
+## 2026-10-08 — PM Due by the visit: Generated / Missed PM, accessories, product filter (0402, v0.10.144)
+
+- D-157: 0401's count of PM calls since the cover started listed machines whose
+  month's call already existed (live October: 1,098 of 2,348) because RITHI holds
+  almost no pre-2026 PM call. The user was told not to press Create; none was.
+- The user's rule: GENERATED = the "k / N" PM call exists for the machine in the
+  cover period, not cancelled, any month; else MISSED PM. Filters: Missed PM /
+  Generated / All, Products / Accessories (Product Master ACCESSORY), Product.
+  `pm_visits_due` replaces `pm_due` (new result columns); row 329 moved.
+- About 510 machines a peak month have a PM call under a DIFFERENT product
+  spelling (the serial matches, the product name does not); they read Missed PM
+  by product + serial. Not changed -- matching by serial alone is the user's call.
+
+## 2026-10-08 — PM Due from the Warranty and Contract Registers (0401, v0.10.140)
+
+- The user: "Can we do PM generation from Contract and warranty register?" Answers:
+  a due list reviewed then created, the monthly upload NOT replaced; visit k on
+  start + k x months x 30 / visits DAYS (their example: 10 Jan, 3 in 12 -> day
+  120); only what the raised PM calls have not covered; the Product Database
+  engineer; first call 10 s after the month's latest registration time; Added On
+  the generation date.
+- Measured first (`_pm_generation_inputs.sql`): all 8,720 PM calls of 2026 read
+  SCHEDULED PM VISIT / "SCHEDULED PM VISIT k / N"; 6,942 match the Product
+  Database engineer, 1,778 do not; 7,247 warranty lines carry NO PM visits and
+  cannot be scheduled until they do. `_pm_schedule_vs_actual.sql`: the raised
+  calls' N matches the register; their months follow neither month rule fully
+  (contract mostly one month earlier) -- the user then gave the day rule.
+- pm.generate is in no role; mod:/pm-due in admin + technical_support.
+
+## 2026-10-06 — Historical DCCR calls hidden from the registers (v0.10.138)
+
+- The user: "Did DCCR add calls to field register?" -> "Keep, but hide from registers".
+  listCalls / searchCalls / listPendingCalls skip calls whose extra carries
+  imported_from (only 0395 sets it); the Workload review counts start at the year,
+  as the register does. Machine History, the DCCR View, the failure rate and the
+  KPI export still read them.
 
 ## 2026-10-06 — SPARE on blank PM review rows (0400, v0.10.135)
 
@@ -9266,6 +9396,10 @@ transfer guard and the cap all inherit them untouched:
   the movements, and nothing double-counts because there are no movements before
   June 2022. Unique on (engineer, part, source) so re-loading a corrected sheet
   replaces THAT pool.
+  ⚠️ **"No movements before June 2022" was not true** (measured 2026-10-12): 69
+  historical consumptions and 10 returns predate the WinMax pool and were being
+  counted on top of it. **0412** (D-162) closes the period through 08-Jun-2022
+  so hand stock counts from 09-Jun-2022, the line drawn at midnight IST.
 - **`spare_consumption_history`** — the ~44,000 pre-2026 consumption rows, in
   their own table with **no cap and no reconciliation**. Applying today's cap
   retrospectively would have refused most of the history, silently dropping real
@@ -9881,7 +10015,7 @@ files.
 | --- | --- | --- | --- |
 | Part Master | `ITEM_Master_2.csv` | — | ✅ loaded |
 | Product Master | `v2_ProdMaster.csv` | — | ✅ loaded |
-| Hand Stock — WinMax opening | `HS_Winmax.csv` | active engineers only | ✅ loaded, then corrected |
+| Hand Stock — WinMax opening | `HS_Winmax.csv` | active engineers only | ✅ loaded, then corrected (0411); ⏳ **RE-LOAD IT** (v0.10.166) so the rows with a blank Good Balance come back at 0 |
 | Stock Out — all years | `Stock_Out.csv` | 48,139 | ✅ loaded |
 | Consumption — yearly export | 22H2 / 23 / 24 / 25 | 5,233 / 10,338 / 11,938 / 12,292 | ✅ loaded — see the count below |
 | Consumption | `v2Consumption_1.csv` | 8,352 | ✅ loaded |

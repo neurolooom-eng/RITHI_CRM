@@ -15,6 +15,9 @@ export interface ModuleGuideEntry {
   does: string[];         // 2-5 short bullets: the main things a person does there
   records: string[];      // table / view names it reads or writes (from the code)
   rules: string[];        // 1-3 short bullets: what it refuses / the rule that is easy to get wrong
+  /** Bullets for "What you do here" that are NOT AUDITABLE: left out while
+   *  Audit Mode is on, with the feature they describe (NAR-009). */
+  notAudited?: string[];
 }
 
 export const MODULE_GUIDE: ModuleGuideEntry[] = [
@@ -121,10 +124,12 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Read reports on the Desk (list, report, the call as it stands) or in the Table',
       'Raise an FFR by hand, or complete one raised from the Daily Complaint Review Register',
       'Fill in CAPA responsibility, number and status, and do the weekly review',
+      'Choose the CAPA responsibility from the people tagged CAPA Responsibility on the User Master',
+      'Load the old FFR update sheet into each report\'s Update log, the latest values applied',
       'Print the R-SER-03 page or download a Word copy',
       'Use Insights: trend, Pareto with drill-down, and cross-filtered charts',
     ],
-    records: ['field_failure_reports', 'field_failure_register', 'ffr_history', 'user_signatures', 'rpc:ffr_call_context', 'audit_log'],
+    records: ['field_failure_reports', 'field_failure_register', 'ffr_history', 'ffr_sheet_updates', 'user_signatures', 'rpc:ffr_call_context', 'rpc:ffr_load_sheet_updates', 'audit_log'],
     rules: [
       'The FFR number is issued by the database on save and is never edited',
       'A report is never deleted; it is cancelled or shows as withdrawn',
@@ -242,6 +247,8 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Click an entry to open it in a pop-up: sale details on the left, its products on the right, every button in the bar at the top',
       'Use ↺ Force update child records to make every machine follow the entry again',
       'Use ⇢ Convert to Contract to raise a contract from this sale: the customer and machines carry over, you give the MC Number, type, period, PM visits and billing',
+      'Read each machine’s PM schedule in the entry and Generate a visit that is due or missed; or use the PM Schedule tab for the month’s visits',
+      'Read each machine’s installation call and its status in the entry, and Raise a missing one there',
     ],
     records: ['sale_entries', 'sale_items', 'warranty_sale_details', 'parties', 'product_master', 'calls', 'rpc:link_install_call', 'contract_entries', 'contract_items'],
     rules: [
@@ -270,6 +277,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Give the Period in months; the years and the End Date fill in, and PM Visits (Total) is suggested',
       'Enter a Rate per machine; 18% tax and the total fill in',
       'Renew this contract: the next MC starts the day after the old one ends, with new rates set here',
+      'Read each machine’s PM schedule in the entry and Generate a visit that is due or missed; or use the PM Schedule tab for the month’s visits',
     ],
     records: ['contract_entries', 'contract_items', 'contract_details', 'products', 'calls'],
     rules: [
@@ -399,8 +407,9 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Map a request to an existing call by its UCN',
       'Create the new call from the request, already filled in',
       'Cancel a request with a reason',
+      'Ask the requestor for more details: a mail To them, Cc their Reporting Manager and sivarani.a@airliquide.com, opened in Gmail from your own account, the request’s details copied as a table to paste in',
     ],
-    records: ['call_requests', 'calls', 'pending_calls', 'products'],
+    records: ['call_requests', 'calls', 'pending_calls', 'products', 'user_directory'],
     rules: [
       'The call is filed to the Hotline desk, but who actually typed it in is recorded separately — the two differing is a finding, not an error',
       'A cancel needs a typed reason (free text, not a master list), with an optional note',
@@ -551,10 +560,11 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'Stores’ queue of fully approved spares, grouped by engineer: issue the parts and raise the Delivery Challan.',
     does: [
       'Tick spares for one engineer and book them out in one stock out',
-      'Send fewer units than outstanding, or mark a line Refurbished',
+      'Send fewer units than outstanding',
       'Set the DC date, courier and remarks, then go straight to the Delivery Challan',
       'Drop a spare that will not be sent, with a reason',
     ],
+    notAudited: ['Mark a line ♻ Refurb to issue its recycled R-part (not shown in Audit Mode)'],
     records: ['spare_pending_dispatch', 'spare_request_lines', 'spare_dispatches', 'spare_stock_out_lines', 'rpc:dispatch_spare_lines', 'audit_log'],
     rules: [
       'A stock out goes to one engineer — a selection spanning two is refused',
@@ -605,6 +615,8 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'A negative (Short) level is a finding: more was consumed than this system knows was issued',
       'If the balance is wrong the Spare Coordinator corrects the stock; the engineer does not book around it',
       'An adjustment is never edited or deleted, and a removal cannot take anyone below zero',
+      'Counted from 09-Jun-2022, the WinMax opening: anything older is inside that opening and is not counted again',
+      'Labour charges (service, transport, installation) are not hand stock and have no line here',
     ],
   },
   {
@@ -922,6 +934,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'People, roles and the reporting line — a manager’s team is worked out from here.',
     does: [
       'Edit people, their Department, managers and role; create, clone or disable a login',
+      'Tag people (free text, several each), filter by tag, and add or remove a tag on many at once',
       'Set a person’s Access: the role plus extra permissions for them alone',
       'Open a person for their profile, Roles & Responsibilities and training',
       'Reset a password (shown once)',
@@ -950,6 +963,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Code and description together are the part’s identity; a rename to a name already taken is refused',
       'HSN Code is digits only, in its own column',
       'An inactive part stays on old records but is not offered in pickers; parts are never deleted',
+      'A part ticked Labour Charge is offered on every consumption, at quantity 1, whatever the engineer holds, is never hand stock and is not requested as a spare',
     ],
   },
   {
@@ -1208,6 +1222,25 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     rules: [
       'Every call is dated the 1st of the chosen month',
       'Re-importing the same file creates the calls a second time',
+    ],
+  },
+  {
+    route: '/pm-due',
+    purpose: 'Works out the month’s PM visits from the Warranty and Contract Registers, shows each as Generated or Missed PM, and creates the missed ones as PM calls.',
+    does: [
+      'Pick the due month and read the machines due, with the visit number, due date, engineer and the PM call that generated it',
+      'Filter by Missed PM / Generated / All, by Products / Accessories, by installation, by customer, and by product, serial, party and engineer',
+      'Untick any Missed PM that should not get a call, then create the rest',
+    ],
+    records: ['rpc:pm_visits_due', 'rpc:pm_due_latest_reg_at', 'calls', 'pm_calls'],
+    rules: [
+      'Visit k is due on the start date + k × (months × 30 ÷ PM visits) days, never after the cover ends',
+      'A visit is Generated when a PM call reading k / N exists for the machine in that cover and is not cancelled — whatever month it was raised in',
+      'An accessory is a product whose Product Master category is ACCESSORY',
+      'Every Missed PM shown can be created; installation and customer are filters, not conditions',
+      'A machine with both a warranty and a contract visit is listed once, from the warranty',
+      'The first call is registered 10 seconds after the month’s latest PM call; Added On is today',
+      'The engineer is the Product Database’s; a machine without one is created unallocated',
     ],
   },
   // Audit Mode and the Data Import panel are gated on their own permissions

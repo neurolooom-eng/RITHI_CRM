@@ -84,11 +84,18 @@ select engineer, qty from public.engineer_stock where part = 'HP-1|HB2 PART' ord
 \echo ''
 \echo '--- 1. D-119: an import marker is the importer''s alone ---'
 call public.be('hb2-eng-a@x.com');
-\echo 'expect ERROR: HB2 ENG A has 5 of HP-1 in hand, so 999 cannot be consumed (the made-up source_ref is discarded)'
+-- Since 0401 an over-balance line is booked rather than refused, so the proof
+-- that the made-up marker is DISCARDED is the row itself: its source_ref is
+-- blank, and it was treated as an ordinary line -- the hand-stock check ran and
+-- told the Spare Coordinator, which an imported line skips. Rolled back.
 begin; set local role authenticated;
   insert into public.spare_consumption (ucn, call_number, part, qty, engineer, engineer_email, source_ref)
   values ('HB2-A1', 'CN-HB2A1', 'HP-1|HB2 PART', 999, 'HB2 ENG A', 'hb2-eng-a@x.com', 'made-up-ref');
-commit;
+  reset role;
+  select 'the marker is discarded' as check,
+    (select source_ref from public.spare_consumption where ucn = 'HB2-A1' and qty = 999) as source_ref_should_be_blank,
+    (select count(*) from public.notifications where kind = 'negative_handstock' and body like '%HB2 ENG A%')::text as coordinator_told_should_be_1;
+rollback;
 \echo 'the honest path: an ordinary consumption of 2 is booked'
 begin; set local role authenticated;
   insert into public.spare_consumption (ucn, call_number, part, qty, engineer, engineer_email)

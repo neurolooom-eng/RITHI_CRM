@@ -7,7 +7,7 @@ import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { useArrivingFilter } from '../lib/arriveWith';
 import {
-  listHandstockBalanceAll, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
+  listHandstockBalanceAll, handstockCountedFrom, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
 } from '../lib/supabase';
 import { PickList } from '../components/ui/PickList';
 import { useMaster } from '../lib/masters';
@@ -20,7 +20,9 @@ import {
 } from '../lib/handstock';
 import './fieldcalls.css';
 import { partial, searchScope } from '../lib/exportscope';
-import { formatDayTime } from '../lib/dates';
+import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
+import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
+import { COMPLETE, cappedAt } from '../lib/exportscope';
 
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
@@ -58,6 +60,9 @@ type Holding = 'held' | 'short' | 'settled' | '';
 type Tab = 'levels' | 'moves';
 // How many movements the stock-level drawer reads for one line (newest first).
 const MOVES_CAP = 500;
+// What "From history" is, in the words the heading, the figure and the drawer
+// all use.
+const HIST_NOTE = 'From history = opening + imported stock outs − imported consumption: the part of this line from the old system. It is already inside Opening, Stock out and Consumed — not added to them.';
 
 const asRow = (r: Record<string, unknown>): Row => ({
   engineer_key: String(r.engineer_key ?? ''),
@@ -168,6 +173,14 @@ export function HandStock() {
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
 
+  // WHERE THE COUNT STARTS (0412): 09-Jun-2022, the WinMax opening. Said on
+  // the screen, or a consumption from before it reads as lost.
+  const [countedFrom, setCountedFrom] = useState<string | null>(null);
+  useEffect(() => {
+    if (!onDb) return;
+    handstockCountedFrom().then(setCountedFrom).catch(() => setCountedFrom(null));
+  }, [onDb]);
+
   const load = async () => {
     if (!onDb) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading hand stock…' });
@@ -255,9 +268,15 @@ export function HandStock() {
     // pool plus the imported stock outs, less the imported consumption. A level
     // that looks wrong is nearly always a question about THIS number, and until
     // now the register could not tell you what it was.
+    // A SUBTOTAL, NOT A TERM (the user, 2026-10-12: "Isnt the data that is
+    // present is confusing?" -- From history 4 beside Opening 5 and Consumed 1
+    // read as a fourth amount to add). It is the part of the line the old
+    // system contributes, already inside Opening, Stock out and Consumed; said
+    // on the heading, on the figure and in the line's drawer.
     { key: 'hist_net', header: 'From history', width: 110, align: 'right', wrap: false,
+      headerTitle: HIST_NOTE,
       render: (r) => (liveOnly ? <span className="muted" title="Ignored — the toggle is on">—</span>
-        : r.hist_net === 0 ? <span className="muted">0</span> : <span>{r.hist_net}</span>) },
+        : r.hist_net === 0 ? <span className="muted" title={HIST_NOTE}>0</span> : <span title={HIST_NOTE}>{r.hist_net}</span>) },
     { key: 'stock_out', header: 'Stock out', width: 95, align: 'right', wrap: false },
     { key: 'consumed', header: 'Consumed', width: 95, align: 'right', wrap: false },
     { key: 'transferred_in', header: 'Transfer in', width: 100, align: 'right', wrap: false },
@@ -272,7 +291,9 @@ export function HandStock() {
         onRefresh={() => void load()}
         refreshing={busy}
         title="Hand Stock"
-        subtitle="Stock level per engineer and spare: opening + stock out from Stores − consumption − transfers out + transfers in − returns ± adjustments."
+        subtitle={'Stock level per engineer and spare: opening + stock out from Stores − consumption − transfers out + transfers in − returns ± adjustments.'
+          + (countedFrom ? ` Counted from ${formatDay(countedFrom)}: anything older is inside that day's opening balance and is not counted again.` : '')
+          + ' Labour charges (service, transport, installation) are not hand stock.'}
         icon="🎒"
         count={visible.length}
         // EXACT once the whole balance is in; a "+" only over a device cache
@@ -409,6 +430,7 @@ export function HandStock() {
         {detail && (
           <MovementTrail
             row={detail}
+            historyIgnored={liveOnly}
             onTransfer={can('stock.transfer') ? () => navigate('/stock-transfer') : undefined}
           />
         )}
@@ -549,7 +571,7 @@ function Movements({
 // the engineer it came from. Loaded on open — the register itself only needs
 // the netted figure.
 // ---------------------------------------------------------------------------
-function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void }) {
+function MovementTrail({ row, onTransfer, historyIgnored = false }: { row: Row; onTransfer?: () => void; historyIgnored?: boolean }) {
   const [moves, setMoves] = useState<HandstockMovement[]>([]);
   const [busy, setBusy] = useState(true);
   const [err, setErr] = useState('');
@@ -567,6 +589,68 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
   const field = (label: string, value: unknown) => (
     <div className="rep-field"><span className="field-label">{label}</span><span>{String(value ?? '') || '—'}</span></div>
   );
+
+  // Newest first, as read; numbered and balanced OLDEST first -- only when
+  // the whole trail is here (see the table). FROM ZERO: the opening balance
+  // is itself a movement on the trail ("Opening"), so starting from
+  // row.opening counted it twice -- every Balance after read the opening too
+  // high (reported 2026-10-12 on EM-851 / SIVAKUMAR: 10 and 9 where the stock
+  // level is 4).
+  const complete = moves.length < MOVES_CAP;
+  const trail = useMemo(() => {
+    const n = moves.length;
+    let bal = 0;
+    const balances: number[] = new Array(n);
+    for (let i = n - 1; i >= 0; i--) {
+      const m = moves[i];
+      bal += (m.direction === 'IN' ? 1 : -1) * (Number(m.qty) || 0);
+      balances[i] = Math.round(bal * 1000) / 1000;
+    }
+    return moves.map((m, i) => ({ n: n - i, m, balance: balances[i] }));
+  }, [moves]);
+  // A COMPLETE TRAIL MUST END ON THE STOCK LEVEL. Said when it does not,
+  // rather than leaving two figures on one screen to disagree in silence. Not
+  // asked while the history is ignored: the level is then restated without
+  // the imported movements the trail still lists.
+  const trailEnd = trail.length ? trail[0].balance : 0;
+  const trailDisagrees = complete && !historyIgnored && !busy && !err && trail.length > 0
+    && Math.abs(trailEnd - (Number(row.on_hand) || 0)) > 0.0005;
+
+  const downloadTrail = (kind: 'xlsx' | 'csv') => {
+    const cols: { key: string; header: string }[] = [
+      { key: 'n', header: '#' }, { key: 'moved_at', header: 'Date' }, { key: 'movement', header: 'Movement' },
+      { key: 'in', header: 'In' }, { key: 'out', header: 'Out' },
+      ...(complete ? [{ key: 'balance', header: 'Balance after' }] : []),
+      { key: 'ref_type', header: 'Reference type' }, { key: 'ref', header: 'Reference' },
+      { key: 'ucn', header: 'UCN' }, { key: 'call_number', header: 'Call No' },
+      { key: 'party_name', header: 'Party / with' }, { key: 'remarks', header: 'Remarks' },
+    ];
+    const rows = trail.map((t) => ({
+      n: t.n, moved_at: t.m.moved_at, movement: t.m.movement,
+      in: t.m.direction === 'IN' ? t.m.qty : '', out: t.m.direction === 'OUT' ? t.m.qty : '',
+      balance: t.balance, ref_type: t.m.ref_type, ref: t.m.ref, ucn: t.m.ucn,
+      call_number: t.m.call_number, party_name: t.m.party_name, remarks: t.m.remarks,
+    } as Record<string, unknown>));
+    const name = `hand-stock-${String(row.engineer).replace(/\W+/g, '-')}-${String(row.part_code).replace(/\W+/g, '-')}-${todayLocal()}`;
+    if (kind === 'csv') {
+      csvExport(`${name}.csv`, cols, rows.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))),
+        complete ? COMPLETE : cappedAt(moves.length, MOVES_CAP));
+      return;
+    }
+    xlsxDownload(`${name}.xlsx`, [
+      { name: 'Movements', columns: cols.map((c) => c.header),
+        rows: rows.map((r) => Object.fromEntries(cols.map((c) => [c.header, xlsxCell(r[c.key])]))) },
+      // THE FILE CARRIES THE STOCK LEVEL IT EXPLAINS, so it reads on its own.
+      { name: 'Stock level', columns: ['Item', 'Value'], rows: [
+        { Item: 'Engineer', Value: row.engineer }, { Item: 'Spare', Value: row.part },
+        { Item: 'Opening balance', Value: row.opening }, { Item: 'Stock out (Stores)', Value: row.stock_out },
+        { Item: 'Consumed', Value: row.consumed }, { Item: 'Transferred in', Value: row.transferred_in },
+        { Item: 'Transferred out', Value: row.transferred_out }, { Item: 'Returned (MRN)', Value: row.returned },
+        { Item: 'On hand', Value: row.on_hand },
+        { Item: 'Movements', Value: complete ? `all ${moves.length}` : `the latest ${moves.length} only -- older ones are not in this file` },
+      ] },
+    ], complete ? COMPLETE : cappedAt(moves.length, MOVES_CAP));
+  };
 
   return (
     <div className="rep-form">
@@ -600,6 +684,12 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
             </p>
           );
         })()}
+        {!historyIgnored && row.hist_net !== 0 && (
+          <p className="muted" style={{ fontSize: 12.5, margin: '6px 0 0' }}>
+            Of this, <b>{row.hist_net}</b> comes from the old system (opening + imported stock outs − imported consumption).
+            It is already counted in the figures above — the list’s <b>From history</b> column shows it, it is not added to them.
+          </p>
+        )}
         {row.on_hand < 0 && (
           <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
             More consumed or handed on than Stores has issued — stock carried from before this register,
@@ -626,30 +716,54 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
         )}
         {busy && <div className="muted" style={{ fontSize: 12.5 }}>Loading movements…</div>}
         {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
-        <ol className="wf-trail">
-          {moves.map((m, i) => (
-            <li key={i} className={m.direction === 'IN' ? 'wf-ok' : 'wf-bad'}>
-              <b>
-                {m.movement === 'Stock out' ? `📤 Stock out ${m.qty}`
-                  : m.movement === 'Consumption' ? `🧾 Consumed ${m.qty}`
-                  : m.movement === 'Transfer in' ? `⇄ Received ${m.qty}`
-                  : m.movement === 'Return' ? `↩️ Returned ${m.qty}`
-                  : m.movement === 'Adjustment' ? (m.direction === 'IN' ? `± Adjusted +${m.qty}` : `± Adjusted −${m.qty}`)
-                  : `⇄ Handed over ${m.qty}`}
-              </b>
-              <span className={`badge badge-${movementTone(m.movement)}`} style={{ marginLeft: 6 }}>{m.movement}</span>
-              <span className="muted">
-                {m.ref ? ` · ${m.ref_type} ${m.ref}` : ''}
-                {m.moved_at ? ` · ${fmtLongDate(m.moved_at)}` : ''}
-              </span>
-              {(m.ucn || m.party_name || m.remarks) && (
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {[m.ucn, m.party_name, m.remarks].filter(Boolean).join(' · ')}
-                </div>
-              )}
-            </li>
-          ))}
-        </ol>
+        {/* A TABLE, WITH A DOWNLOAD (the user, 2026-10-08: "Convert this into
+            a Table and add Download provision ... I need to investigate").
+            One row per movement, In and Out in their own columns, and the
+            balance AFTER each one, worked from zero oldest first (the opening
+            is the first movement) -- so the row where the figure stops matching the paper is
+            the row to look at. The balance is left out when the trail is cut
+            at MOVES_CAP: a running figure that starts part-way is wrong on
+            every row. */}
+        {trailDisagrees && (
+          <div className="sheet-banner sheet-banner-error" style={{ marginBottom: 6 }}>
+            <span>The movements below add up to <b>{trailEnd}</b>, but the stock level is <b>{Number(row.on_hand) || 0}</b>. Ask the Spare Coordinator to check this line.</span>
+          </div>
+        )}
+        {moves.length > 0 && (
+          <>
+            <div className="row" style={{ gap: 6, margin: '4px 0 8px' }}>
+              <button className="btn btn-sm" onClick={() => downloadTrail('xlsx')}>⭳ Download (Excel)</button>
+              <button className="btn btn-sm" onClick={() => downloadTrail('csv')}>⭳ CSV</button>
+            </div>
+            <div className="assoc-scroll">
+              <table className="assoc-table" style={{ minWidth: 820 }}>
+                <thead>
+                  <tr>
+                    <th>#</th><th>Date</th><th>Movement</th><th style={{ textAlign: 'right' }}>In</th><th style={{ textAlign: 'right' }}>Out</th>
+                    {complete && <th style={{ textAlign: 'right' }}>Balance after</th>}
+                    <th>Reference</th><th>UCN</th><th>Party / with</th><th>Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trail.map((t) => (
+                    <tr key={t.n}>
+                      <td>{t.n}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{formatDayTime(t.m.moved_at) || '—'}</td>
+                      <td><span className={`badge badge-${movementTone(t.m.movement)}`}>{t.m.movement}</span></td>
+                      <td style={{ textAlign: 'right' }}>{t.m.direction === 'IN' ? t.m.qty : ''}</td>
+                      <td style={{ textAlign: 'right' }}>{t.m.direction === 'OUT' ? t.m.qty : ''}</td>
+                      {complete && <td style={{ textAlign: 'right' }}><b>{t.balance}</b></td>}
+                      <td>{[t.m.ref_type, t.m.ref].filter(Boolean).join(' ')}</td>
+                      <td>{t.m.ucn}</td>
+                      <td>{t.m.party_name}</td>
+                      <td>{t.m.remarks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
         {!busy && !err && moves.length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>No movements found for this line.</div>}
       </section>
     </div>

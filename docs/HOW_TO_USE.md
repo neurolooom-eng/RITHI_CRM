@@ -114,6 +114,25 @@ different totals. An empty register usually means access, not emptiness.
   with its new UCN fails after registering, the screen says so and names the
   UCN — map the request to it, do not register it again. The chips at the top filter
   it by Call Type, each with its count.
+  When an **Installation call** is created
+  for a product and serial — anywhere in RITHI — every pending **Installation**
+  request for that machine is marked Registered with the call's UCN and leaves
+  this list on its own; a Field or PM request for the machine stays.
+  **Ask the requestor for more details**
+  (in the request's action panel, for whoever is given *Ask the requestor for
+  more details* — the Commercial team) opens a new mail in **Gmail**, in a new
+  tab, from your own account (if several Google accounts are signed in, the one
+  you sign in to RITHI with; if it is not signed in, Gmail asks):
+  To the requestor, Cc their Reporting Manager from the User Master and
+  always sivarani.a@airliquide.com, subject
+  *Need more details | product serial | Installation Call* (or Field / PM Call).
+  The mail itself — greeting, a table of twelve details (Request ID, Product,
+  Serial No, Party Name, Call Type, Standard Complaint, Reported Problem,
+  Raised on, City, State, Customer Contact, Contact Number; a blank one shows
+  —; then the request's **Installation Report** and **KYC** as links, where it
+  has them — a Gmail link cannot attach the file itself) and your name — is
+  **copied**: click in the Gmail body and press
+  **Ctrl+V**. Read it and send it from there.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
 
@@ -177,9 +196,10 @@ on Roles & Permissions does not reach another team's calls.
 
 - **Bulk Uploads** `/bulk-uploads` — **this is the importer.** **Nothing is
   written until you press OK**: where an upload needs other records first (a
-  visit on each call of a consumption file, a request for each OR number of a
-  spare-line file), the confirmation says how many it will create, and Cancel
-  leaves everything as it was. Every load — finished, stopped or cancelled — is
+  visit on each call of a consumption file), the confirmation says how many it
+  will create, and Cancel leaves everything as it was. A spare line whose
+  request is not in RITHI is held back and named — load the Spare Request file,
+  with the engineer, first. Every load — finished, stopped or cancelled — is
   recorded in the Audit Log with the file and what was written. It finds the
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
@@ -338,6 +358,22 @@ on Roles & Permissions does not reach another team's calls.
   >   *Unattended* only until it has a visit, so loading a visit that did not
   >   happen would mark an unattended call as attended.
 - **PM Bulk Upload** `/pm-bulk-upload` — loads a maintenance schedule in one go.
+- **PM Due** `/pm-due` — works out the month's PM visits from the Warranty and
+  Contract Registers. A visit is due on the start date plus its share of the
+  period counted in days (a month is 30 days: 3 visits in 12 months is one every
+  120 days). Each machine due in the month is shown as **Generated** — its PM
+  call for that visit (reading e.g. 2 / 3) exists and is not cancelled,
+  whatever month it was raised in — or as a **Missed PM**. Filters at the top:
+  Missed PM / Generated / All, Products / Accessories (an accessory is a product
+  whose Product Master category is ACCESSORY), Installation (solved or none /
+  solved / no installation call / not solved / any), Customer / not a customer /
+  any, and one Product, Serial No, Party and Engineer each. These are filters
+  only: every Missed PM shown can be ticked — untick any that should not get a
+  call, then Create. Each call
+  is dated the 1st of the month,
+  registered 10 seconds after the month's latest PM call, Added On today,
+  allotted to the Product Database's engineer, and reads SCHEDULED PM VISIT and
+  SCHEDULED PM VISIT k / N. PM Bulk Upload still works as before.
 
 ## Spares
 
@@ -387,6 +423,9 @@ against the call it was fitted to.
    > used to print one fixed name on every declaration. Once the stock out is
    > booked that name **cannot be changed** — not by editing it, and not by
    > re-loading the Stock Out Register.
+   > **♻ Refurb is not auditable.** While **Audit Mode** is on, the ♻ Refurb
+   > button and the ♻ Refurbished badge are not shown, and a refurbished part
+   > cannot be issued. Turning Audit Mode off brings them back.
 5. The engineer **acknowledges receipt**.
 6. **Spare Consumption** `/spare-consumption` — the part is booked against the
    call.
@@ -411,9 +450,28 @@ against the call it was fitted to.
   question from the dispatch queue, and now grantable separately.
 - **Hand Stock** `/handstock` — what an engineer holds. **Worked out, never
   stored**: issued − consumed ± transfers − returns.
-  > **Why a booking can be refused.** Consumption is capped at the engineer's
-  > balance. If the balance is wrong the Spare Coordinator corrects the stock; the
-  > engineer does not book around it.
+  > **Hand stock counts from 09-Jun-2022, the WinMax opening.** Consumption,
+  > stock outs, transfers and returns from before that day are already inside
+  > the opening balance, so they are not counted again. They are not deleted:
+  > every report still has them. The page says the day it counts from, and a day
+  > starts at midnight India time.
+  > **The WinMax opening is the Good Balance only.** The Defective and Missing
+  > balances in the WinMax export are not opening stock. A row whose Good
+  > Balance is blank is loaded as an opening of **0**, not left out.
+  > **Labour charges are not hand stock.** Service, transport and installation
+  > charges are booked on a consumption for tracking, so they have no line here
+  > and never read below zero.
+  > **From history is part of the total, not added to it**: opening + imported
+  > stock outs − imported consumption, the share of the line that came from the
+  > old system. A line's drawer says so, and its Movements table ends on the
+  > stock level (Balance after), with a warning if it ever does not.
+  > **A spare can be booked beyond the balance.** If the engineer fitted more
+  > than the hand stock shows, the visit saves the spare anyway: the visit form
+  > warns first which part will go **below zero**, the balance then reads
+  > negative here, and **every Spare Coordinator gets a notification** on the bell
+  > naming the engineer, the part, the quantities and the call. The Spare
+  > Coordinator then corrects the stock (± Adjust stock, or the missing issue).
+  > Transfers and returns still cannot move more than the engineer holds.
   > **± Adjust stock** (whoever holds the reconciliation permission): choose the
   > engineer and the part, **Add** or **Remove** a quantity, give the **reason**
   > and the **reference** (the MTN number). It takes effect at once and shows on
@@ -512,6 +570,19 @@ against the call it was fitted to.
     as *Yes*. Its **CAPA fields start blank** — responsibility, CAPA No and
     CAPA status are filled in by whoever handles the CAPA, and so are they on a
     report raised with ＋ Raise FFR.
+  - **CAPA (if reqd) Responsibility** lists *No closed in FFR* and every Active
+    person tagged **CAPA Responsibility** on the User Master — tag somebody
+    there to add them. A report that already names someone no longer on the
+    list still shows that name.
+  - **⭱ Load old update log** loads the old *Field Failure Register – Update*
+    sheet (export it as CSV). Each row goes to the report with the same **FFR
+    No and UCN** and is added to its **Update log**, dated by the sheet's
+    Timestamp and signed *FFR Update sheet (import)*; the report then shows its
+    latest values. A blank cell never erases anything, a change made here after
+    the sheet's update is kept, and a row that matches no report is listed back
+    (with the register's UCN beside it) to correct and load again — loading the
+    same file twice adds nothing. Needs the Field Failure Register right and
+    **Bulk uploads**.
   - **Year and Product, both taking several values.** Tick as many as you like;
     the list stays open while you tick, and nothing ticked means everything.
     Year opens on this year; Product opens on all, so it costs nothing until you
@@ -687,8 +758,27 @@ against the call it was fitted to.
   > machines follow the entry again. It tells you first how many values **differ**
   > from the entry — those are decisions somebody made about one machine, and
   > there is no undo — separately from the ones that merely repeat it.
+  >
+  > **PM schedule.** A saved entry shows, under its products, every PM visit
+  > of each machine — due date, and Generated (with its call), Missed PM, Due or
+  > Upcoming. **Generate** creates a due or missed visit's PM call, dated the 1st
+  > of that visit's due month, the same way PM Due does; a future visit cannot
+  > be generated early. The **PM Schedule** tab beside Entries and Register is
+  > PM Due for this register alone.
+  >
+  > **Installation calls.** Under the PM schedule, a saved sale lists each
+  > machine's installation call with its status; a machine without one reads
+  > *not raised* and can be raised there (**Raise**, or **Raise N pending**).
+  > Every generated call — PM or installation — shows its status (Unattended,
+  > Unsolved, Report Pending, Solved) in the usual colours.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
   covered.
+  > **PM schedule.** A saved entry shows, under its products, every PM visit
+  > of each machine — due date, and Generated (with its call), Missed PM, Due or
+  > Upcoming. **Generate** creates a due or missed visit's PM call, dated the 1st
+  > of that visit's due month, the same way PM Due does; a future visit cannot
+  > be generated early. The **PM Schedule** tab beside Entries and Register is
+  > PM Due for this register alone.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
 **Register** (one row per machine, with Active / About to expire / Inactive
@@ -1069,8 +1159,23 @@ typed into a form that reads it.
   > stock that the Part Master does not list is always shown.
   > **Editing** an existing part does not demand them, so an older part with a
   > blank can still be corrected one field at a time.
+  > **Labour Charge** (a tick on the add and edit forms, and a column): a
+  > charge rather than a part — SC001 Service Charges, TC001 Transportation
+  > Charges, INS-001 Installation Charges are ticked. A labour charge is offered
+  > on every consumption (the visit, Spare Consumption's reconciliation, Call
+  > Review's Reco) whatever the engineer holds, **always at quantity 1**, and is
+  > never hand stock. It is offered even when the part is inactive. It is **not
+  > listed on a Spare Request** — there is nothing for Stores to send.
 - **Party Master** `/parties` — your customers, **who looks after each one**, and
   their **KYC**.
+  > **Type, Profile, Serviceman, City, State and Country are dropdowns** —
+  > type to search and pick. Type and Profile offer the standard values
+  > (CUSTOMER / DEALER; PRIVATE / GOVERNMENT / DEALER / GENERAL) plus any
+  > already on file, and take nothing else. State and Country offer what the
+  > Party Master already holds; City offers the cities already on file for the
+  > State chosen. **City, State and Country also take a new value** — type it
+  > and pick it. **Serviceman lists only ACTIVE people on the User
+  > Master**; a customer whose Serviceman is no longer active says so.
   > **KYC starts as Pending on every customer** — nobody has been verified yet,
   > so the count tells you what is outstanding. Marking one **Verified** records
   > who did it and when; sending it back to Pending clears that, because a
@@ -1117,6 +1222,13 @@ typed into a form that reads it.
   > departments there first), so it is spelled one way everywhere.
   > **Many at once:** tick people (the header box ticks everyone the search is
   > showing), choose the Department in the bar that appears, press **Apply**.
+  > **Tags:** give a person as many tags as you like — type one and press
+  > Enter (or a comma); × removes it. They are free text: the tags already in
+  > use are suggested, not imposed, and the same tag in another case is kept
+  > once. Filter the list by tag with the box beside the search, or tick people
+  > and use **＋ Add tag** / **− Remove tag** in the bar. A person tagged
+  > **CAPA Responsibility** (and Active) is offered as the CAPA (if reqd)
+  > Responsibility on the Field Failure Register.
   > **Open a person (the row, or ⋯ → view) for their profile:** Employee Code,
   > Joining Date, Department, Designation, both managers, Mail ID, their
   > **Roles & Responsibilities** and their **training**. Employee Code and

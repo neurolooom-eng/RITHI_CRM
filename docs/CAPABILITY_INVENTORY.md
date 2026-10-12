@@ -276,6 +276,8 @@ Purpose: the register of Field Failure Reports (R-SER-03): raise, complete, week
 | 21 | Insights charts: which machines fail, cover, root cause, grouping, customer, report status, CAPA status | FieldFailureInsights.tsx:550-815 | none | GAP | |
 | 22 | Trend by month, quarter or year with a table (change, share, running) and labels; .xlsx download with the raw reports and "how worked out" | FieldFailureInsights.tsx:245-313, 573-656 | NOT export-gated | GAP | |
 | 23 | Pareto with a free 3-level drill (machine / complaint grouping / root cause), 80% line, table, labels; .xlsx download with raw reports (origin: migrated or raised here) | FieldFailureInsights.tsx:177-182, 315-474, 660-765 | NOT export-gated | partial: URS-037 (origin column); GAP for the rest | The raw sheet builds a 'Machine the call named' value, but that column is missing from its column list (:377-379 vs :389) |
+| 24 | CAPA (if reqd) Responsibility offers "No closed in FFR" and every active person tagged CAPA Responsibility on the User Master | FieldFailureReport.tsx (capaChoices); supabase.ts peopleTagged | ffr.manage | URS-184, FRS-273 (OQ-271) | |
+| 25 | ⭱ Load old update log: the Field Failure Register – Update sheet into each report's Update log, matched on FFR No + UCN, the latest values applied; rows not matched listed and downloadable | FfrSheetUpdateLoader.tsx; 0409 ffr_load_sheet_updates | ffr.manage + bulk.upload (UI and DB) | URS-185, FRS-274 (OQ-272) | High: writes quality records in bulk |
 
 ### Field Failure Report — print page (`/ffr/:ffrNo`) — `src/modules/FieldFailureReportPrint.tsx`
 Purpose: a printable A4 R-SER-03 page with no application frame around it.
@@ -674,6 +676,7 @@ Purpose: records one visit against a call, plus its spare consumption and, when 
 | 21 | A second completed visit on the same call cannot record feedback: one feedback per UCN (0186/0188), plain insert | CallReporting.tsx:457-472; supabase.ts:3983-3986 | DB unique `feedback_ucn_key` | GAP | Medium. A re-opened call solved again reports "feedback was not saved" |
 | 22 | Visit, consumption failure and feedback failure are written to the audit log | CallReporting.tsx:450, 468, 474, 478 | none | partial: URS-016, FRS-021 | |
 | 23 | Missing hand-stock view reported as needing migration 0023 | CallReporting.tsx:265-271 | none | GAP | Low |
+| 24 | Spare picker always lists the labour charges (labelled, quantity 1 and not editable), even with nothing in hand; no below-zero warning for them | CallReporting.tsx (labour) | visit.spares; DB trigger labour_charge_qty_one | URS-186, FRS-275.2, OQ-275 | Call Review's Reco offers them the same way (CallReview.tsx) |
 
 ### Bulk Report Mapping (`/report-mapping`) — `src/modules/ReportMapping.tsx` (+ `components/report/ConvertLoadedReports.tsx`)
 Purpose: recovers visit reports from a superseded system and puts each on its call, and converts AppSheet references already loaded into Drive links.
@@ -970,6 +973,7 @@ Purpose: The register of every spare line (one row per part), where spare reques
 | 51 | Arriving from My Workload opens with that stage filter already applied | SpareRequests.tsx:542-543 | none | GAP | |
 | 52 | Export CSV of visible rows (partial disclaimer when more exist) | SpareRequests.tsx:1040-1042 | `export.data` | partial: FRS-018 — gate only; partial-file disclaimer not stated | |
 | 53 | Status banners: Loading, "Synced N lines", "Load failed: <error>", dismissable | SpareRequests.tsx:638-651, 949-954 | none | GAP | |
+| 54 | The part list leaves out labour charges (Part Master's Labour Charge tick); the database refuses a line naming one, new or re-pointed, unless it is an import | SpareRequests.tsx (labour); 0414 labour_not_requested | DB trigger | URS-186, FRS-275.6, OQ-275 | The 2 SC001 lines already raised are left as they are |
 
 ### RM Approval (`/spare-rm-approval`) — `src/modules/SpareRmApproval.tsx`
 Purpose: The Reporting Manager's queue of spare lines waiting for RM approval, for approving or rejecting in bulk.
@@ -1007,7 +1011,7 @@ Purpose: The Stores queue of fully approved spares, grouped by engineer and book
 | 7 | Tick single spares, or a whole engineer (ticking another engineer replaces the selection) | SpareDispatch.tsx:171-185, 392-398, 418 | none | GAP | |
 | 8 | A batch must be one engineer; the bar says "A stock out goes to one engineer — the selection spans N." and Dispatch is disabled | SpareDispatch.tsx:146-149, 336, 350; sparedispatch.ts:117-122 | DB `dispatch_spare_lines()` enforces the same | GAP | The one-DC-one-engineer rule is not in any requirement. |
 | 9 | Send fewer units than outstanding: quantity per line, clamped between 1 and the outstanding amount; "N of M sent" badge for lines already partly sent | SpareDispatch.tsx:151-158, 423-433, 441-445 | DB rejects issuing more than the remainder | URS-021, FRS-026, OQ-18 | URS-021 is filed under `/stock-out`, but this is the screen where it happens. |
-| 10 | Mark a line "Refurbished" (issue the R-prefixed recycled part) | SpareDispatch.tsx:160-169, 434-440, 197 | DB checks the R-part exists and is active | URS-027, FRS-033, OQ-20 | |
+| 10 | Mark a line "Refurbished" (issue the R-prefixed recycled part) | SpareDispatch.tsx:160-169, 434-440, 197 | DB checks the R-part exists and is active | URS-027, FRS-033, OQ-20 | Hidden, and refused by the database (0415), while Audit Mode is on — NAR-009 |
 | 11 | Action bar: count of spares and units, target engineer, Clear | SpareDispatch.tsx:330-339 | none | GAP | |
 | 12 | Dispatch dialog: DC date (defaults to today, EDITABLE), courier / carried by, dispatch remarks; list of what goes | SpareDispatch.tsx:465-519 | `spare.dispatch` (button disabled without it: 348-353) | partial: FRS-012 — dispatch generates a DC and stock-out; the DC date, courier and remarks (and that the DC date may be back- or forward-dated) are not stated | |
 | 13 | Book out: one database call creates the stock out and the DC number, stamps every line, all or nothing | SpareDispatch.tsx:187-217; supabase.ts:3494-3512 | `spare.dispatch`; DB `dispatch_spare_lines()` (0027) | URS-008, FRS-012, OQ-08 | The all-or-nothing behaviour is stated in code comments, not in FRS-012. |
@@ -1031,7 +1035,7 @@ Purpose: A flat list of every spare Stores has issued, one row per part, with it
 | 2 | List of issued spare lines, newest first, read up to 5,000; the title count shows "+" when capped | SpareDispatch.tsx:537-563; StockOut.tsx:27-49; supabase.ts:2564-2579 | RLS on view `spare_stock_out_lines` | URS-028, FRS-034 | FRS-034 says the view lists every spare issued. |
 | 3 | Columns: stock out, DC, date, engineer, part, qty, OR, call, party, courier, booked by | SpareDispatch.tsx:568-607 | none | partial: URS-008 — actor and time; the column set is not stated | |
 | 4 | "Days to dispatch" from the last approval to the stock out, coloured (≥7 red, ≥3 amber, else green) | SpareDispatch.tsx:565-592 | none | URS-028, FRS-034 (colours not stated) | |
-| 5 | "♻ Refurbished" badge on a recycled part | SpareDispatch.tsx:573-583 | none | FRS-033, OQ-20 | |
+| 5 | "♻ Refurbished" badge on a recycled part | SpareDispatch.tsx:573-583 | none | FRS-033, OQ-20; NAR-009 | Not shown while Audit Mode is on |
 | 6 | Search by stock out, DC, engineer, part, OR, UCN, call, party; line count shown | SpareDispatch.tsx:556-561, 623-625 | none | GAP | |
 | 7 | Print the Delivery Challan (🖨) or open the Declaration (📜) for a row | SpareDispatch.tsx:598-606; StockOut.tsx:60-61 | none (the target route has no module guard; see DC) | partial: FRS-012 — a DC is generated; reprinting from the list is not stated | |
 | 8 | Export CSV (capped disclaimer at 5,000) | SpareDispatch.tsx:626-628 | `export.data` | partial: FRS-018 | |
@@ -1104,6 +1108,7 @@ Purpose: The register of spares consumed against calls. Office roles can also ad
 | 24 | Export CSV (partial disclaimer) | SpareConsumption.tsx:390-392 | `export.data` | partial: FRS-018 | |
 | 25 | Table view controls, all fields selectable | SpareConsumption.tsx:343, 369-380 | none | GAP | |
 | 26 | Banners: Loading, "Synced N consumption lines", "Load failed/Load more failed: …" | SpareConsumption.tsx:233-243, 362-367 | none | GAP | |
+| 27 | Reconciliation offers every labour charge whatever the engineer holds, quantity fixed at 1; Adjust on a labour line allows 1 or 0 only | SpareConsumption.tsx (labour) | consumption.reconcile; DB trigger labour_charge_qty_one | URS-186, FRS-275.2, FRS-275.3, OQ-275 | |
 
 ### Hand Stock (`/handstock`) — `src/modules/HandStock.tsx`
 Purpose: Each engineer's derived stock level per spare, with the terms that make it up and a ledger of the movements. Nothing is entered here.
@@ -1129,6 +1134,7 @@ Purpose: Each engineer's derived stock level per spare, with the terms that make
 | 17 | Empty states: "Searching…", "Nothing in the whole register matches that.", "No lines match this filter.", "No hand stock yet" | HandStock.tsx:407-411 | none | GAP | |
 | 18 | Arriving from My Workload's Short card opens with the Short filter | HandStock.tsx:146-147 | none | GAP | |
 | 19 | Table view controls | HandStock.tsx:392-399 | none | GAP | |
+| 20 | Subtitle states the first day counted (the day after `handstock_period.closed_through`, 09-Jun-2022) and that labour charges are not hand stock | HandStock.tsx (countedFrom); supabase.ts handstockCountedFrom | read `handstock_period` | FRS-159.16, FRS-159.17, OQ-274 | |
 
 ### Hand Stock Report (`/handstock-report`) — `src/modules/HandStockReport.tsx`
 Purpose: A complete, downloadable report of every visible engineer's hand stock. It loads in full before any download is allowed.
@@ -1443,6 +1449,7 @@ Purpose: Lets you browse and maintain the customer (party) register, including i
 | 20 | "Marked Verified with no record attached" notice | 566-571 | none | FRS-086.6 | |
 | 21 | ✎ Change engineer: rename one Serviceman spelling on every party that carries it, in one statement. The screen shows how many customers carry each spelling, flags spellings not in the User Master, lets you pick the target only from the User Master or choose "Leave nobody", and shows a count before you confirm | 155-189, 395-399, 407-489; supabase.ts:1094-1134 | perm masters.edit; DB parties_write | GAP | Bulk rewrite of a master field that decides who future calls are allotted to (`allocated_to` is matched by name). High |
 | 22 | Messages: "Connect the database…", "Sync failed", "Search failed", "Load more failed", and an empty-list text | 146-148, 281-283, 322-324, 337-339, 384 | none | GAP | Low |
+| 23 | Type, Profile, Serviceman, City, State and Country are type-search dropdowns on the edit drawer and the Add form: Type and Profile the standard lists plus values on file; State, Country and City the values on file (cities narrowed to the State; City, State and Country also take a new value, Type and Profile do not); Serviceman the User Master's active people only, a non-active one flagged | PartyMaster.tsx partyPick, PartyGroupFields; partyRules.ts partyFieldOptions; supabase.ts sbPartyFieldOptions, sbActiveUserNames | masters.parties.edit / masters.parties.add | FRS-270 | |
 
 ### Product Database (`/product-database`) — `src/modules/ProductMaster.tsx`
 Purpose: Lets you search the install base (one row per machine) and start a Field or Installation call from a machine.
@@ -1529,6 +1536,7 @@ Purpose: The directory of every person, signed in or not. Here you set the role 
 | 26 | Role pickers offer every role the database holds, not only the built-in ones | 47-52, 762-764 | — | FRS-065 | |
 | 27 | Client audit entries for add, edit, delete, create, clone, reset password, role apply and access save | 209, 241, 261, 272, 354, 493, 794 | — | partial: URS-016 / FRS-021 — a client-written trail (FRS-021 states its limits) | |
 | 28 | ⭳ Export CSV | 578-582, 600-602 | export.data | partial: FRS-018 | |
+| 29 | Tags (0408): free-text, several per person — a column, edited on the form and in the table, a Tags filter at the top, Add / Remove tag on the ticked people; "CAPA Responsibility" feeds the FFR CAPA list | UserMasterView.tsx; TagInput.tsx; 0408 | users.manage.details; DB ud policies + user_directory_tags_tidy | URS-184, FRS-273 (OQ-271) | |
 
 ### Part Master (`/parts`) — `src/modules/PartMaster.tsx` (+ `ProductAccessories.tsx`)
 Purpose: The spare-parts catalogue (ITEM Master). Here you add, edit, rename, retire and map parts to products, and map each main product to its accessories.
@@ -1551,6 +1559,7 @@ Purpose: The spare-parts catalogue (ITEM Master). Here you add, edit, rename, re
 | 14 | After a reload, clears this device's cached spare picker list so new or remapped parts appear | 105-106 | — | GAP | Low |
 | 15 | Without a database, lists the sheet "spare" master read-only | 57-68, 102 | none | GAP | Low |
 | 16 | Main product → Accessories panel (collapsible). Main products come from Product Master lines not categorised ACCESSORY; accessories from the ACCESSORY lines. Choosing a main product loads its list; save; ✎ edit; 🗑 delete (confirmation); optional note | ProductAccessories.tsx:26-128; supabase.ts:5931-5942 | perm masters.edit; DB `pa_insert`/`pa_update`/`pa_delete` masters.edit (0255:56-64) | GAP | Changes which parts the Spare Request and consumption pickers offer on a call. Hard delete. Medium |
+| 17 | Labour Charge tick on add and edit, and a Labour Charge column; SC001, TC001 and INS-001 ticked once by 0413 | PartMaster.tsx (labour); supabase.ts addPart/updatePart | Part Master edit keys; DB parts policies | URS-186, FRS-275.1, OQ-275 | |
 
 ### All Masters (`/masters`) and one list (`/masters/:key`) — `src/modules/AllMasters.tsx`, `MasterListPage.tsx`, `MasterListTable.tsx`, `masterLists.ts`
 Purpose: Overview of every master with counts. Each value list (Call Type, Standard Complaint, reasons, Department, and so on) can be maintained here.

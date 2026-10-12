@@ -47,9 +47,10 @@
 --   0311_cancel_needs_an_open_call.sql
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
---   0413_field_call_vigilance_answered.sql
---   0408_call_request_attended_not_future.sql
---   0411_call_reopen_reason_recorded.sql
+--   0406_install_call_registers_requests.sql
+--   0428_field_call_vigilance_answered.sql
+--   0423_call_request_attended_not_future.sql
+--   0426_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -4100,11 +4101,114 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0413_field_call_vigilance_answered.sql
+-- 0406_install_call_registers_requests.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0413 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0406 -- AN INSTALLATION CALL REGISTERS THE PENDING INSTALLATION REQUESTS FOR
+-- ITS MACHINE (the user, 2026-10-08: "When I generate an Installation Call, if
+-- there are any requests for the same (Product + Serial No) in pending
+-- Registrations, then it should be marked as registered and the UCN should be
+-- updated").
+--
+-- Asked and answered:
+--   * Which requests: INSTALLATION requests only. A pending Field or PM request
+--     on the same machine asks for a different visit and stays pending.
+--   * Requests already pending for a machine that already has an installation
+--     call: yes, once, now -- with the machine's LATEST installation call.
+--
+-- THE RULE, in the database so every way an installation call is created --
+-- the Installation register, Create new call on Pending Registrations, a bulk
+-- upload -- does it alike. On INSERT of an installation call that is not
+-- cancelled and names a product AND a serial, every call request that
+--   * is still PENDING (no UCN, status blank or Pending -- Cancelled, Mapped
+--     and Registered are deliberate answers and are never touched),
+--   * is an INSTALLATION request (its call type begins INSTALL, the rule
+--     callFamily() and call_table_for() use), and
+--   * names the same product and serial (case and spaces aside),
+-- takes the call's UCN and becomes Registered, actioned by whoever created the
+-- call, now. call_requests_biu (0083) would set Registered from the UCN on its
+-- own; it is written here so the record does not depend on that. A Pending
+-- request is editable, so call_request_content_frozen does not object, and
+-- none of the request's own content is changed.
+--
+-- SECURITY DEFINER: the person registering the call may not hold the right to
+-- update call requests, and the request must still close. The function is a
+-- trigger and nothing else, so nobody may call it.
+-- ===========================================================================
+
+create or replace function public.install_call_registers_requests()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_by text := coalesce((select p.full_name from public.profiles p where p.id = auth.uid()), '');
+begin
+  if new.cancelled_at is not null
+     or btrim(coalesce(new.ucn, '')) = ''
+     or btrim(coalesce(new.product_name, '')) = ''
+     or btrim(coalesce(new.serial, '')) = '' then
+    return new;
+  end if;
+
+  update public.call_requests q
+     set ucn = new.ucn,
+         status = 'Registered',
+         actioned_by = v_by,
+         actioned_at = now()
+   where btrim(coalesce(q.ucn, '')) = ''
+     and btrim(coalesce(q.status, '')) in ('', 'Pending')
+     and upper(btrim(coalesce(q.call_type, ''))) like 'INSTALL%'
+     and lower(btrim(coalesce(q.product, ''))) = lower(btrim(new.product_name))
+     and lower(btrim(coalesce(q.serial_no, ''))) = lower(btrim(new.serial));
+  return new;
+end $$;
+
+revoke execute on function public.install_call_registers_requests() from public, anon, authenticated;
+
+drop trigger if exists zz_install_call_registers_requests on public.installation_calls;
+create trigger zz_install_call_registers_requests
+  after insert on public.installation_calls
+  for each row execute function public.install_call_registers_requests();
+
+-- ---- ONCE: the requests already pending for a machine already installed ----
+do $once$
+declare n integer;
+begin
+  with latest as (
+    select distinct on (lower(btrim(ic.product_name)), lower(btrim(ic.serial)))
+           lower(btrim(ic.product_name)) as p, lower(btrim(ic.serial)) as s, ic.ucn
+      from public.installation_calls ic
+     where ic.cancelled_at is null
+       and btrim(coalesce(ic.ucn, '')) <> ''
+       and btrim(coalesce(ic.product_name, '')) <> ''
+       and btrim(coalesce(ic.serial, '')) <> ''
+     order by lower(btrim(ic.product_name)), lower(btrim(ic.serial)),
+              ic.reg_at desc nulls last, ic.reg_date desc nulls last, ic.ucn desc
+  )
+  update public.call_requests q
+     set ucn = l.ucn,
+         status = 'Registered',
+         actioned_by = 'Data fix 0406 (its machine already had an installation call)',
+         actioned_at = now()
+    from latest l
+   where btrim(coalesce(q.ucn, '')) = ''
+     and btrim(coalesce(q.status, '')) in ('', 'Pending')
+     and upper(btrim(coalesce(q.call_type, ''))) like 'INSTALL%'
+     and lower(btrim(coalesce(q.product, ''))) = l.p
+     and lower(btrim(coalesce(q.serial_no, ''))) = l.s;
+  get diagnostics n = row_count;
+  raise notice '0406: % pending installation request(s) registered against their machine''s existing installation call', n;
+end $once$;
+
+-- ------------------------------------------------------------------------
+-- 0428_field_call_vigilance_answered.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0428 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -4156,11 +4260,11 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
--- 0408_call_request_attended_not_future.sql
+-- 0423_call_request_attended_not_future.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0408 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+-- 0423 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
 --        (second re-review D-030, part 3)
 --
 -- The Attended Date on Request Registration had no upper bound, and it becomes
@@ -4197,11 +4301,11 @@ create trigger call_request_attended_not_future
   for each row execute function public.call_request_attended_not_future();
 
 -- ------------------------------------------------------------------------
--- 0411_call_reopen_reason_recorded.sql
+-- 0426_call_reopen_reason_recorded.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0411 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+-- 0426 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
 --        (second re-review D-035, FRS-133.4, FRS-120.9)
 --
 -- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
@@ -4262,7 +4366,7 @@ begin
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
   end if;
-  -- 0411 (D-035, FRS-120.9): a re-open says why.
+  -- 0426 (D-035, FRS-120.9): a re-open says why.
   if btrim(coalesce(p_reason, '')) = '' then
     raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
   end if;
@@ -4277,7 +4381,7 @@ begin
      set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
    where ucn = p_ucn;
 
-  -- 0411 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  -- 0426 (D-035, FRS-133.4): the reason, the person and the time, kept.
   insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
   values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
 

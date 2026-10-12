@@ -80,6 +80,7 @@ import DataExport from './modules/DataExport';
 import { BulkUploads } from './modules/BulkUploads';
 import { OwnershipTransfer } from './modules/OwnershipTransfer';
 import { PmBulkUpload } from './modules/PmBulkUpload';
+import { PmDue } from './modules/PmDue';
 import { SoftwareValidation } from './modules/SoftwareValidation';
 import { AdminConfig } from './modules/AdminConfig';
 import { WarrantyRegister, ContractRegister } from './modules/CoverRegister';
@@ -288,6 +289,7 @@ function Shell() {
         <Route path="/knowledge-base/how-it-works" element={<HowRithiFunctions />} />
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
         <Route path="/pm-bulk-upload" element={<PmBulkUpload />} />
+        <Route path="/pm-due" element={<PmDue />} />
         <Route path="/software-validation" element={<SoftwareValidation />} />
         <Route path="/admin-config" element={<AdminConfig />} />
         <Route path="/sla-objective-config" element={<SlaObjectiveConfig />} />

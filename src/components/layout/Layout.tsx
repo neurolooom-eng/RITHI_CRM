@@ -299,6 +299,9 @@ export const NAV: NavGroup[] = [
       // "Build the cache status report for my desk."
       { to: '/device-cache', label: 'Device Cache Status', icon: '📶', adminOnly: true },
       { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
+      // PM DUE (the user, 2026-10-08): the month's PM visits from the Warranty
+      // and Contract Registers, beside the upload it does not replace.
+      { to: '/pm-due', label: 'PM Due', icon: '🗓️', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
       // THE SERVICE'S TARGETS (the user, 2026-10-04): SLA hours and the
       // Product Failure rule, beside Admin Config which they came from.

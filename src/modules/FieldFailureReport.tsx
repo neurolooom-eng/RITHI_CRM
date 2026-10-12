@@ -9,10 +9,10 @@ import { logAudit } from '../lib/audit';
 import { fmtLongDate, csvExport } from '../lib/format';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
-import { listFfrs, addFfr, updateFfr, listFfrHistory, supabaseConfigured,
+import { listFfrs, addFfr, updateFfr, listFfrHistory, supabaseConfigured, peopleTagged,
   type FfrHistoryRow } from '../lib/supabase';
 import {
-  FFR_COLUMNS, FFR_LIVE_COLUMNS, FFR_COVER, FFR_CAPA_STATUS, FFR_CAPA_RESPONSIBILITY,
+  FFR_COLUMNS, FFR_LIVE_COLUMNS, FFR_COVER, FFR_CAPA_STATUS, FFR_CAPA_RESPONSIBILITY, CAPA_RESPONSIBILITY_TAG,
   FFR_STATUS, FFR_SOURCES, ffrDocFrom, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn,
   type ReviewSource,
 } from '../lib/ffr';
@@ -20,6 +20,7 @@ import { ffrDocDownload } from '../lib/ffrdoc';
 import { FieldFailureInsights } from './FieldFailureInsights';
 import { ReviewAnswersNote } from '../components/ui/ReviewAnswersNote';
 import { FieldFailureDesk } from './FieldFailureDesk';
+import { FfrSheetUpdateLoader } from './FfrSheetUpdateLoader';
 import { useMySignature, signatureBelongsTo } from '../lib/signature';
 import { companyLogoBytes, COMPANY_LOGO_TYPE } from '../lib/brand';
 import './fieldcalls.css';
@@ -58,6 +59,21 @@ export function FieldFailureReport() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [form, setForm] = useState<Record<string, unknown> | null>(null);
+  // CAPA RESPONSIBILITY: "No closed in FFR" and every ACTIVE person tagged
+  // "CAPA Responsibility" on the User Master (0408). Read when the form opens.
+  // A value already on the report and no longer listed is kept at the top, so
+  // an old report still shows who it names.
+  const [capaPeople, setCapaPeople] = useState<string[]>([]);
+  useEffect(() => {
+    if (!form || !supabaseConfigured()) return;
+    let live = true;
+    peopleTagged(CAPA_RESPONSIBILITY_TAG).then((p) => { if (live) setCapaPeople(p); }).catch(() => { /* the fixed choice still shows */ });
+    return () => { live = false; };
+  }, [!!form]); // eslint-disable-line react-hooks/exhaustive-deps
+  const capaChoices = (current: string): string[] => {
+    const list = [...FFR_CAPA_RESPONSIBILITY, ...capaPeople.filter((p) => !FFR_CAPA_RESPONSIBILITY.includes(p))];
+    return current.trim() && !list.some((x) => x.toLowerCase() === current.trim().toLowerCase()) ? [current, ...list] : list;
+  };
   const [editing, setEditing] = useState<number | null>(null);
   // TWO TABS (the user, 2026-09-12): Insights across the record, Register for
   // the record itself. Register opens on the DESK they asked for; the flat
@@ -309,7 +325,13 @@ export function FieldFailureReport() {
         onRefresh={() => void load()}
         refreshing={busy}
         actions={mayRaise
-          ? <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(ffrFromReview({})); }}>＋ Raise FFR</button>
+          ? (
+            <div className="row" style={{ gap: 8 }}>
+              {/* The old update sheet (0409): ffr.manage AND bulk.upload, as the database asks. */}
+              {supabaseConfigured() && can('bulk.upload') && <FfrSheetUpdateLoader onDone={() => void load()} />}
+              <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(ffrFromReview({})); }}>＋ Raise FFR</button>
+            </div>
+          )
           : undefined}
       />
 
@@ -488,7 +510,7 @@ export function FieldFailureReport() {
             <section className="rep-sec">
               <div className="rep-sec-title">CAPA and closure</div>
               <div className="rep-grid">
-                {field('CAPA (if reqd) Responsibility', 'capa_responsibility', 'pick', FFR_CAPA_RESPONSIBILITY)}
+                {field('CAPA (if reqd) Responsibility', 'capa_responsibility', 'pick', capaChoices(String(form?.capa_responsibility ?? '')))}
                 {field('CAPA NO', 'capa_no')}
                 {field('CAPA Status', 'capa_status', 'pick', FFR_CAPA_STATUS)}
                 {field('FFR Status', 'ffr_status', 'pick', FFR_STATUS)}
@@ -622,7 +644,8 @@ function FfrHistory({ ffrNo }: { ffrNo: string }) {
     return () => { live = false; };
   }, [ffrNo]);
 
-  const edits = rows.filter((r) => r.action === 'update').length;
+  // A form edit, and an entry loaded from the old update sheet (0409).
+  const edits = rows.filter((r) => r.action === 'update' || r.action === 'sheet').length;
 
   return (
     <section className="rep-section">
@@ -651,7 +674,14 @@ function FfrHistory({ ffrNo }: { ffrNo: string }) {
                     <td>{h.changed_by_name || <span className="muted">—</span>}</td>
                     <td>
                       {h.action === 'create' ? (
-                        <b>Report raised</b>
+                        <>
+                          <b>Report raised</b>
+                          {/* An imported report is logged on its FFR Date
+                              (0410); when it was loaded is kept and said. */}
+                          {(h.changes as Record<string, unknown>)?._loaded_at != null && (
+                            <span className="muted"> — loaded into RITHI on {fmtLongDate((h.changes as Record<string, unknown>)._loaded_at)}</span>
+                          )}
+                        </>
                       ) : (
                         Object.entries(h.changes ?? {}).map(([k, v]) => (
                           <div key={k}>

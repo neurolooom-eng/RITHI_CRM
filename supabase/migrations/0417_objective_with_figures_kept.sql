@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0402 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+-- 0417 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
 --        (second re-review D-021, FRS-121.7)
 --
 -- Quality Objectives deleted an objective with its twelve figures after a
@@ -8,7 +8,7 @@
 -- row erased the measurement with it. FRS-121.7: the database shall refuse to
 -- delete an objective that carries any recorded figure -- a month m01..m12 or
 -- the Total. An objective added in error, with nothing recorded yet, can still
--- be deleted. 0406 images every change and delete in record_audit.
+-- be deleted. 0421 images every change and delete in record_audit.
 -- Not stopped: a connection with no session and a function running as its
 -- owner (a repair in the SQL editor).
 -- In the objective module, last.

@@ -85,11 +85,13 @@ export function supabaseConfigured(): boolean {
 // is the only way it can be TESTED: this file reads `import.meta.env` at load
 // and cannot be imported by a node script at all.
 import { allRows, distinctValues, PG_PAGE } from './paging';
+import { partyFieldOptions, type PartyFieldOptions } from './partyRules';
 import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
 import * as mc from './machinecache';
 import { planComplaintKeys, encodeComplaintEntry, type ExistingComplaint } from './complaints';
 import { encodePartEntry, encodeAccessoryEntry } from './partfit';
 import type { LoadedReport, ConvertWrite } from './reportMapping';
+import { labourPartsFrom, type LabourPart } from './labour';
 export { allRows, PG_PAGE };
 
 export function errMsg(e: { message?: string; code?: string } | null | undefined): string {
@@ -281,6 +283,14 @@ function orderCalls<Q extends Orderable<Q>>(q: Q, callType: string): Q {
   return q.order('id', { ascending: false });
 }
 
+// THE OLD DCCR REGISTER'S CALLS ARE KEPT, NOT LISTED (0395; the user,
+// 2026-10-06: "Keep, but hide from registers"). They exist so the DCCR View and
+// the failure rate can read 2025; the Field / PM registers, the Dashboard, the
+// SLA flags and My Workload leave them out. Marked by the import itself.
+// Only that import writes `imported_from` into a call's extra, so a call
+// without it is a live call.
+export const HISTORICAL_MARK = 'extra->>imported_from';
+
 // Supabase caps a single response at ~1000 rows, so page through with range()
 // until the register is fully loaded (or `limit` reached).
 export async function listCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
@@ -288,7 +298,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
   const out: Record<string, unknown>[] = [];
   for (let from = 0; from < limit; from += PAGE) {
     // Read the type's own table (isolated); the union view only for "all".
-    const q = orderCalls(must().from(callTable(callType)).select('*'), callType).range(from, Math.min(from + PAGE, limit) - 1);
+    const q = orderCalls(must().from(callTable(callType)).select('*').is(HISTORICAL_MARK, null), callType).range(from, Math.min(from + PAGE, limit) - 1);
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
@@ -304,7 +314,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
 export interface CallSearch { q?: string; ucn?: string; serial?: string; partyName?: string; productName?: string }
 const _san = (t: string) => t.replace(/[%,()]/g, ' ').trim();
 export async function searchCalls(callType: string, terms: CallSearch, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = orderCalls(must().from(callTable(callType)).select('*'), callType).limit(limit);
+  let q = orderCalls(must().from(callTable(callType)).select('*').is(HISTORICAL_MARK, null), callType).limit(limit);
   if (terms.ucn) q = q.ilike('ucn', `%${_san(terms.ucn)}%`);
   if (terms.serial) q = q.ilike('serial', `%${_san(terms.serial)}%`);
   if (terms.partyName) q = q.ilike('party_name', `%${_san(terms.partyName)}%`);
@@ -332,6 +342,54 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
   if (error) throw new Error(errMsg(error));
   const v = data?.[0]?.reg_at;
   return v ? String(v) : null;
+}
+
+// PM DUE (0401, 0402): each machine with a PM visit due in the month, from the
+// Warranty and Contract Registers, GENERATED when its "k / N" PM call exists
+// and is not cancelled, MISSED PM otherwise. Both reads are definer functions
+// that ask pm.generate, so "generated" -- and the month's latest registration
+// time -- are answered from EVERY PM call, not only the ones the reader's
+// row-level security shows them. A month can list well over a thousand
+// machines, so the list is PAGED (PostgREST caps a response at 1,000), ordered
+// by the machine, which is unique in the list.
+export interface PmDueRow {
+  source: 'Warranty' | 'Contract'; ref_no: string; product_name: string; serial: string;
+  is_accessory: boolean;
+  party_name: string | null; city: string | null; state: string | null;
+  engineer: string | null; on_product_database: boolean; cover_type: string;
+  cover_start: string; cover_end: string; period_months: number; pm_visits: number;
+  visit_no: number; due_date: string;
+  generated: boolean; generated_ucn: string | null; generated_on: string | null; last_pm_on: string | null;
+  // The two rules (0403): the installation call Solved, the party a CUSTOMER.
+  installation_ucn: string | null; installation_state: string | null; install_solved: boolean;
+  party_type: string | null; party_is_customer: boolean;
+  can_create: boolean;   // a Missed PM passing both rules
+}
+export async function listPmDue(month: string): Promise<PmDueRow[]> {
+  const c = must();
+  return allRows<PmDueRow>((a, b) => c.rpc('pm_visits_due', { p_month: `${month}-01` })
+    .order('product_name').order('serial').range(a, b));
+}
+// THE PM SCHEDULE OF ONE ENTRY (0407): every visit of every machine on one
+// Warranty (SA) or Contract (MC) entry, each generated or not. One entry is a
+// few dozen rows at most, so one request.
+export interface PmScheduleRow {
+  source: 'Warranty' | 'Contract'; ref_no: string; product_name: string; serial: string;
+  party_name: string | null; city: string | null; state: string | null;
+  engineer: string | null; on_product_database: boolean; cover_type: string;
+  cover_start: string; cover_end: string; period_months: number; pm_visits: number;
+  visit_no: number; due_date: string;
+  generated: boolean; generated_ucn: string | null; generated_on: string | null;
+}
+export async function listPmSchedule(source: 'Warranty' | 'Contract', ref: string): Promise<PmScheduleRow[]> {
+  const { data, error } = await must().rpc('pm_schedule', { p_source: source, p_ref: ref });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as PmScheduleRow[];
+}
+export async function pmDueLatestRegAt(month: string): Promise<string | null> {
+  const { data, error } = await must().rpc('pm_due_latest_reg_at', { p_month: `${month}-01` });
+  if (error) throw new Error(errMsg(error));
+  return data ? String(data) : null;
 }
 
 /** `offline` is true ONLY when the request never reached the database
@@ -2388,7 +2446,7 @@ export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]
 // carry no model", never more than is true.
 // ---------------------------------------------------------------------------
 import { isNetworkFailure, type RegisterCount } from './dberror';
-import { todayLocal } from './dates';
+import { todayLocal, dayAfter } from './dates';
 export type RegisterGap = RegisterCount & { register: string; table: string };
 
 const PD2_REGISTERS: { register: string; table: string; model: string }[] = [
@@ -2480,6 +2538,9 @@ export async function listCallRequestsAsPending(): Promise<Record<string, unknow
     'CUSTOMER CONTACT Number': r.customer_contact_number, 'Call Attended?': r.call_attended,
     'Attended Date': r.attended_date, 'PLAN DATE (Visit Planned Date)': r.plan_date,
     'Additional Comments': r.additional_comments,
+    // The request's documents (installation requests): Drive links (2026-10-10,
+    // for the "Need more details" mail -- "Add the Attachment also").
+    'Installation Report': r.installation_report, 'KYC': r.kyc,
   }));
 }
 // Close a request out with a UCN: 'Registered' (a new call was created from it)
@@ -2558,7 +2619,7 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
   const PAGE = 1000;
   const out: Record<string, unknown>[] = [];
   for (let from = 0; from < limit; from += PAGE) {
-    let q = must().from('pending_calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
+    let q = must().from('pending_calls').select('*').is(HISTORICAL_MARK, null).order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
     if (callType) q = q.eq('call_type', callType);
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
@@ -2677,7 +2738,7 @@ export async function openCallsFor(machines: MachineRef[], parties: string[] = [
 
 // Re-open a closed call (Hotline). The DB checks the permission and that the
 // call really is closed, and counts the re-open on the call.
-// THE REASON IS REQUIRED (0411, D-035, FRS-133.4 / FRS-120.9): no default, and
+// THE REASON IS REQUIRED (0426, D-035, FRS-133.4 / FRS-120.9): no default, and
 // a blank one is refused here in the database's own words before a round trip
 // -- reopen_call() refuses it too and records the reason, the person and the
 // time in public.call_reopens.
@@ -2687,7 +2748,7 @@ export async function reopenCall(ucn: string, reason: string): Promise<{ ok: boo
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-/** One re-open of a call, as reopen_call() recorded it (0411). */
+/** One re-open of a call, as reopen_call() recorded it (0426). */
 export interface CallReopen { id: number; ucn: string; reopenedAt: string; reopenedBy: string; reopenedByName: string; reason: string }
 /** A call's re-opens, newest first (D-035, FRS-133.4). A failed read THROWS:
  *  an empty list here reads as "never re-opened", which is a claim about the
@@ -2998,6 +3059,8 @@ export interface DirectoryRow {
   address: string; city: string; state: string; phone: string;
   /** 0263 -- from the Department master list. */
   department: string;
+  /** 0408 -- free-text tags, several per person. */
+  tags: string[];
 }
 
 const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
@@ -3008,6 +3071,7 @@ const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
   region: String(r.region ?? ''), role: String(r.role ?? ''), validity: r.validity !== false,
   address: String(r.address ?? ''), city: String(r.city ?? ''), state: String(r.state ?? ''),
   phone: String(r.phone ?? ''), department: String(r.department ?? ''),
+  tags: Array.isArray(r.tags) ? (r.tags as unknown[]).map(String) : [],
 });
 
 export async function listDirectory(cap = 5000): Promise<DirectoryRow[]> {
@@ -3017,6 +3081,57 @@ export async function listDirectory(cap = 5000): Promise<DirectoryRow[]> {
   const rows = await allRows<Record<string, unknown>>((from, to) =>
     must().from('user_directory').select('*').order('name').order('id').range(from, to), cap);
   return rows.map(dirRow);
+}
+
+// THE PEOPLE CARRYING ONE TAG on the User Master (0408), ACTIVE ones only,
+// by name. Read for the Field Failure Register's CAPA Responsibility list
+// ("CAPA Responsibility"). Every row with any tag is read and matched here,
+// case-blind, because a free-text tag may be typed in any case.
+export async function peopleTagged(tag: string): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  const want = tag.trim().toLowerCase();
+  const rows = await allRows<Record<string, unknown>>((from, to) =>
+    c.from('user_directory').select('id,name,tags,validity').neq('tags', '{}').order('name').order('id').range(from, to), 5000);
+  const names = rows
+    .filter((r) => r.validity !== false && Array.isArray(r.tags)
+      && (r.tags as unknown[]).some((t) => String(t).trim().toLowerCase() === want))
+    .map((r) => String(r.name ?? '').trim()).filter(Boolean);
+  return [...new Set(names)];
+}
+
+// THE CC OF A "NEED MORE DETAILS" MAIL (Pending Registrations, 2026-10-08):
+// the requestor's Reporting Manager. The User Master records the manager by
+// NAME, so this finds the requestor's row by their email (or gmail), reads its
+// Reporting Manager, and finds that person's own row by name for the address.
+// Exact matches only, case and spaces aside -- a near-miss would copy a
+// stranger. Several rows sharing the manager's name all give their address,
+// and the screen shows every one before the mail is opened.
+export async function reportingManagerEmails(requestorEmail: string): Promise<{ manager: string; emails: string[] }> {
+  const e = requestorEmail.trim().toLowerCase();
+  if (!e) return { manager: '', emails: [] };
+  const c = must();
+  // An address is matched as written: `_` and `%` would be wildcards to ilike
+  // (john_doe would match johnXdoe), so both are escaped. Two plain filters
+  // rather than one or(), whose quoting would swallow the escapes.
+  const esc = (x: string) => x.replace(/[\\%_]/g, (m) => `\\${m}`);
+  const mine: Record<string, unknown>[] = [];
+  for (const col of ['email', 'gmail']) {
+    const { data, error } = await c.from('user_directory').select('reporting_manager').ilike(col, esc(e)).limit(20);
+    if (error) throw new Error(errMsg(error));
+    mine.push(...(data ?? []));
+  }
+  const managers = [...new Set(mine.map((r) => String(r.reporting_manager ?? '').trim()).filter(Boolean))];
+  if (!managers.length) return { manager: '', emails: [] };
+  const emails: string[] = [];
+  for (const m of managers) {
+    const { data: rm, error: e2 } = await c.from('user_directory').select('name,email').ilike('name', esc(m)).limit(20);
+    if (e2) throw new Error(errMsg(e2));
+    for (const r of rm ?? []) {
+      const em = String(r.email ?? '').trim();
+      if (em && String(r.name ?? '').trim().toLowerCase() === m.toLowerCase()) emails.push(em);
+    }
+  }
+  return { manager: managers.join(', '), emails: [...new Set(emails)] };
 }
 
 // Add a person, or save an edit. `id` null adds.
@@ -3068,6 +3183,20 @@ export async function sbActiveUserNames(): Promise<string[]> {
     c.from('user_directory').select('name').eq('validity', true).order('name').order('id').range(a, b), 20000);
   return [...new Set(rows.map((r) => String(r.name ?? '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
+}
+
+/** The values each Party Master dropdown offers (partyRules.partyFieldOptions):
+ *  from this device's copy of the Party Master, else from the server -- one
+ *  distinct read per column. */
+export async function sbPartyFieldOptions(): Promise<PartyFieldOptions> {
+  const local = await localParties();
+  if (local && local.length) return partyFieldOptions(local as unknown as Record<string, unknown>[]);
+  const cols = ['party_type', 'profile', 'state', 'country', 'city'] as const;
+  const vals = await Promise.all(cols.map((k) => distinctColumn('parties', k).catch(() => [] as string[])));
+  // No device copy: the cities are not narrowed by state until it downloads.
+  const rows: Record<string, unknown>[] = [];
+  cols.forEach((k, i) => vals[i].forEach((v) => rows.push({ [k]: v })));
+  return partyFieldOptions(rows);
 }
 
 export async function sbDirectoryNames(): Promise<string[]> {
@@ -3633,12 +3762,12 @@ export async function updateMasterItem(id: number, patch: { value?: string; extr
   return { ok: true };
 }
 
-/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0409, D-056, FRS-180.6) — asked
+/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0424, D-056, FRS-180.6) — asked
  *  BEFORE a Delete is offered, so a value in use is deactivated instead. The
  *  function counts as its owner, so the number is every record, not only the
  *  ones the reader may see. A count that could not be read is an ERROR, never
  *  0: 0 would offer the delete on exactly the value the count exists to stop
- *  (the database still refuses it, 0409's trigger, and that refusal is shown). */
+ *  (the database still refuses it, 0424's trigger, and that refusal is shown). */
 export async function masterValueUses(name: string, value: string): Promise<{ ok: true; uses: number } | { ok: false; error: string }> {
   const { data, error } = await must().rpc('master_value_uses', { p_name: name, p_value: value });
   if (error) return { ok: false, error: errMsg(error) };
@@ -3649,7 +3778,7 @@ export async function masterValueUses(name: string, value: string): Promise<{ ok
 export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
   // ROWS COUNTED: row-level security refuses a delete by matching nothing, and
   // no error is not "removed" (finding 48). A value records carry is refused
-  // by the database (0409) in its own words, passed on VERBATIM -- it says how
+  // by the database (0424) in its own words, passed on VERBATIM -- it says how
   // many records and to deactivate instead.
   const { data, error } = await must().from('masters').delete().eq('id', id).select('id');
   if (error) return { ok: false, error: errMsg(error) };
@@ -3716,7 +3845,7 @@ export async function partCodeExists(code: string): Promise<boolean> {
 // here as well as on the form, so no other caller can add a part without them.
 export async function addPart(
   code: string, description: string,
-  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string; ind_imp?: string } = { category: '', product: '' },
+  more: { category: string; product: string; purchase_cost?: number | null; common?: boolean; hsn_code?: string; ind_imp?: string; labour_charge?: boolean } = { category: '', product: '' },
 ): Promise<{ ok: boolean; error?: string }> {
   const c = normalisePartCode(code);
   if (!c) return { ok: false, error: 'Give the part code.' };
@@ -3734,6 +3863,7 @@ export async function addPart(
     ...(more.purchase_cost != null ? { purchase_cost: more.purchase_cost } : {}),
     ...(more.hsn_code ? { hsn_code: more.hsn_code } : {}),
     ...(more.ind_imp ? { ind_imp: more.ind_imp } : {}),
+    ...(more.labour_charge ? { labour_charge: true } : {}),
   });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
@@ -3748,7 +3878,7 @@ export async function addPart(
  *  foreign key to `parts`. Changing them is `renamePart` below, which carries
  *  the history. */
 export async function updatePart(
-  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string; ind_imp?: string },
+  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null; hsn_code?: string; ind_imp?: string; labour_charge?: boolean },
 ): Promise<{ ok: boolean; error?: string }> {
   // Rows COUNTED (D-141), as updateMasterItem does.
   const { data, error } = await must().from('parts').update(patch).eq('id', id).select('id');
@@ -3782,6 +3912,15 @@ export async function renamePart(
   const r = (data ?? {}) as Record<string, unknown>;
   return { ok: true, moved: (r.moved as Record<string, number>) ?? {},
            from: String(r.from ?? ''), to: String(r.to ?? '') };
+}
+
+/** The labour charges ticked on the Part Master (0413), active or not: a
+ *  charge is offered on a consumption whatever its catalogue status. */
+export async function listLabourParts(): Promise<LabourPart[]> {
+  const { data, error } = await must().from('parts')
+    .select('code,item_detail').eq('labour_charge', true).order('code').order('id');
+  if (error) throw new Error(errMsg(error));
+  return labourPartsFrom((data ?? []) as { code?: unknown; item_detail?: unknown }[]);
 }
 
 export async function setPartActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
@@ -4508,6 +4647,16 @@ export async function listHandstockBalance(
 // project. The function returns one jsonb array, which PostgREST's 1,000-row
 // cap does not apply to, and it is security invoker: the reader's own RLS
 // bounds it exactly as the view. The screens search what they hold.
+/** The first day hand stock counts (0096 / 0412): the day after the period
+ *  closed through, as yyyy-MM-dd, or null when nothing is closed. Everything
+ *  before it is inside the opening balance struck that day. */
+export async function handstockCountedFrom(): Promise<string | null> {
+  const { data, error } = await must().from('handstock_period').select('closed_through').limit(1);
+  if (error) throw new Error(errMsg(error));
+  const d = String((data ?? [])[0]?.closed_through ?? '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? dayAfter(d) : null;
+}
+
 export async function listHandstockBalanceAll(): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().rpc('handstock_balance_all');
   if (error) throw new Error(errMsg(error));
@@ -4528,11 +4677,16 @@ export async function addHandstockAdjustment(a: { engineer: string; part: string
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-export async function handstockForEngineer(engineer: string, limit = 1000): Promise<Record<string, unknown>[]> {
+// `includeEmpty` also returns the parts the engineer holds none of, or is
+// already below zero on -- the visit form offers them since 0401, because a
+// part fitted beyond the hand stock is now booked (and the Spare Coordinator
+// told) rather than refused. Every other caller keeps "what is in hand".
+export async function handstockForEngineer(engineer: string, limit = 1000, opts: { includeEmpty?: boolean } = {}): Promise<Record<string, unknown>[]> {
   const key = engineer.trim().toLowerCase();
   if (!key) return [];
-  const { data, error } = await must().from('handstock_balance').select('*')
-    .eq('engineer_key', key).gt('on_hand', 0)
+  let q = must().from('handstock_balance').select('*').eq('engineer_key', key);
+  if (!opts.includeEmpty) q = q.gt('on_hand', 0);
+  const { data, error } = await q
     .order('part_code', { ascending: true }).range(0, limit - 1);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
@@ -6055,7 +6209,7 @@ export interface IndoorJob {
   call_status?: string;
   call_pending_reason?: string;
   reported_to_customer_at: string | null;
-  /** Who recorded the damage report to the owner — the database's (0412). */
+  /** Who recorded the damage report to the owner — the database's (0427). */
   reported_to_customer_by: string | null;
   // Rework (§8.3.4)
   nc_reference: string;
@@ -6229,7 +6383,7 @@ export async function saveIndoorJob(
     'qc_result', 'qc_notes', 'dispatch_ref', 'damage_note',
     // When the damage was reported to the owner (D-039, FRS-143.9). WHO is not
     // here: the database stamps reported_to_customer_by from the session when
-    // this changes, and clears it when this is cleared (0412).
+    // this changes, and clears it when this is cleared (0427).
     'reported_to_customer_at',
     'nc_reference', 'rework_instruction', 'rework_instruction_rev',
     'rework_authorised_by', 'rework_authorised_at', 'adverse_effect_assessed',
@@ -6249,7 +6403,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are the DC approval's (0327, 0404).
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0419).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -6394,7 +6548,7 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
   if (error) return { ok: false, error: errMsg(error) };
-  // D-145 (0403): a unit whose call was SOLVED since its visit was drafted is
+  // D-145 (0418): a unit whose call was SOLVED since its visit was drafted is
   // not filed; the function names those calls after a " | ".
   const out = String(data ?? '');
   const i = out.indexOf(' | ');
@@ -6752,6 +6906,23 @@ export interface FfrHistoryRow {
   changed_by_name: string;
   action: string;
   changes: Record<string, { from: unknown; to: unknown }>;
+}
+
+// THE OLD FFR UPDATE SHEET (0409). One batch of rows; the database matches
+// each on FFR No + UCN, logs it at its Timestamp and applies the latest values.
+export interface FfrSheetRow {
+  row: number; ffr_no: string; ucn: string; at: string | null;
+  problem_status: string; service_observation: string; capa_responsibility: string; capa_no: string;
+  capa_status: string; ffr_status: string; attachment_url: string; additional_problem: string; word_copy: string;
+}
+export interface FfrSheetResult {
+  loaded: number; unchanged: number; already: number; reports: number; fields_applied: number; kept_newer: number;
+  rejected: { row: number; ffr_no: string; ucn: string; reason: string; register_ucn: string }[];
+}
+export async function loadFfrSheetUpdates(rows: FfrSheetRow[]): Promise<FfrSheetResult> {
+  const { data, error } = await must().rpc('ffr_load_sheet_updates', { p_rows: rows });
+  if (error) throw new Error(errMsg(error));
+  return data as FfrSheetResult;
 }
 
 export async function listFfrHistory(ffrNo: string): Promise<FfrHistoryRow[]> {

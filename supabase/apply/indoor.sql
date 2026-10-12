@@ -30,11 +30,11 @@
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
 --   0378_pdqc_number.sql
---   0403_indoor_approval_skips_a_solved_call.sql
+--   0418_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0404_indoor_record_visit_closed_and_comments.sql
---   0412_indoor_reported_to_customer_stamp.sql
+--   0419_indoor_record_visit_closed_and_comments.sql
+--   0427_indoor_reported_to_customer_stamp.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4577,11 +4577,11 @@ create trigger zy_pdqc_number before insert or update on public.pdqc_records
 alter table public.pdqc_records alter column pdqc_no set not null;
 
 -- ------------------------------------------------------------------------
--- 0403_indoor_approval_skips_a_solved_call.sql
+-- 0418_indoor_approval_skips_a_solved_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0403 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0418 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -4791,7 +4791,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0403.
+-- In the indoor module, after 0418.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -4980,11 +4980,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0404_indoor_record_visit_closed_and_comments.sql
+-- 0419_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0404 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0419 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --
@@ -5014,11 +5014,11 @@ comment on column public.indoor_jobs.visit_filed_at is
   'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
 
 -- ------------------------------------------------------------------------
--- 0412_indoor_reported_to_customer_stamp.sql
+-- 0427_indoor_reported_to_customer_stamp.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0412 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+-- 0427 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
 --        (second re-review D-039, FRS-143.9)
 --
 -- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
@@ -5029,7 +5029,7 @@ comment on column public.indoor_jobs.visit_filed_at is
 --   * a time in the future is refused (five minutes' grace for a clock);
 --   * clearing the time clears the person.
 -- A connection with no session (a repair, an import) is left alone.
--- In the indoor module, after 0404.
+-- In the indoor module, after 0419.
 -- ===========================================================================
 
 create or replace function public.indoor_reported_to_customer_stamp()

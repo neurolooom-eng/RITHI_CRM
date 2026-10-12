@@ -158,12 +158,14 @@ export const FFR_COVER = ['WGP', 'OGP', 'AMC', 'CMC'];
 // missing from the first draft — a status a register already uses and a picker
 // will not offer is a value somebody has to work around.
 export const FFR_CAPA_STATUS = ['Not required', 'Open', 'In-Progress', 'Closed', 'TBD'];
-// The update form's own list (2026-09-12). It takes free text as well — the
-// form has an "Other" line, and a responsibility is a PERSON: the list will
-// always be behind by whoever joined last, and refusing a name is worse than
-// carrying one the list has not caught up with.
-export const FFR_CAPA_RESPONSIBILITY =
-  ['No closed in FFR', 'Shyam', 'NRCK', 'ALMS-FRANCE', 'DILIP', 'PK'];
+// THE FIXED PART OF THE CAPA RESPONSIBILITY LIST. The people come from the
+// User Master: everyone ACTIVE tagged "CAPA Responsibility" (0408, the user,
+// 2026-10-10: "I need to add People to list in FFR - CAPA Responsibility",
+// keeping only "No closed in FFR" of the old fixed names). A report already
+// carrying a name no longer on the list still shows it.
+export const FFR_CAPA_RESPONSIBILITY = ['No closed in FFR'];
+/** The User Master tag that puts a person on that list. */
+export const CAPA_RESPONSIBILITY_TAG = 'CAPA Responsibility';
 // Likewise: NA / Not Required, or a real CAPA number typed in.
 export const FFR_CAPA_NO = ['NA', 'Not Required'];
 // 'Cancelled' is on the update form beside Open and Closed. A cancelled report

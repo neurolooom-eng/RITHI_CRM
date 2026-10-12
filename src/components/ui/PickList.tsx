@@ -309,25 +309,21 @@ export function PickList({
           onKeyDown={onKey}
         />
       ) : (
+        // ONE TRIGGER, OPEN OR CLOSED. A short list (no search box) used to draw
+        // a SECOND box under this one while open, so the field showed two boxes
+        // both reading "— select —" (the user's screenshot, 2026-10-08). It must
+        // stay the SAME element as it opens: swapping it for another one at the
+        // same spot let the tap that opened the list land on the new box and
+        // close it again. So this one button toggles and only its caret turns.
         <button
           id={id}
           type="button"
           className={`input picklist-value${value ? '' : ' picklist-empty'}`}
           disabled={disabled}
-          onClick={openList}
+          onClick={open ? close : openList}
         >
           <span>{value ? (plainValue ? value : (labelFor?.(value) ?? value)) : emptyLabel}</span>
-          <span className="picklist-caret" aria-hidden="true">▾</span>
-        </button>
-      )}
-
-      {open && !searchable && (
-        // SHORT LIST: no search box, and the trigger stays put so the menu
-        // opens under the thing that was clicked rather than replacing it.
-        <button id={id} type="button" className={`input picklist-value${value ? '' : ' picklist-empty'}`}
-                disabled={disabled} onClick={() => close()}>
-          <span>{value ? (plainValue ? value : (labelFor?.(value) ?? value)) : emptyLabel}</span>
-          <span className="picklist-caret" aria-hidden="true">▴</span>
+          <span className="picklist-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
         </button>
       )}
 
