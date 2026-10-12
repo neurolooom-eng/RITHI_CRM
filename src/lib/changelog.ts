@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.165',
+    date: '2026-10-12',
+    title: 'Hand Stock: the WinMax opening is the Good Balance only',
+    changes: [
+      'FIXED: the WinMax opening stock counted the Defective Balance as well as the Good Balance. For example, MP-010 / SUNIL KUMAR.K.V opened at 170, which was its defective quantity. The opening is now the Good Balance alone.',
+      'The opening stock already loaded has been corrected. Lines with no Good Balance were removed (815), and the rest were cut to their Good Balance. Each corrected line records how many defective units were taken out. 53 lines now read below zero; the Spare Coordinator settles them with ± Adjust stock.',
+      'Loading the WinMax export again (Bulk Uploads → Opening Stock — the WinMax export) takes only the Good Balance, and a row with no Good Balance is held back by name.',
+    ],
+  },
+  {
     version: '0.10.164',
     date: '2026-10-12',
     title: 'Hand Stock: what "From history" means, said on screen',
