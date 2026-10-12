@@ -523,8 +523,8 @@ with checks(sort_order, bundle, provides, present) as (
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.proname = 'objective_evidence'
                    limit 1), false)),
-    (104, 'Objective: a call closes on the VISIT DATE, not the date the report was typed up', 'open_rate_monthly tests coalesce(reports.visit_at, reports.updated_at) against the cut-off. A visit on 30 May entered on 3 June is CLOSED in May -- the user''s decision after 0137 put both dates on the sheet. The fallback to the entry date where a solving report carries NO visit date is deliberate and stated in the evidence: treating a blank as "never solved" would move a closed call into the open column for a missing keystroke, making the figure worse for a data-entry lapse (0138). Restore: objective.sql',
-        coalesce((select pg_get_functiondef(p.oid) like '%coalesce(r.visit_at::date, r.updated_at::date) <= $4%'
+    (104, 'Objective: a call closes on the VISIT DATE, not the date the report was typed up', 'open_rate_monthly tests coalesce(reports.visit_at, reports.updated_at) against the cut-off. A visit on 30 May entered on 3 June is CLOSED in May -- the user''s decision after 0137 put both dates on the sheet. The fallback to the entry date where a solving report carries NO visit date is deliberate and stated in the evidence: treating a blank as "never solved" would move a closed call into the open column for a missing keystroke, making the figure worse for a data-entry lapse (0138). Both are India dates (0423, D-168). Restore: objective.sql',
+        coalesce((select pg_get_functiondef(p.oid) like '%coalesce((r.visit_at at time zone ''Asia/Kolkata'')::date, (r.updated_at at time zone ''Asia/Kolkata'')::date) <= $4%'
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.proname = 'objective_value'
                    limit 1), false)),
@@ -2190,7 +2190,12 @@ with checks(sort_order, bundle, provides, present) as (
     (342, 'The Customer feedback objective is worked out as the workbook does', 'feedback_satisfaction(jsonb, text) with feedback_score() and feedback_questions(), and the feedback_satisfaction branch of objective_value() and objective_evidence() (0422): Excellent 4 .. Poor 1, installation /20, PM / Field /24, averaged by visit date. NO means the Customer feedback objective cannot be computed. Restore: objective.sql (0422)',
         (to_regprocedure('public.feedback_satisfaction(jsonb,text)') is not null
      and coalesce((select p.prosrc like '%feedback_satisfaction%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
-     and coalesce((select p.prosrc like '%feedback_satisfaction%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
+     and coalesce((select p.prosrc like '%feedback_satisfaction%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))),
+    (343, 'Objective figures date a visit in India time', 'objective_value() and objective_evidence() (0423): every stored time is turned into an India date (at time zone Asia/Kolkata) before its date is taken -- no bare visit_at::date is left. NO means a visit between 00:00 and 05:30 IST still counts the day before. Restore: objective.sql (0423)',
+        (coalesce((select p.prosrc not like '%r.visit_at::date%' and p.prosrc like '%r.visit_at at time zone%'
+                     from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
+     and coalesce((select p.prosrc not like '%r.visit_at::date%' and p.prosrc like '%r.visit_at at time zone%'
+                     from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

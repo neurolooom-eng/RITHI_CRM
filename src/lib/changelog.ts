@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.177',
+    date: '2026-10-12',
+    title: 'Objective: visit dates are India dates',
+    changes: [
+      'FIXED: the Breakdown, Preventive Maintenance and Installation figures and the "attended within 3 days" figure took a visit\'s date in UTC, so a visit made between midnight and 05:30 India time counted as the day before. They now use the India date, as Customer feedback already did.',
+      'Press Re-Calculate to update the figures. Only calls visited in those early-morning hours can change.',
+    ],
+  },
+  {
     version: '0.10.176',
     date: '2026-10-12',
     title: 'Objective: Customer feedback worked out as the Customer Feedback workbook does',
