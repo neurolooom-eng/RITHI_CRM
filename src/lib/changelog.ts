@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.167',
+    date: '2026-10-12',
+    title: 'Labour charges are not requested as spares',
+    changes: [
+      'Service, Transportation and Installation charges (SC001, TC001, INS-001) are no longer listed on a Spare Request. A labour charge is added to the consumption on the visit, and there is nothing for Stores to send. A request naming one is refused, however it is written.',
+      'The two SC001 lines already on spare requests are left as they are.',
+    ],
+  },
+  {
     version: '0.10.166',
     date: '2026-10-12',
     title: 'Hand Stock starts at the WinMax opening; labour charges on a consumption',

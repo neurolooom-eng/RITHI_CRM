@@ -1077,7 +1077,8 @@ typed into a form that reads it.
   > Charges, INS-001 Installation Charges are ticked. A labour charge is offered
   > on every consumption (the visit, Spare Consumption's reconciliation, Call
   > Review's Reco) whatever the engineer holds, **always at quantity 1**, and is
-  > never hand stock. It is offered even when the part is inactive.
+  > never hand stock. It is offered even when the part is inactive. It is **not
+  > listed on a Spare Request** — there is nothing for Stores to send.
 - **Party Master** `/parties` — your customers, **who looks after each one**, and
   their **KYC**.
   > **Type, Profile, Serviceman, City, State and Country are dropdowns** —

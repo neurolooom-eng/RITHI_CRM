@@ -2173,7 +2173,9 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_consumption') and tgname = 'labour_charge_qty_one')
      and coalesce(pg_get_viewdef(to_regclass('public.handstock_movements')) like '%labour_part_codes%', false)
      and coalesce((select p.prosrc like '%labour_part_codes%' from pg_proc p
-                     where p.oid = to_regprocedure('public.notify_negative_handstock(text,text,numeric,numeric,text,text)')), false)))
+                     where p.oid = to_regprocedure('public.notify_negative_handstock(text,text,numeric,numeric,text,text)')), false))),
+    (337, 'A labour charge is not requested as a spare', 'The trigger labour_not_requested on spare_request_lines (0414): a new spare request line naming a labour charge, or a line re-pointed at one, is refused unless it is an import. NO means a labour charge can still be requested from Stores. Restore: HandStock_X.sql (0414)',
+        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_request_lines') and tgname = 'labour_not_requested')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

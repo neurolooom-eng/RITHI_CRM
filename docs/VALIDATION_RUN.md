@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-12T06:24:19.797Z
-- **Took** 181s
-- **Commit** `f987b8fd` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.166
+- **Run at** 2026-10-12T07:32:02.854Z
+- **Took** 190s
+- **Commit** `2dc59c0c` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.167
 
 ## Result
 
@@ -15,7 +15,7 @@ defect register in `src/lib/validation.ts` is what accumulates.
 | --- | --- | --- |
 | Database suites | 170 | 170 |
 | Automated checks | 22 | 22 |
-| Labelled `expect ERROR` outcomes matched | 409 | 409 |
+| Labelled `expect ERROR` outcomes matched | 411 | 411 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
 built from every migration, because run against one shared database they
@@ -29,13 +29,13 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `418 migrations applied to a fresh database` | ✅ pass |  |
+| `419 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
 | | Result | |
 | --- | --- | --- |
-| `check:bundles` | ✅ pass | no NEW object is split across modules (602 checked, 37 known and listed) |
+| `check:bundles` | ✅ pass | no NEW object is split across modules (603 checked, 37 known and listed) |
 | `check:columns` | ✅ pass | every column of all 37 registers exists |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
@@ -50,9 +50,9 @@ stopped working produces a suite that runs clean.
 | `check:picklist:open` | ✅ pass | all passed |
 | `check:replay` | ✅ pass | every bundle (31) replays with no change to the schema |
 | `check:reports` | ✅ pass | all passed |
-| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 350 functions |
+| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 351 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 334 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ✅ pass | every one of the 335 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |

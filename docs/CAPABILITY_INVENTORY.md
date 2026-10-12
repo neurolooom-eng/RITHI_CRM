@@ -973,6 +973,7 @@ Purpose: The register of every spare line (one row per part), where spare reques
 | 51 | Arriving from My Workload opens with that stage filter already applied | SpareRequests.tsx:542-543 | none | GAP | |
 | 52 | Export CSV of visible rows (partial disclaimer when more exist) | SpareRequests.tsx:1040-1042 | `export.data` | partial: FRS-018 — gate only; partial-file disclaimer not stated | |
 | 53 | Status banners: Loading, "Synced N lines", "Load failed: <error>", dismissable | SpareRequests.tsx:638-651, 949-954 | none | GAP | |
+| 54 | The part list leaves out labour charges (Part Master's Labour Charge tick); the database refuses a line naming one, new or re-pointed, unless it is an import | SpareRequests.tsx (labour); 0414 labour_not_requested | DB trigger | URS-186, FRS-275.6, OQ-275 | The 2 SC001 lines already raised are left as they are |
 
 ### RM Approval (`/spare-rm-approval`) — `src/modules/SpareRmApproval.tsx`
 Purpose: The Reporting Manager's queue of spare lines waiting for RM approval, for approving or rejecting in bulk.

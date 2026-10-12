@@ -40,6 +40,7 @@ import { useCallStates, callStateFor } from '../lib/callstates';
 // count chips read.
 import { partial as exportScope } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
+import { useLabourParts } from '../lib/useLabourParts';
 
 // ===========================================================================
 // SPARE REQUESTS.
@@ -166,8 +167,11 @@ export function SpareRequestDrawer({
 
   const callProduct = reqType === 'Call Based' ? picked.productName.trim() : '';
   const narrowed = !!callProduct && !showAllParts;
+  // A LABOUR CHARGE IS NOT REQUESTED (0414, the user, 2026-10-12): it is added
+  // to the consumption on the visit, and Stores has nothing to send.
+  const labour = useLabourParts();
   const spareMaster = {
-    values: narrowed ? spareParts.forProduct(callProduct) : spareParts.all,
+    values: (narrowed ? spareParts.forProduct(callProduct) : spareParts.all).filter((p) => !labour.isLabour(p)),
     ready: spareParts.ready,
   };
   const productAccessories = callProduct ? spareParts.accessories(callProduct) : [];

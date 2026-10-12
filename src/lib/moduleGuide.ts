@@ -956,7 +956,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Code and description together are the part’s identity; a rename to a name already taken is refused',
       'HSN Code is digits only, in its own column',
       'An inactive part stays on old records but is not offered in pickers; parts are never deleted',
-      'A part ticked Labour Charge is offered on every consumption, at quantity 1, whatever the engineer holds, and is never hand stock',
+      'A part ticked Labour Charge is offered on every consumption, at quantity 1, whatever the engineer holds, is never hand stock and is not requested as a spare',
     ],
   },
   {
