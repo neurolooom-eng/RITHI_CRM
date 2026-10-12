@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.186',
+    date: '2026-10-12',
+    title: 'Fifth re-review of every module recorded (no behaviour changed)',
+    changes: [
+      'Software Validation → Defects: every module was re-read and 42 new defects are recorded (D-169 to D-210), each with what was measured. Nothing in the application changed in this version.',
+      'The most serious: a sign-in with no User Master row is given Engineer permissions on first sign-in (D-169); the Customer Feedback objective\'s evidence shows feedback to people who may not read it (D-170); an engineer can acknowledge a spare shipment on somebody else\'s line under any name (D-171); an FFR\'s number and raiser can be chosen by whoever raises it (D-172); a training manager can mark somebody else\'s training read (D-173); and re-loading a corrected MRN or transfer file without row numbers can still double the stock (D-174, D-175).',
+      'The older open defects were re-checked: D-025 and D-073 now read fixed; the rest are still open, and D-168 reaches every date-only visit loaded from a file.',
+    ],
+  },
+  {
     version: '0.10.185',
     date: '2026-10-12',
     title: 'Review fixes: loading a file again corrects it instead of adding it twice',

@@ -4,17 +4,17 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-12T20:30:36.615Z
-- **Took** 314s
-- **Commit** `78296078` on `claude/usage-k7slq0`
-- **Version** 0.10.185
+- **Run at** 2026-10-12T20:54:06.201Z
+- **Took** 273s
+- **Commit** `9935013c` on `claude/usage-k7slq0`
+- **Version** 0.10.186
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
 | Database suites | 185 | 185 |
-| Automated checks | 20 | 22 |
+| Automated checks | 22 | 22 |
 | Labelled `expect ERROR` outcomes matched | 469 | 469 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
@@ -43,7 +43,7 @@ stopped working produces a suite that runs clean.
 | `check:kyc` | ✅ pass | all passed |
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
-| `check:nar003` | ❌ **FAIL** |   ✓ ...and every one of them is checked for an error ·   ✓ a caller who does not qualify gets null, not an error ·   ✓ a missing function reads as "fall back", not an error ·   ✓ D-030: an empty answer with no error is refused too |
+| `check:nar003` | ✅ pass | all passed |
 | `check:orders` | ✅ pass |   ✓ 200 order columns across 72 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
@@ -53,7 +53,7 @@ stopped working produces a suite that runs clean.
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 391 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
 | `check:status` | ✅ pass | every one of the 370 _status.sql rows reads yes on a fully-applied database (1 skipped) |
-| `check:ui` | ❌ **FAIL** |   ✓ ...and every one of them is checked for an error ·   ✓ a caller who does not qualify gets null, not an error ·   ✓ a missing function reads as "fall back", not an error ·   ✓ D-030: an empty answer with no error is refused too |
+| `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
 | `check:views` | ✅ pass | every view over an RLS-protected table applies RLS to the reader |
