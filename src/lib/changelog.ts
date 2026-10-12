@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.169',
+    date: '2026-10-12',
+    title: 'Refurbished spares are a non-auditable requirement',
+    auditHidden: true,
+    changes: [
+      'Software Validation: refurbished spares (issuing the recycled R-part) are now listed under the non-auditable requirement NAR-009, which is hidden while Audit Mode is on. The requirement, its design, its risk rows and its test have moved there; nothing in how refurbished spares work has changed.',
+    ],
+  },
+  {
     version: '0.10.168',
     date: '2026-10-12',
     title: 'Refurb on Stock Out disappears in Audit Mode',

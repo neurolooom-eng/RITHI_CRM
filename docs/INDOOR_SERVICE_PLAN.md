@@ -161,7 +161,7 @@ stripped for parts or sent out on demo — WI/SER/01 does not care why it came i
 
 > **The open question this raises:** a harvested part entering stock under its
 > normal code makes it indistinguishable from new. The register already holds a
-> refurbished part under its own code (URS-027) — salvage should do the same, or
+> refurbished part under its own code (NAR-009, non-auditable since 12-Oct-2026) — salvage should do the same, or
 > the grade is decoration.
 
 ### 4 · Pre-delivery inspection — a new unit before it ships
