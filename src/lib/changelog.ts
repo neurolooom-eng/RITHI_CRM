@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.178',
+    date: '2026-10-12',
+    title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',
+    changes: [
+      'INDOOR SERVICE: a harvested part, an accessory or a check is no longer removed — press Void and give the reason. It stays on the job, struck through, with who voided it and when; a voided accessory is not counted and does not go on a DC. A whole job raised in error can still be deleted.',
+      'PM BULK UPLOAD: rows with no serial, a Standard Complaint that is not on the product\'s list, or an engineer who is not on the User Master are held back and listed with the reason. A machine that already has a PM call this month — from an earlier upload or from PM Due — is skipped and shown with its UCN, so loading the same month twice no longer makes every call twice.',
+    ],
+  },
+  {
     version: '0.10.177',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',

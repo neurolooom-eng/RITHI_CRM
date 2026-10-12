@@ -358,6 +358,12 @@ on Roles & Permissions does not reach another team's calls.
   >   *Unattended* only until it has a visit, so loading a visit that did not
   >   happen would mark an unattended call as attended.
 - **PM Bulk Upload** `/pm-bulk-upload` — loads a maintenance schedule in one go.
+
+  **Rows are checked before anything is created**: a row with no serial, a
+  Standard Complaint not on that product's list, or an engineer not on the User
+  Master is held back and listed with the reason. A machine that **already has
+  a PM call this month** — from an earlier upload or from PM Due — is skipped
+  and shown with its UCN, so uploading the same month twice creates nothing new.
 - **PM Due** `/pm-due` — works out the month's PM visits from the Warranty and
   Contract Registers. A visit is due on the start date plus its share of the
   period counted in days (a month is 30 days: 3 visits in 12 months is one every
@@ -1818,7 +1824,10 @@ typed into a form that reads it.
   > is never deleted; **Indoor DCs** lists them all and prints any of them again.
 
   **A harvested part** is entered with its code, description, quantity, grade
-  and destination, and can be corrected afterwards. **When damage is reported to
+  and destination, and can be corrected afterwards. A harvested part, an accessory
+  or a check is never removed: **Void** it and give the reason — it stays on the
+  job, struck through, with who and when, and a voided accessory is not counted
+  and does not go on a DC. **When damage is reported to
   the customer**, record the time beside the damage note — RITHI records who.
   Every change to a job, its parts, accessories and checks is recorded with the
   value before and after.
