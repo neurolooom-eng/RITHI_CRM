@@ -1123,6 +1123,9 @@ const MODULES = {
             // A refurbished issue is refused while Audit Mode is on (0415): a
             // trigger on spare_dispatch_lines reading 0114's audit_mode().
             '0415_refurb_hidden_in_audit_mode.sql',
+            // A one-time data fix (0419): KY732930 off SO16233 and its transfer
+            // line ST-2609-0005 / 867, at the user's request; row images kept.
+            '0419_delete_so16233_ky732930.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
