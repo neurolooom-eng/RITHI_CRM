@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.172',
+    date: '2026-10-12',
+    title: 'Objective: Missed PMs left out of the PM figure, with a toggle',
+    changes: [
+      'A Missed PM is a PM call added after the month it is registered for (its Added On date is later), for example a March PM added in October. The Preventive Maintenance objective now leaves Missed PMs out by default.',
+      'Each PM objective has a Count Missed PMs tick in its definition, to count them again. The evidence download says which way it was counted.',
+      'Press Re-Calculate to update the figures. For example, Q1 2026 moves from 34.12% to 11.39% with Missed PMs left out.',
+    ],
+  },
+  {
     version: '0.10.171',
     date: '2026-10-12',
     title: 'Spare Insights loads again for the whole year',

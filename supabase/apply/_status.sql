@@ -2183,7 +2183,10 @@ with checks(sort_order, bundle, provides, present) as (
     (340, 'Spare Insights is planned with its dates', 'spare_insights(date, date) (0417): plpgsql running its query with EXECUTE ... USING, so it is planned with the window''s dates each call, and still security invoker. NO means the SQL-language version is back, whose generic plan times out on a year of consumption. Restore: performance.sql (0417)',
         (coalesce((select l.lanname = 'plpgsql' and p.prosrc ilike '%execute%' and not p.prosecdef
                      from pg_proc p join pg_language l on l.oid = p.prolang
-                    where p.oid = to_regprocedure('public.spare_insights(date,date)')), false)))
+                    where p.oid = to_regprocedure('public.spare_insights(date,date)')), false))),
+    (341, 'A Missed PM is left out of the PM objective', 'objective_value() and objective_evidence() (0418): a PM call added after the end of its registration month is left out of a PM open-rate objective unless calc_params.missed_pm is include. NO means Missed PMs are still counted in the PM figure. Restore: objective.sql (0418)',
+        (coalesce((select p.prosrc like '%missed_pm%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
+     and coalesce((select p.prosrc like '%missed_pm%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
