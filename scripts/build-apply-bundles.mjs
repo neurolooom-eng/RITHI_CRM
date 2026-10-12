@@ -1106,6 +1106,9 @@ const MODULES = {
             // of handstock_movements (wraps 0266's view), no negative-stock
             // notice (redefines 0401's), quantity 1 on a consumption.
             '0413_labour_charges.sql',
+            // A labour charge is not requested as a spare (FRS-275.6, 0414): a
+            // trigger on spare_request_lines reading 0413's labour_part_codes().
+            '0414_labour_not_requested.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

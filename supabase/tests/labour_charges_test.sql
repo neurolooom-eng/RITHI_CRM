@@ -8,6 +8,9 @@
 --   4. any other quantity is refused; a saved line may be voided to 0, not 2
 --   5. an ordinary part is untouched: still counted, still notified
 --   6. a re-run does not re-tick a part the Part Master unticked
+--   7. a labour charge is not requested as a spare (0414): refused for a
+--      signed-in engineer, new or re-pointed; an ordinary part is not; an
+--      import (no signed-in user) is let through
 --
 -- The bookings run as `authenticated`. Run ONCE after _stub.sql + every
 -- migration. Every error printed is labelled `expect ERROR`.
@@ -108,3 +111,21 @@ select 're-run' as t,
 select 'grants' as t,
   not has_function_privilege('anon', 'public.labour_part_codes()', 'EXECUTE') as public_key_may_not_call,
   has_function_privilege('authenticated', 'public.labour_part_codes()', 'EXECUTE') as signed_in_may_call;
+
+\echo ''
+\echo '--- 7. not requested as a spare (0414) ---'
+call public.nobody();
+insert into public.spare_requests (uid, req_type, engineer, engineer_email, item_status, ucn)
+values ('LAB-SR1', 'Call Based', 'LAB ENG', 'lab-eng@x.com', 'AMC', 'LAB-C1');
+call public.be('lab-eng@x.com');
+\echo 'expect ERROR: SC-T413 is a labour charge -- add it to the consumption on the visit, it is not requested as a spare'
+insert into public.spare_request_lines (request_uid, part, qty, row_no) values ('LAB-SR1', 'SC-T413|SERVICE CHARGES TEST', 1, 1);
+insert into public.spare_request_lines (request_uid, part, qty, row_no) values ('LAB-SR1', 'LAB-P1|ORDINARY PART', 1, 2);
+\echo 'expect ERROR: SC-T413 is a labour charge (re-pointing a line at one)'
+update public.spare_request_lines set part = 'SC-T413|SERVICE CHARGES TEST' where request_uid = 'LAB-SR1' and row_no = 2;
+call public.nobody();
+insert into public.spare_request_lines (request_uid, part, qty, row_no) values ('LAB-SR1', 'SC-T413|SERVICE CHARGES TEST', 1, 3);
+select 'not requested' as t,
+  (select count(*) = 1 from public.spare_request_lines where request_uid = 'LAB-SR1' and part_code(part) = 'LAB-P1') as ordinary_part_requested,
+  (select count(*) = 1 from public.spare_request_lines where request_uid = 'LAB-SR1' and part_code(part) = 'SC-T413' and row_no = 3) as import_let_through,
+  (select count(*) = 1 from public.spare_request_lines where request_uid = 'LAB-SR1' and part_code(part) = 'SC-T413') as engineer_line_refused;
