@@ -52,11 +52,13 @@ function meets(target: string, value: number | null): 'good' | 'bad' | '' {
 }
 
 // A rate is stored as a fraction (0.05 = 5%) and a count as itself. The target
-// is what says which: only a % target makes the figure a percentage.
+// is what says which: only a % target makes the figure a percentage. TWO
+// DECIMAL PLACES, always (the user, 2026-10-12: "Make it 2 Decimal digits",
+// for every % objective) -- 0.010101 reads 1.01%, not 1.0%.
 const showValue = (target: string, v: number | null): string => {
   if (v == null) return '';
   return String(target).includes('%')
-    ? `${(v * 100).toFixed(v * 100 < 10 ? 1 : 0)}%`
+    ? `${(v * 100).toFixed(2)}%`
     : String(Number(v.toFixed(3)));
 };
 
@@ -250,13 +252,11 @@ export function Objective() {
     'CAPA No.', 'CAPA status', 'Item code', 'Place', 'Source'];
   const downloadEvidence = async (o: QualityObjective, monthIndex: number) => {
     // THE DCCR FAILURE RATE (0393) has its own workbook: the commissioning-month
-    // table, the failing calls and the months averaged, as at that month's end.
+    // table, the failing calls and the months averaged -- MEASURED TODAY
+    // (0416), the month choosing only which twelve months are averaged.
     if (o.calc_key === 'dccr_failure_cohort') {
       try {
-        // The month's last day, as text (no Date round trip, so no time zone).
-        const end = `${YEAR}-${String(monthIndex + 1).padStart(2, '0')}-${String(new Date(YEAR, monthIndex + 1, 0).getDate()).padStart(2, '0')}`;
-        const today = todayLocal();
-        const r = await downloadCohortWorkbook(o, end < today ? end : today, monthIndex, YEAR);
+        const r = await downloadCohortWorkbook(o, todayLocal(), monthIndex, YEAR);
         setOMsg(`Downloaded the evidence for ${o.parameter} — ${MONTHS[monthIndex]}: ${r.rows} commissioning months and ${r.calls} failing calls.`);
       } catch (e) { setOMsg(e instanceof Error ? e.message : String(e)); }
       return;

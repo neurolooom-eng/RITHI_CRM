@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.175',
+    version: '0.10.177',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -25,7 +25,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.174',
+    version: '0.10.176',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -38,7 +38,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.173',
+    version: '0.10.175',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -48,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.172',
+    version: '0.10.174',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -59,7 +59,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.171',
+    version: '0.10.173',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -73,7 +73,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.170',
+    version: '0.10.172',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -87,7 +87,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.169',
+    version: '0.10.171',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -98,6 +98,25 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.170',
+    date: '2026-10-12',
+    title: 'Objective: Recent Failure measured as of today, and every % to 2 decimals',
+    changes: [
+      'Recent Failure Rate objectives now count every failing call registered up to today, not only those known at the end of that month. Each month still averages its own twelve commissioning months. No cut-off date applies to them.',
+      'Press Re-Calculate on the Objective page to update the figures already shown. Earlier months will change where failures were registered after the month ended.',
+      'Every percentage on the Objective page, including the Failure Rate (DCCR) tab, now shows two decimal places, e.g. 1.01% instead of 1.0%.',
+    ],
+  },
+  {
+    version: '0.10.169',
+    date: '2026-10-12',
+    title: 'Refurbished spares are a non-auditable requirement',
+    auditHidden: true,
+    changes: [
+      'Software Validation: refurbished spares (issuing the recycled R-part) are now listed under the non-auditable requirement NAR-009, which is hidden while Audit Mode is on. The requirement, its design, its risk rows and its test have moved there; nothing in how refurbished spares work has changed.',
     ],
   },
   {

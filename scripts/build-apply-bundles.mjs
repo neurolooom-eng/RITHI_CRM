@@ -540,8 +540,8 @@ const MODULES = {
             // SPARE on a PM review row that is blank; restates 0397's trigger function.
             '0400_pm_spare_blank_review.sql',
             // D-129: review answers are read by holders of review.view, given
-            // once to the roles that held review.edit (0416).
-            '0416_review_answers_read_key.sql',
+            // once to the roles that held review.edit (0431).
+            '0431_review_answers_read_key.sql',
             // D-027: a Field Failure Report names its customer and problem (0422).
             '0422_ffr_customer_and_problem_required.sql'],
   },
@@ -627,6 +627,10 @@ const MODULES = {
             // once per month (2026-10-06). Restates 0349's recalc and 0393's
             // two helpers, so after both.
             '0396_objective_recalc_active_fast.sql',
+            // A recent failure rate counts failures up to TODAY, the month only
+            // choosing the twelve commissioning months (0416). Restates 0393's
+            // objective_value with one branch changed.
+            '0416_recent_failure_as_of_today.sql',
             // D-021: an objective carrying a recorded figure is not deleted (0417).
             '0417_objective_with_figures_kept.sql'],
   },

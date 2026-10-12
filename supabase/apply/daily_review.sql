@@ -64,7 +64,7 @@
 --   0398_dccr_junk_rows.sql
 --   0399_pm_spare_dccr_rerun.sql
 --   0400_pm_spare_blank_review.sql
---   0416_review_answers_read_key.sql
+--   0431_review_answers_read_key.sql
 --   0422_ffr_customer_and_problem_required.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -6635,11 +6635,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0416_review_answers_read_key.sql
+-- 0431_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0416 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0431 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -6678,7 +6678,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0416_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0431_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -6686,8 +6686,8 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0416_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0416: % role(s) holding review.edit given review.view', n;
+  values ('0431_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0431: % role(s) holding review.edit given review.view', n;
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -6709,7 +6709,7 @@ end $$;
 -- Not stopped: an import (bulk.upload / import.panel), a connection with no
 -- session, and a function running as its owner (ffr_from_review raises a
 -- report from the Daily Complaint Review and fills both from the call).
--- In the daily_review module, after 0416.
+-- In the daily_review module, after 0431.
 -- ===========================================================================
 
 create or replace function public.ffr_customer_and_problem_required()

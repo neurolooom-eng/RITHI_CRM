@@ -2132,7 +2132,7 @@ with checks(sort_order, bundle, provides, present) as (
     (355, 'record_indoor_visit() is not a signed-in user''s, and the indoor visit columns say the visit is filed at approval', 'No screen calls record_indoor_visit(); it is kept for a repair in the SQL editor and the DC approval files the visit itself. The comments on indoor_jobs.visit_draft / visit_uid / visit_filed_at say the visit is filed when the DC is approved (0419, D-108, D-116). NO means indoor.sql has not been re-run since. Restore: indoor.sql (0419)',
         (to_regprocedure('public.record_indoor_visit(bigint,text,boolean)') is null
          or not has_function_privilege('authenticated', to_regprocedure('public.record_indoor_visit(bigint,text,boolean)'), 'EXECUTE'))),
-    (339, 'Deleting a master list value needs that list''s delete key', 'masters_delete asks master.<list>.delete or masters.edit -- not "Add / edit master records" (masters.edit.records), which edits and adds but never deleted on any screen (0371, D-086). NO means masters.sql has not been re-run since. Restore: masters.sql (0371)',
+    (361, 'Deleting a master list value needs that list''s delete key', 'masters_delete asks master.<list>.delete or masters.edit -- not "Add / edit master records" (masters.edit.records), which edits and adds but never deleted on any screen (0371, D-086). NO means masters.sql has not been re-run since. Restore: masters.sql (0371)',
         exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete'
                  and pg_get_expr(polqual, polrelid) not like '%masters.edit.records%')),
     (346, 'A User Master entry with a profile or R&R history is not deleted', 'user_directory_keeps_history refuses a signed-in delete of an entry that has a profile or a Roles & Responsibilities period -- set Active to No instead; an entry with neither can still be deleted (0420, D-059). NO means training.sql has not been re-run since. Restore: training.sql (0420)',
@@ -2144,7 +2144,7 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.field_calls') and tgname = 'field_call_vigilance_answered')),
     (350, 'Stock is transferred from your own or your team''s hand stock, to a person on the User Master', 'stock_transfer_own_or_team refuses a signed-in transfer from an engineer who is not you or in your team (unless stock.transfer.others) or to a name the User Master does not carry; imports are not stopped (0375, D-049). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0375)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.stock_transfers') and tgname = 'stock_transfer_own_or_team')),
-    (351, 'Daily Complaint Review answers are read by holders of review.view', 'call_reviews_read asks has_perm(''review.view''); review.edit grants it (perm_parents), and the roles holding review.edit were given it once (0416, D-129). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0416)',
+    (351, 'Daily Complaint Review answers are read by holders of review.view', 'call_reviews_read asks has_perm(''review.view''); review.edit grants it (perm_parents), and the roles holding review.edit were given it once (0431, D-129). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0431)',
         (exists (select 1 from pg_policy where polrelid = to_regclass('public.call_reviews') and polname = 'call_reviews_read'
                   and pg_get_expr(polqual, polrelid) like '%review.view%')
          -- perm_parents READ THROUGH query_to_xml: named directly, a project
@@ -2282,7 +2282,9 @@ with checks(sort_order, bundle, provides, present) as (
     (337, 'A labour charge is not requested as a spare', 'The trigger labour_not_requested on spare_request_lines (0414): a new spare request line naming a labour charge, or a line re-pointed at one, is refused unless it is an import. NO means a labour charge can still be requested from Stores. Restore: HandStock_X.sql (0414)',
         (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_request_lines') and tgname = 'labour_not_requested'))),
     (338, 'A refurbished part is not issued in Audit Mode', 'The trigger refurb_not_in_audit_mode on spare_dispatch_lines (0415): while Audit Mode is on, a dispatch line written as refurbished, or marked so later, is refused. NO means a refurbished issue can still be written while Audit Mode is on. Restore: HandStock_X.sql (0415)',
-        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_dispatch_lines') and tgname = 'refurb_not_in_audit_mode')))
+        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_dispatch_lines') and tgname = 'refurb_not_in_audit_mode'))),
+    (339, 'A Recent Failure Rate is measured as of today', 'objective_value() (0416): the dccr_failure_cohort branch counts the failing calls registered up to today, the month choosing only its twelve commissioning months. NO means each month is still measured as at its own end. Restore: objective.sql (0416)',
+        (coalesce((select p.prosrc like '%v_from, v_win) cr%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

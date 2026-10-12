@@ -24,7 +24,8 @@ import {
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthLabel = (iso: string) => { const [y, m] = iso.split('-'); return `${m}-${y}`; };
-const pct = (v: number | null) => (v == null ? '' : `${Math.round(v * 100)}%`);
+// Two decimal places (the user, 2026-10-12: "Make it 2 Decimal digits").
+const pct = (v: number | null) => (v == null ? '' : `${(v * 100).toFixed(2)}%`);
 type Win = typeof COHORT_WINDOWS[number];
 const f = (r: DccrCohortRow, w: Win) => r[`f${w}` as keyof DccrCohortRow] as number | null;
 const rt = (r: DccrCohortRow, w: Win) => r[`r${w}` as keyof DccrCohortRow] as number | null;
@@ -68,7 +69,12 @@ export async function downloadCohortWorkbook(o: QualityObjective, asof?: string,
     'Days after installation': c.days_to_failure, 'Spare / Consumable / Correction / Calibration': c.spare_category,
     'Any Potential Effect': c.any_potential_effect,
   }));
-  const endMonth = (asof ?? todayLocal()).slice(0, 7) + '-01';
+  // The OBJECTIVE'S month chooses the twelve months averaged; the as-of date
+  // only says how far the failures are counted (0416). Without a month, the
+  // table's own date does both, as before.
+  const endMonth = objectiveMonth != null && year
+    ? `${year}-${String(objectiveMonth + 1).padStart(2, '0')}-01`
+    : (asof ?? todayLocal()).slice(0, 7) + '-01';
   const roll = rollingAverage(rows, endMonth);
   const calc: Record<string, unknown>[] = [
     { Item: 'Objective', Value: o.parameter },
