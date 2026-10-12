@@ -34,6 +34,9 @@ export interface Column<T> {
   align?: 'left' | 'center' | 'right';
   wrap?: boolean; // override the table-level wrap default
   sortable?: boolean;
+  /** A hover note on the heading: what the column means, where its name alone
+   *  is easy to misread. */
+  headerTitle?: string;
 }
 
 export interface DataTableProps<T> {
@@ -932,6 +935,7 @@ export function DataTable<T>({
                     <span
                       className={`dt-th-label ${c.sortable === false ? '' : 'dt-sortable'}`}
                       onClick={() => toggleSort(c)}
+                      title={c.headerTitle}
                     >
                       {c.header}
                       {isSorted && <span className="dt-sort">{sort!.dir === 'asc' ? '▲' : '▼'}</span>}

@@ -402,6 +402,10 @@ against the call it was fitted to.
   question from the dispatch queue, and now grantable separately.
 - **Hand Stock** `/handstock` — what an engineer holds. **Worked out, never
   stored**: issued − consumed ± transfers − returns.
+  > **From history is part of the total, not added to it**: opening + imported
+  > stock outs − imported consumption, the share of the line that came from the
+  > old system. A line's drawer says so, and its Movements table ends on the
+  > stock level (Balance after), with a warning if it ever does not.
   > **A spare can be booked beyond the balance.** If the engineer fitted more
   > than the hand stock shows, the visit saves the spare anyway: the visit form
   > warns first which part will go **below zero**, the balance then reads
