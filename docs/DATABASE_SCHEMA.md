@@ -4093,7 +4093,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `line_id` → **spare_request_lines**(`id`) · on delete cascade _(spare_dispatch_lines_line_id_fkey)_
 
-**Triggers:** `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `stock_cut_keeps_balance` → `stock_cut_keeps_balance()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `refurb_not_in_audit_mode` → `refurb_not_in_audit_mode()` · `stock_cut_keeps_balance` → `stock_cut_keeps_balance()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 

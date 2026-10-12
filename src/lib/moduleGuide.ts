@@ -15,6 +15,9 @@ export interface ModuleGuideEntry {
   does: string[];         // 2-5 short bullets: the main things a person does there
   records: string[];      // table / view names it reads or writes (from the code)
   rules: string[];        // 1-3 short bullets: what it refuses / the rule that is easy to get wrong
+  /** Bullets for "What you do here" that are NOT AUDITABLE: left out while
+   *  Audit Mode is on, with the feature they describe (NAR-009). */
+  notAudited?: string[];
 }
 
 export const MODULE_GUIDE: ModuleGuideEntry[] = [
@@ -556,10 +559,11 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'Stores’ queue of fully approved spares, grouped by engineer: issue the parts and raise the Delivery Challan.',
     does: [
       'Tick spares for one engineer and book them out in one stock out',
-      'Send fewer units than outstanding, or mark a line Refurbished',
+      'Send fewer units than outstanding',
       'Set the DC date, courier and remarks, then go straight to the Delivery Challan',
       'Drop a spare that will not be sent, with a reason',
     ],
+    notAudited: ['Mark a line ♻ Refurb to issue its recycled R-part (not shown in Audit Mode)'],
     records: ['spare_pending_dispatch', 'spare_request_lines', 'spare_dispatches', 'spare_stock_out_lines', 'rpc:dispatch_spare_lines', 'audit_log'],
     rules: [
       'A stock out goes to one engineer — a selection spanning two is refused',

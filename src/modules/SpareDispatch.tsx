@@ -19,6 +19,7 @@ import {
 import { partDescription } from '../lib/handstock';
 import './fieldcalls.css';
 import { cappedAt } from '../lib/exportscope';
+import { useAuditMode } from '../lib/auditMode';
 
 // ===========================================================================
 // PENDING DISPATCH — the Stores queue.
@@ -161,6 +162,8 @@ export function SpareDispatch() {
   // R-prefixed part number. Stores marks it as the spare is booked out; the
   // request keeps saying what was asked for.
   const [refurbFor, setRefurbFor] = useState<Set<number>>(new Set());
+  // REFURB IS NOT AUDITABLE (the user, 2026-10-12): gone while Audit Mode is on.
+  const audit = useAuditMode();
   const isRefurb = (id: number) => refurbFor.has(id);
   const toggleRefurb = (id: number) => setRefurbFor((cur) => {
     const next = new Set(cur);
@@ -194,7 +197,8 @@ export function SpareDispatch() {
     const actor = String(user?.fullName ?? user?.email ?? '');
     const ids = selected.map((l) => l.line_id);
     const qtys = selected.map((l) => qtyOf(l));
-    const refurb = selected.map((l) => isRefurb(l.line_id));
+    // NOT AUDITABLE (0415): never sent while Audit Mode is on.
+    const refurb = selected.map((l) => !audit.on && isRefurb(l.line_id));
     const res = await dispatchSpareLines(ids, courier, remarks, dcDate, actor, qtys, refurb);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Dispatch failed.' }); return; }
@@ -325,6 +329,7 @@ export function SpareDispatch() {
               qtyOf={qtyOf}
               onQty={setQty}
               isRefurb={isRefurb}
+              auditOn={audit.on}
               onRefurb={toggleRefurb}
             />
           ))}
@@ -375,7 +380,7 @@ export function SpareDispatch() {
 // ---------------------------------------------------------------------------
 // One engineer's queue: a header that can be ticked whole, and the spares.
 // ---------------------------------------------------------------------------
-function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, qtyOf, onQty, isRefurb, onRefurb }: {
+function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, qtyOf, onQty, isRefurb, onRefurb, auditOn }: {
   queue: EngineerQueue;
   picked: Set<number>;
   expanded: boolean;
@@ -386,6 +391,7 @@ function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, q
   onQty: (id: number, v: number, max: number) => void;
   isRefurb: (id: number) => boolean;
   onRefurb: (id: number) => void;
+  auditOn: boolean;
 }) {
   const ids = queue.lines.map((l) => l.line_id);
   const on = ids.filter((id) => picked.has(id)).length;
@@ -435,13 +441,13 @@ function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, q
                   />
                   <span className="muted"> / {l.qty}</span>
                 </span>
-                <button
+                {!auditOn && <button
                   className={`btn btn-sm ${isRefurb(l.line_id) ? 'btn-primary' : ''}`}
                   title={isRefurb(l.line_id)
                     ? 'Issuing the recycled part — the engineer is told it is refurbished'
                     : 'Issue the recycled equivalent (R-prefixed part number)'}
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRefurb(l.line_id); }}
-                >♻ {isRefurb(l.line_id) ? 'Refurbished' : 'Refurb'}</button>
+                >♻ {isRefurb(l.line_id) ? 'Refurbished' : 'Refurb'}</button>}
                 {l.dispatched_qty > 0 && (
                   <span className="badge badge-info" title="Sent on an earlier stock out">
                     {l.dispatched_qty} of {l.requested_qty} sent
@@ -538,6 +544,8 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
   // `capped` says the read filled STOCK_OUT_CAP, so the number is a floor.
   onCount?: (n: number, capped: boolean) => void;
 }) {
+  // The Refurbished badge is not auditable (0415): hidden while Audit Mode is on.
+  const audit = useAuditMode();
   // A FLAT list: one row per spare actually issued, not a card per stock out —
   // that is what Stores reads to see what went where, and it carries the days
   // it took from the last approval to the dispatch.
@@ -586,7 +594,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
       render: (r) => (
         <span>
           {g(r, 'part')}
-          {String(r.refurbished) === 'true' && (
+          {!audit.on && String(r.refurbished) === 'true' && (
             <span className="badge badge-warning" style={{ marginLeft: 6 }} title="Recycled part issued in place of a new one">♻ Refurbished</span>
           )}
         </span>

@@ -947,6 +947,23 @@ export interface NonAuditableReq extends Req {
 }
 export const NON_AUDITABLE: NonAuditableReq[] = [
   {
+    id: 'NAR-009',
+    version: '0.10.168', date: '2026-10-12',
+    title: 'Issuing a refurbished spare (♻ Refurb) is hidden and refused in Audit Mode',
+    classification: 'Non-Auditable Requirement (user-originated; no regulatory clause claimed) \u2014 hidden while Audit Mode is on',
+    auditHidden: true,
+    modules: ['/spare-dispatch', '/stock-out'],
+    text: [
+      'NAR-009.1 While Audit Mode is on, Pending Dispatch shall not show the ♻ Refurb button on any line, and a stock out booked then shall issue no line as refurbished.',
+      'NAR-009.2 While Audit Mode is on, the Stock outs list (Pending Dispatch and Stock Out) shall not show the ♻ Refurbished badge.',
+      'NAR-009.3 While Audit Mode is on, the database shall refuse a dispatch line written as refurbished, or an existing line marked refurbished (`refurb_not_in_audit_mode`, 0415), stating that a refurbished part cannot be issued while Audit Mode is on.',
+      'NAR-009.4 Turning Audit Mode off shall bring the button and the badge back; nothing already issued shall change.',
+    ].join(' '),
+    rationale: 'Stated by the system owner on 2026-10-12: "refurb - in Stockout is a Non Auditable Requirement. And it should disappear when i turn on the Audit mode." URS-027 / FRS-033 (the refurbished issue itself) remain in the auditable package until the owner decides otherwise: SR-016 in docs/ISO13485_SERVICING.md cites URS-027 as evidence.',
+    risk: 'Low',
+    refs: ['supabase/migrations/0415_refurb_hidden_in_audit_mode.sql', 'src/modules/SpareDispatch.tsx', 'src/lib/auditMode.ts', 'supabase/tests/refurb_audit_mode_test.sql'],
+  },
+  {
     id: 'NAR-008',
     version: '0.10.100', date: '2026-10-05',
     title: 'Spare Recycling: a parallel track under Indoor Service, with its own stock, hidden in Audit Mode',

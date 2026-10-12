@@ -1005,7 +1005,7 @@ const MODULES = {
       'Needs the spare workflow through per-spare approvals and the stock-transfer',
       'tables; _status.sql says which of those are missing.',
     ],
-    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables', 'engineerRename'],
+    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables', 'engineerRename', 'auditMode'],
     // MRN lives here rather than in a bundle of its own: it adds a term to the
     // same two views, so a later re-run of this file must carry it or it would
     // redefine them back without returns.
@@ -1109,6 +1109,9 @@ const MODULES = {
             // A labour charge is not requested as a spare (FRS-275.6, 0414): a
             // trigger on spare_request_lines reading 0413's labour_part_codes().
             '0414_labour_not_requested.sql',
+            // A refurbished issue is refused while Audit Mode is on (0415): a
+            // trigger on spare_dispatch_lines reading 0114's audit_mode().
+            '0415_refurb_hidden_in_audit_mode.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
