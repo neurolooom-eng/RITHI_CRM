@@ -2186,7 +2186,11 @@ with checks(sort_order, bundle, provides, present) as (
                     where p.oid = to_regprocedure('public.spare_insights(date,date)')), false))),
     (341, 'A Missed PM is left out of the PM objective', 'objective_value() and objective_evidence() (0418): a PM call added after the end of its registration month is left out of a PM open-rate objective unless calc_params.missed_pm is include. NO means Missed PMs are still counted in the PM figure. Restore: objective.sql (0418)',
         (coalesce((select p.prosrc like '%missed_pm%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
-     and coalesce((select p.prosrc like '%missed_pm%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
+     and coalesce((select p.prosrc like '%missed_pm%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))),
+    (342, 'The Customer feedback objective is worked out as the workbook does', 'feedback_satisfaction(jsonb, text) with feedback_score() and feedback_questions(), and the feedback_satisfaction branch of objective_value() and objective_evidence() (0422): Excellent 4 .. Poor 1, installation /20, PM / Field /24, averaged by visit date. NO means the Customer feedback objective cannot be computed. Restore: objective.sql (0422)',
+        (to_regprocedure('public.feedback_satisfaction(jsonb,text)') is not null
+     and coalesce((select p.prosrc like '%feedback_satisfaction%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
+     and coalesce((select p.prosrc like '%feedback_satisfaction%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

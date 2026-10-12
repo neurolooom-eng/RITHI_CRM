@@ -4,6 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
+_Last updated: 2026-10-12 (CUSTOMER FEEDBACK OBJECTIVE AS THE WORKBOOK — 0422 (objective.sql), v0.10.176: feedback_satisfaction(), averaged by visit date; the 2026 Customer feedback objective switched to it. ⏳ THE USER'S STEP: Re-Calculate (replaces the typed 95%).)
 _Last updated: 2026-10-12 (PLANNED VISIT DATE SAVED AS SHOWN — v0.10.175, D-167: an untouched date showed today and saved blank on Request Call Registration.)
 _Last updated: 2026-10-12 (MISSED PM SWITCH IS NON-AUDITABLE — v0.10.174, NAR-010: the row switch and the definition's tick are hidden in Audit Mode; the figure stays as last calculated. FRS-121.16 folded into NAR-010; the rule (FRS-121.15) stays auditable.)
 _Last updated: 2026-10-12 (VOIDED KY550200 CONSUMPTION DELETED — 0421 (HandStock_X.sql), at the user's request: the qty-0 line on 26G06F0006 (AJAY G, "Wrongly Enter") deleted as the database owner, only if exactly one row matches; record_audit_d keeps its image.)

@@ -1405,6 +1405,13 @@ typed into a form that reads it.
     month's figure rises on Re-Calculate when a late failure comes in. ⭳ Download
     gives the table, the failing calls and the months averaged.
   - **Every percentage shows two decimal places** (1.01%, 12.50%).
+  - **Customer feedback** is worked out the way the Customer Feedback workbook
+    does it: each answer scores Excellent 4, Good 3, Average 2, Poor 1; an
+    installation call's satisfaction is its 5 installation answers out of 20,
+    any other call's its 6 PM / Field answers out of 24; the figure is the
+    average satisfaction of the feedback whose **visit date** is in the period.
+    A feedback missing an answer is left out. The evidence download lists every
+    feedback with each score.
   - **Missed PMs are left out of the PM objective.** A Missed PM is a PM call
     whose **Added On** date is after the month it is registered for — a March
     PM added in October. Switch **Missed PM: Excluded / Included** on the PM row
