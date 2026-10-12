@@ -234,9 +234,9 @@ export function CallAssociations({ callNumber, ucn = '', reopenCount = 0, produc
   // link, so the viewer's heading can say which visit it belongs to.
   const [docFor, setDocFor] = useState<Row | null>(null);
 
-  // THE RE-OPEN HISTORY — when, who and why (0426, D-035, FRS-133.4). Read on
+  // THE RE-OPEN HISTORY — when, who and why (0429, D-035, FRS-133.4). Read on
   // its own rather than in the Promise.all above, so a project that has not yet
-  // run 0426 loses this section and not the visits; and a read that FAILED says
+  // run 0429 loses this section and not the visits; and a read that FAILED says
   // so, because an empty list here reads as "never re-opened".
   const [reopens, setReopens] = useState<CallReopen[]>([]);
   const [reopenErr, setReopenErr] = useState('');
@@ -247,7 +247,7 @@ export function CallAssociations({ callNumber, ucn = '', reopenCount = 0, produc
     listCallReopens(ucn)
       .then((r) => { if (alive) setReopens(r); })
       .catch((e) => { if (alive) setReopenErr(loadFailure(e, { tables: ['call_reopens'],
-        hint: 'The re-open history is kept by migration 0426 (public.call_reopens), which this database does not have yet — apply the call_requests bundle.' })); });
+        hint: 'The re-open history is kept by migration 0429 (public.call_reopens), which this database does not have yet — apply the call_requests bundle.' })); });
     return () => { alive = false; };
   }, [ucn]);
 
@@ -357,7 +357,7 @@ export function CallAssociations({ callNumber, ucn = '', reopenCount = 0, produc
               { key: 'reason', label: 'Why' },
             ]}
           />
-          {/* A re-open before reasons were recorded (0426) has no row here --
+          {/* A re-open before reasons were recorded (0429) has no row here --
               said, rather than letting the table read as the whole story. */}
           {reopenCount > reopens.length && (
             <div className="muted" style={{ fontSize: 12.5, marginTop: -4 }}>

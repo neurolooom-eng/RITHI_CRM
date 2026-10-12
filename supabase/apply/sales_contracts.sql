@@ -58,7 +58,7 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
---   0430_pm_calls_in_month.sql
+--   0433_pm_calls_in_month.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -6321,11 +6321,11 @@ revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0430_pm_calls_in_month.sql
+-- 0433_pm_calls_in_month.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0430 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
+-- 0433 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
 --        PM CALL (second re-review D-038, FRS-142.11 as the user decided)
 --
 -- The user's decision (2026-10-12): when a PM upload names a machine that

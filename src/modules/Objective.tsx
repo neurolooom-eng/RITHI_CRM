@@ -17,6 +17,7 @@ import { useAccessScope, scopeLabel } from '../lib/access';
 import './dccr.css';
 import './fieldcalls.css';
 import { COMPLETE } from '../lib/exportscope';
+import { useAuditMode } from '../lib/auditMode';
 
 // ===========================================================================
 // OBJECTIVE — the service objectives, measured from the register.
@@ -182,6 +183,36 @@ export function Objective() {
                 ? `; ${(res.written ?? []).reduce((a, w) => a + Number(w.months_kept ?? 0), 0)} manual override(s) kept as typed.`
                 : `; ${overrideList.length} manual override(s) discarded and recalculated.`)
             : '.'));
+    loadObjectives();
+  };
+
+  // MISSED PMs, SWITCHED ON THE ROW (the user, 2026-10-12: "give me a Provision
+  // to include the Missed PM or Exclude the Missed PM"). The same setting as
+  // the definition's tick (calc_params.missed_pm, 0418); switching it saves the
+  // objective and re-calculates the year at once, manual overrides kept, so the
+  // figure on screen is never one the switch no longer describes.
+  // NOT AUDITABLE (NAR-010, the user, 2026-10-12: "the Include / Exclude
+  // missed PM is a Non auditable requirement"): the switch, and the
+  // definition's tick, are not shown while Audit Mode is on. The figure keeps
+  // whatever was last calculated (the user's choice: "Hide the switch only").
+  const audit = useAuditMode();
+  const isPmOpenRate = (o: QualityObjective) => o.calc_key === 'open_rate_monthly'
+    && String((o.calc_params as Record<string, unknown> | null)?.family ?? '').trim().toLowerCase() === 'pm';
+  const includesMissedPm = (o: QualityObjective) =>
+    String((o.calc_params as Record<string, unknown> | null)?.missed_pm ?? '').trim().toLowerCase() === 'include';
+  const switchMissedPm = async (o: QualityObjective, include: boolean) => {
+    if (!mayEdit || recalcing || include === includesMissedPm(o)) return;
+    const next: Record<string, unknown> = { ...((o.calc_params as Record<string, unknown> | null) ?? {}) };
+    if (include) next.missed_pm = 'include'; else delete next.missed_pm;
+    setRecalcing(true);
+    setOMsg(`${include ? 'Including' : 'Excluding'} Missed PMs on ${o.parameter} and re-calculating…`);
+    const saved = await saveObjectiveDef(o.id, { calc_params: next } as never);
+    if (!saved.ok) { setRecalcing(false); setOMsg(`Could not save: ${saved.error}`); return; }
+    const res = await recalcObjectives(YEAR, true);
+    setRecalcing(false);
+    setOMsg(res.ok
+      ? `Missed PMs are now ${include ? 'INCLUDED in' : 'EXCLUDED from'} ${o.parameter}, and the year is re-calculated (manual overrides kept).`
+      : `Saved, but could not re-calculate: ${res.error} — press Re-calculate.`);
     loadObjectives();
   };
 
@@ -621,6 +652,18 @@ export function Objective() {
                     {o.calc_key ? <b className="obj-calc" title={`Computed: ${o.calc_key}`}>ƒ</b> : null}
                     {o.parameter}
                     {objectiveHidden(o) && <span className="badge badge-warning" style={{ marginLeft: 6 }}>{o.status}</span>}
+                    {isPmOpenRate(o) && !audit.on && (
+                      <span className="obj-missedpm" style={{ display: 'inline-flex', gap: 4, alignItems: 'center', marginLeft: 8, whiteSpace: 'nowrap' }}
+                        title="A Missed PM is a PM call whose Added On date is after the month it is registered for">
+                        <span className="muted" style={{ fontSize: 12 }}>Missed PM:</span>
+                        <button className={`btn btn-sm${includesMissedPm(o) ? '' : ' btn-primary'}`}
+                          disabled={!mayEdit || recalcing} onClick={() => void switchMissedPm(o, false)}
+                          title={mayEdit ? 'Leave Missed PMs out of this figure' : 'Only someone who may edit objectives can switch this'}>Excluded</button>
+                        <button className={`btn btn-sm${includesMissedPm(o) ? ' btn-primary' : ''}`}
+                          disabled={!mayEdit || recalcing} onClick={() => void switchMissedPm(o, true)}
+                          title={mayEdit ? 'Count Missed PMs in this figure' : 'Only someone who may edit objectives can switch this'}>Included</button>
+                      </span>
+                    )}
                     {mayEdit && (
                       <button
                         className="btn btn-ghost btn-sm obj-defbtn"
@@ -828,7 +871,7 @@ export function Objective() {
             </div>
             {String(defDraft.calc_key ?? '') === 'open_rate_monthly' && (
               <>
-                {isPmFamily && (
+                {isPmFamily && !audit.on && (
                   <div>
                     <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
                       <input type="checkbox" checked={countsMissedPm} onChange={(e) => setMissedPm(e.target.checked)} />

@@ -40,7 +40,7 @@
 --   0396_objective_recalc_active_fast.sql
 --   0416_recent_failure_as_of_today.sql
 --   0418_missed_pm_left_out.sql
---   0432_objective_with_figures_kept.sql
+--   0435_objective_with_figures_kept.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -7222,11 +7222,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0432_objective_with_figures_kept.sql
+-- 0435_objective_with_figures_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0432 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+-- 0435 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
 --        (second re-review D-021, FRS-121.7)
 --
 -- Quality Objectives deleted an objective with its twelve figures after a
@@ -7235,7 +7235,7 @@ end $function$;
 -- row erased the measurement with it. FRS-121.7: the database shall refuse to
 -- delete an objective that carries any recorded figure -- a month m01..m12 or
 -- the Total. An objective added in error, with nothing recorded yet, can still
--- be deleted. 0421 images every change and delete in record_audit.
+-- be deleted. 0424 images every change and delete in record_audit.
 -- Not stopped: a connection with no session and a function running as its
 -- owner (a repair in the SQL editor).
 -- In the objective module, last.

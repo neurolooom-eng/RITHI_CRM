@@ -1,16 +1,16 @@
 -- ===========================================================================
--- REVIEW BATCH 8, PROVED ON A DATABASE (0432, 0421-0423, 0427).
+-- REVIEW BATCH 8, PROVED ON A DATABASE (0435, 0424-0426, 0430).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
 --   1. D-067  a change to a role, a setting or an SLA target is imaged, under
---             the row's own key, before and after paired correctly (0421)
---   2. D-021  a quality objective edited or deleted is imaged (0421), and one
---             carrying a figure is not deleted (0432)
+--             the row's own key, before and after paired correctly (0424)
+--   2. D-021  a quality objective edited or deleted is imaged (0424), and one
+--             carrying a figure is not deleted (0435)
 --   3. D-039  an indoor job and its parts are imaged; who reported damage to
---             the customer is the session (0421, 0427)
---   4. D-027  a Field Failure Report names its customer and problem (0422)
---   5. D-030  a call request's Attended Date is not in the future (0423)
+--             the customer is the session (0424, 0430)
+--   4. D-027  a Field Failure Report names its customer and problem (0425)
+--   5. D-030  a call request's Attended Date is not in the future (0426)
 --
 -- Checks raise an unlabelled error when they are wrong, so the harness counts
 -- a failure; an error that is meant to happen is labelled `expect ERROR`.
@@ -150,7 +150,7 @@ update public.indoor_jobs set damage_note = 'cracked casing',
 update public.indoor_jobs set reported_to_customer_at = now() + interval '2 days' where serial = 'RB8-IN-1';
 insert into public.indoor_job_parts (job_id, part_code, description, qty)
 select id, 'RB8-P', 'RB8 harvested', 1 from public.indoor_jobs where serial = 'RB8-IN-1';
--- Removed by voiding (0429, FRS-143.8): a delete is refused now, and the void is imaged.
+-- Removed by voiding (0432, FRS-143.8): a delete is refused now, and the void is imaged.
 update public.indoor_job_parts set voided_at = now(), void_reason = 'entered in error' where part_code = 'RB8-P';
 reset role;
 call public.nobody();

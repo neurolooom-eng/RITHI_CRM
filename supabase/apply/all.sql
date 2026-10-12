@@ -99,12 +99,12 @@
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
 --   0378_pdqc_number.sql
---   0433_indoor_approval_skips_a_solved_call.sql
+--   0436_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0419_indoor_record_visit_closed_and_comments.sql
---   0427_indoor_reported_to_customer_stamp.sql
---   0429_indoor_parts_accessories_checks_voided.sql
+--   0422_indoor_record_visit_closed_and_comments.sql
+--   0430_indoor_reported_to_customer_stamp.sql
+--   0432_indoor_parts_accessories_checks_voided.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
 --   0376_spare_recycling_delete.sql
@@ -129,7 +129,7 @@
 --   0326_party_country.sql
 --   0366_masters_required_kyc_and_line_names.sql
 --   0371_master_list_delete_key.sql
---   0424_master_value_in_use_kept.sql
+--   0427_master_value_in_use_kept.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
@@ -139,7 +139,7 @@
 --   0368_qms_revision_is_a_new_entry.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
---   0420_user_master_keeps_history.sql
+--   0423_user_master_keeps_history.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -177,9 +177,9 @@
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
 --   0406_install_call_registers_requests.sql
---   0428_field_call_vigilance_answered.sql
---   0423_call_request_attended_not_future.sql
---   0426_call_reopen_reason_recorded.sql
+--   0431_field_call_vigilance_answered.sql
+--   0426_call_request_attended_not_future.sql
+--   0429_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -217,8 +217,8 @@
 --   0398_dccr_junk_rows.sql
 --   0399_pm_spare_dccr_rerun.sql
 --   0400_pm_spare_blank_review.sql
---   0431_review_answers_read_key.sql
---   0422_ffr_customer_and_problem_required.sql
+--   0434_review_answers_read_key.sql
+--   0425_ffr_customer_and_problem_required.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -317,6 +317,9 @@
 --   0413_labour_charges.sql
 --   0414_labour_not_requested.sql
 --   0415_refurb_hidden_in_audit_mode.sql
+--   0419_delete_so16233_ky732930.sql
+--   0420_drop_or44271_ky550200.sql
+--   0421_delete_voided_ky550200_consumption.sql
 --   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
@@ -358,7 +361,7 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
---   0430_pm_calls_in_month.sql
+--   0433_pm_calls_in_month.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -395,7 +398,7 @@
 --   0396_objective_recalc_active_fast.sql
 --   0416_recent_failure_as_of_today.sql
 --   0418_missed_pm_left_out.sql
---   0432_objective_with_figures_kept.sql
+--   0435_objective_with_figures_kept.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -403,8 +406,8 @@
 --   0225_record_audit_on.sql
 --   0246_record_audit_description.sql
 --   0314_record_audit_on_movements_and_training.sql
---   0421_record_audit_on_configuration_objectives_indoor.sql
---   0425_cover_registers_imaged.sql
+--   0424_record_audit_on_configuration_objectives_indoor.sql
+--   0428_cover_registers_imaged.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -5091,7 +5094,7 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
   ('masters.product_master.delete', 'masters.edit'),
-  -- D-129 (0431, 2026-10-05): an editor of the review reads its answers.
+  -- D-129 (0434, 2026-10-05): an editor of the review reads its answers.
   ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
@@ -11509,11 +11512,11 @@ create trigger zy_pdqc_number before insert or update on public.pdqc_records
 alter table public.pdqc_records alter column pdqc_no set not null;
 
 -- ------------------------------------------------------------------------
--- 0433_indoor_approval_skips_a_solved_call.sql
+-- 0436_indoor_approval_skips_a_solved_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0433 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0436 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -11723,7 +11726,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0433.
+-- In the indoor module, after 0436.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -11912,11 +11915,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0419_indoor_record_visit_closed_and_comments.sql
+-- 0422_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0419 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0422 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --
@@ -11946,11 +11949,11 @@ comment on column public.indoor_jobs.visit_filed_at is
   'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
 
 -- ------------------------------------------------------------------------
--- 0427_indoor_reported_to_customer_stamp.sql
+-- 0430_indoor_reported_to_customer_stamp.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0427 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+-- 0430 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
 --        (second re-review D-039, FRS-143.9)
 --
 -- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
@@ -11961,7 +11964,7 @@ comment on column public.indoor_jobs.visit_filed_at is
 --   * a time in the future is refused (five minutes' grace for a clock);
 --   * clearing the time clears the person.
 -- A connection with no session (a repair, an import) is left alone.
--- In the indoor module, after 0419.
+-- In the indoor module, after 0422.
 -- ===========================================================================
 
 create or replace function public.indoor_reported_to_customer_stamp()
@@ -11989,16 +11992,16 @@ create trigger zzy_indoor_reported_to_customer
   for each row execute function public.indoor_reported_to_customer_stamp();
 
 -- ------------------------------------------------------------------------
--- 0429_indoor_parts_accessories_checks_voided.sql
+-- 0432_indoor_parts_accessories_checks_voided.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0429 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
+-- 0432 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
 --        (second re-review D-039, FRS-143.8)
 --
 -- The parts, accessories and checks under an indoor job were FOR ALL policies
 -- with DELETE granted (0158), and the screen offered Remove on each, so a
--- harvested part or a recorded check verdict could be erased. 0421 images the
+-- harvested part or a recorded check verdict could be erased. 0424 images the
 -- delete; FRS-143.8 asks for more: they "shall not be deletable through the
 -- application; an entry made in error shall be marked void with the reason,
 -- the person and the time retained".
@@ -12216,7 +12219,7 @@ begin
     for a in
       select * from public.indoor_job_accessories
        where job_id = j.id and (btrim(name) <> '' or btrim(serial) <> '')
-         and voided_at is null   -- 0429 (D-039): a voided accessory does not travel
+         and voided_at is null   -- 0432 (D-039): a voided accessory does not travel
        order by id
     loop
       v_line := v_line + 1;
@@ -15624,11 +15627,11 @@ create policy masters_delete on public.masters for delete
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 
 -- ------------------------------------------------------------------------
--- 0424_master_value_in_use_kept.sql
+-- 0427_master_value_in_use_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0424 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
+-- 0427 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
 --        (second re-review D-056, FRS-015, FRS-180.6)
 --
 -- Master Lists offered Delete to a holder of master.<list>.delete, and
@@ -16759,11 +16762,11 @@ AS $function$
 $function$;
 
 -- ------------------------------------------------------------------------
--- 0420_user_master_keeps_history.sql
+-- 0423_user_master_keeps_history.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0420 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+-- 0423 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
 --        (second re-review D-059)
 --
 -- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
@@ -20924,11 +20927,11 @@ begin
 end $once$;
 
 -- ------------------------------------------------------------------------
--- 0428_field_call_vigilance_answered.sql
+-- 0431_field_call_vigilance_answered.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0428 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0431 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -20980,11 +20983,11 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
--- 0423_call_request_attended_not_future.sql
+-- 0426_call_request_attended_not_future.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0423 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+-- 0426 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
 --        (second re-review D-030, part 3)
 --
 -- The Attended Date on Request Registration had no upper bound, and it becomes
@@ -21021,11 +21024,11 @@ create trigger call_request_attended_not_future
   for each row execute function public.call_request_attended_not_future();
 
 -- ------------------------------------------------------------------------
--- 0426_call_reopen_reason_recorded.sql
+-- 0429_call_reopen_reason_recorded.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0426 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+-- 0429 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
 --        (second re-review D-035, FRS-133.4, FRS-120.9)
 --
 -- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
@@ -21086,7 +21089,7 @@ begin
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
   end if;
-  -- 0426 (D-035, FRS-120.9): a re-open says why.
+  -- 0429 (D-035, FRS-120.9): a re-open says why.
   if btrim(coalesce(p_reason, '')) = '' then
     raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
   end if;
@@ -21101,7 +21104,7 @@ begin
      set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
    where ucn = p_ucn;
 
-  -- 0426 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  -- 0429 (D-035, FRS-133.4): the reason, the person and the time, kept.
   insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
   values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
 
@@ -27712,11 +27715,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0431_review_answers_read_key.sql
+-- 0434_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0431 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0434 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -27755,7 +27758,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0431_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0434_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -27763,16 +27766,16 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0431_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0431: % role(s) holding review.edit given review.view', n;
+  values ('0434_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0434: % role(s) holding review.edit given review.view', n;
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0422_ffr_customer_and_problem_required.sql
+-- 0425_ffr_customer_and_problem_required.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0422 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+-- 0425 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
 --        (second re-review D-027)
 --
 -- The Field Failure Report form refuses a report without Customer Name or
@@ -27786,7 +27789,7 @@ end $$;
 -- Not stopped: an import (bulk.upload / import.panel), a connection with no
 -- session, and a function running as its owner (ffr_from_review raises a
 -- report from the Daily Complaint Review and fills both from the call).
--- In the daily_review module, after 0431.
+-- In the daily_review module, after 0434.
 -- ===========================================================================
 
 create or replace function public.ffr_customer_and_problem_required()
@@ -40422,6 +40425,154 @@ create trigger refurb_not_in_audit_mode before insert or update of refurbished o
   for each row execute function public.refurb_not_in_audit_mode();
 
 -- ------------------------------------------------------------------------
+-- 0419_delete_so16233_ky732930.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0419 -- KY732930 OFF STOCK OUT SO16233, AND ITS TRANSFER LINE (the user,
+-- 2026-10-12, on INDOOR SERVICE's KY732930 line in Hand Stock: "I want to
+-- delete this Item from SO, and the respective movement"; asked which, they
+-- chose the SO line AND its transfer line).
+--
+-- Measured on the live project first (_so16233_ky732930.sql):
+--   * spare_issue_history 34166 -- SO16233 | INDOOR SERVICE | KY732930
+--     INTERNAL BATTERY PACK Li-Ion | qty 1 | 14-Jul-2025 | ref
+--     SO16233|OR39541|KY732930. SO16233's other two lines (KY732693, EM-887)
+--     stay.
+--   * stock_transfer_lines 867 -- ST-2609-0005 (MTN NO. 317, 25-Sep-2026),
+--     INDOOR SERVICE -> AJAY G (INDOOR SERVICE), KY732930 qty 1. The
+--     transfer's other six lines stay.
+--   * AJAY G holds that unit (1) and has consumed none.
+-- After: INDOOR SERVICE KY732930 0 (was 0), AJAY G 0 (was 1).
+--
+-- Neither table photographs its own deletes, so each row's image is written
+-- to record_audit first. Each delete matches the row's id AND its content, so
+-- a re-run, or a database where the rows differ, deletes nothing. A migration
+-- writes with no signed-in user, which stock_import_allowed() (0339) trusts.
+-- ===========================================================================
+-- record_audit is created by a later module on a FRESH build, where these rows
+-- do not exist either; the image is written wherever the table is present.
+do $once$
+begin
+  if to_regclass('public.record_audit') is not null then
+    insert into public.record_audit (table_name, op, record_key, old_data, new_data)
+    select 'stock_transfer_lines', 'DELETE', l.id::text, to_jsonb(l),
+           jsonb_build_object('note', '0419: deleted at the user''s request with SO16233''s KY732930 line')
+      from public.stock_transfer_lines l
+     where l.id = 867 and l.transfer_uid = 'ST-2609-0005' and public.part_code(l.part) = 'KY732930' and l.qty = 1;
+    insert into public.record_audit (table_name, op, record_key, old_data, new_data)
+    select 'spare_issue_history', 'DELETE', h.id::text, to_jsonb(h),
+           jsonb_build_object('note', '0419: deleted at the user''s request, with its transfer line ST-2609-0005 / 867')
+      from public.spare_issue_history h
+     where h.id = 34166 and h.so_no = 'SO16233' and public.part_code(h.part) = 'KY732930' and h.engineer = 'INDOOR SERVICE';
+  end if;
+
+  delete from public.stock_transfer_lines l
+   where l.id = 867 and l.transfer_uid = 'ST-2609-0005' and public.part_code(l.part) = 'KY732930' and l.qty = 1;
+  delete from public.spare_issue_history h
+   where h.id = 34166 and h.so_no = 'SO16233' and public.part_code(h.part) = 'KY732930' and h.engineer = 'INDOOR SERVICE';
+end $once$;
+
+-- ------------------------------------------------------------------------
+-- 0420_drop_or44271_ky550200.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0420 -- KY550200 OFF INDOOR SERVICE: SPARE REQUEST OR44271's LINE DROPPED,
+-- SO18001's ROW AND ITS TRANSFER LINE DELETED (the user, 2026-10-12, on
+-- INDOOR SERVICE's KY550200 line in Hand Stock: "Same for this one also";
+-- asked how, since a spare request is a quality record the database refuses
+-- to delete, they chose "Drop the request line").
+--
+-- Measured on the live project first (_ky550200_indoor.sql):
+--   * spare_request_lines 3005 -- OR44271 (uid v2_N1-77d59cbd), INDOOR
+--     SERVICE, Call Based, UCN 26B25F0002, KY550200 MOTHER BOARD - OSIRIS 3,
+--     qty 1, dispatched_qty 1, Dispatched 16-Mar-2026; the request's only
+--     line. Its stock out is the ledger's "Stores DC OR44271".
+--   * spare_issue_history 42748 -- SO18001 | SO18001|OR44271|KY550200: the
+--     same issue in the old Stock Out file, counted only while the request
+--     line is dispatched (the ledger does not count one issue twice).
+--   * stock_transfer_lines 866 -- ST-2609-0005, INDOOR SERVICE -> AJAY G
+--     (INDOOR SERVICE), KY550200 qty 1. AJAY G's consumption of it on
+--     26G06F0006 is VOIDED (qty 0) and is left as it is.
+-- After: INDOOR SERVICE KY550200 0 (was 0), AJAY G 0 (was 1).
+--
+-- THE REQUEST IS KEPT: its line is DROPPED -- stores_status Dropped, the
+-- reason in dispatch_remarks, as Pending Dispatch's Drop writes it -- and its
+-- dispatched quantity set to 0, so it is no longer a stock out and never
+-- re-enters the dispatch queue. The row audit photographs that update. The
+-- two deleted rows' images are written to record_audit first. Every write
+-- matches its row's id AND content, so a re-run changes nothing.
+-- ===========================================================================
+do $once$
+begin
+  update public.spare_request_lines l
+     set stores_status = 'Dropped', dispatched_qty = 0,
+         dispatch_remarks = 'Removed at the user''s request (0420, 2026-10-12): not held by INDOOR SERVICE',
+         dispatched_by = '0420 (data fix)', dispatched_at = now()
+    from public.spare_requests r
+   where l.id = 3005 and r.uid = l.request_uid and r.or_no = 'OR44271'
+     and public.part_code(l.part) = 'KY550200' and coalesce(l.stores_status, '') <> 'Dropped';
+
+  if to_regclass('public.record_audit') is not null then
+    insert into public.record_audit (table_name, op, record_key, old_data, new_data)
+    select 'spare_issue_history', 'DELETE', h.id::text, to_jsonb(h),
+           jsonb_build_object('note', '0420: deleted at the user''s request with OR44271''s KY550200 line dropped')
+      from public.spare_issue_history h
+     where h.id = 42748 and h.so_no = 'SO18001' and public.part_code(h.part) = 'KY550200' and h.engineer = 'INDOOR SERVICE';
+    insert into public.record_audit (table_name, op, record_key, old_data, new_data)
+    select 'stock_transfer_lines', 'DELETE', l.id::text, to_jsonb(l),
+           jsonb_build_object('note', '0420: deleted at the user''s request with OR44271''s KY550200 line dropped')
+      from public.stock_transfer_lines l
+     where l.id = 866 and l.transfer_uid = 'ST-2609-0005' and public.part_code(l.part) = 'KY550200' and l.qty = 1;
+  end if;
+
+  delete from public.stock_transfer_lines l
+   where l.id = 866 and l.transfer_uid = 'ST-2609-0005' and public.part_code(l.part) = 'KY550200' and l.qty = 1;
+  delete from public.spare_issue_history h
+   where h.id = 42748 and h.so_no = 'SO18001' and public.part_code(h.part) = 'KY550200' and h.engineer = 'INDOOR SERVICE';
+end $once$;
+
+-- ------------------------------------------------------------------------
+-- 0421_delete_voided_ky550200_consumption.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0421 -- THE VOIDED KY550200 CONSUMPTION ON 26G06F0006 DELETED (the user,
+-- 2026-10-12, on that line's detail: "delete this consumption entry").
+--
+-- The line: UCN 26G06F0006, call R17857-VEGA-70, KY550200 MOTHER BOARD -
+-- OSIRIS 3, AJAY G (INDOOR SERVICE), booked 25-Sep-2026 from a visit report
+-- and already VOIDED -- quantity 0, adjusted by VIGNESH, reason "Wrongly
+-- Enter". It moves no stock; 0420 removed the unit it was booked against.
+--
+-- A consumption line is a quality record and is normally voided, never
+-- deleted (0049): block_hard_delete() refuses the signed-in app role, and a
+-- migration -- the database owner -- is the controlled exception it names.
+-- The row audit (record_audit_d) photographs the row as it goes. It is
+-- deleted only when EXACTLY ONE row matches all of the above, so a re-run, or
+-- a database where it differs, deletes nothing.
+-- ===========================================================================
+do $once$
+declare n integer;
+begin
+  select count(*) into n
+    from public.spare_consumption c
+   where c.ucn = '26G06F0006' and public.part_code(c.part) = 'KY550200'
+     and c.engineer = 'AJAY G (INDOOR SERVICE)' and coalesce(c.qty, 0) = 0
+     and coalesce(c.adjustment_reason, '') = 'Wrongly Enter';
+  if n = 1 then
+    delete from public.spare_consumption c
+     where c.ucn = '26G06F0006' and public.part_code(c.part) = 'KY550200'
+       and c.engineer = 'AJAY G (INDOOR SERVICE)' and coalesce(c.qty, 0) = 0
+       and coalesce(c.adjustment_reason, '') = 'Wrongly Enter';
+    raise notice '0421: the voided KY550200 consumption on 26G06F0006 deleted';
+  else
+    raise notice '0421: % matching line(s) -- nothing deleted', n;
+  end if;
+end $once$;
+
+-- ------------------------------------------------------------------------
 -- 0384_handstock_balance_all.sql
 -- ------------------------------------------------------------------------
 
@@ -46710,11 +46861,11 @@ revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0430_pm_calls_in_month.sql
+-- 0433_pm_calls_in_month.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0430 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
+-- 0433 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
 --        PM CALL (second re-review D-038, FRS-142.11 as the user decided)
 --
 -- The user's decision (2026-10-12): when a PM upload names a machine that
@@ -54496,11 +54647,11 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0432_objective_with_figures_kept.sql
+-- 0435_objective_with_figures_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0432 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+-- 0435 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
 --        (second re-review D-021, FRS-121.7)
 --
 -- Quality Objectives deleted an objective with its twelve figures after a
@@ -54509,7 +54660,7 @@ end $function$;
 -- row erased the measurement with it. FRS-121.7: the database shall refuse to
 -- delete an objective that carries any recorded figure -- a month m01..m12 or
 -- the Total. An objective added in error, with nothing recorded yet, can still
--- be deleted. 0421 images every change and delete in record_audit.
+-- be deleted. 0424 images every change and delete in record_audit.
 -- Not stopped: a connection with no session and a function running as its
 -- owner (a repair in the SQL editor).
 -- In the objective module, last.
@@ -54999,11 +55150,11 @@ begin
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0421_record_audit_on_configuration_objectives_indoor.sql
+-- 0424_record_audit_on_configuration_objectives_indoor.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0421 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
+-- 0424 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
 --        (second re-review D-067, D-021, D-039)
 --
 -- record_audit (0225, 0314) images fifteen tables. Three groups that decide
@@ -55123,15 +55274,15 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0421: record_audit armed on % of 13 tables.', n;
+  raise notice '0424: record_audit armed on % of 13 tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0425_cover_registers_imaged.sql
+-- 0428_cover_registers_imaged.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0425 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
+-- 0428 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
 --
 -- sale_entries, sale_items, contract_entries, contract_items,
 -- ownership_transfers and product_additional_entries were outside 0225's
@@ -55139,13 +55290,13 @@ end $on$;
 -- corrected, or an entry deleted with every machine under it left no image of
 -- what was there. FRS-187.3: a correction shall be recorded with its before and
 -- after values by a trigger that cannot be bypassed. The same statement-level
--- triggers as 0225 / 0314 / 0421, so a cover import is one event.
+-- triggers as 0225 / 0314 / 0424, so a cover import is one event.
 --
 -- DELETION ITSELF STAYS -- the user's decision of 2026-10-06 ("Keep deleting,
 -- recorded"): an entry, a machine, a transfer or an additional entry may still
 -- be deleted by the holder of that register's delete authority, and what it
 -- removed is read back from record_audit. FRS-187 was rewritten to match.
--- In data_integrity, after 0421: every cover table is created earlier in
+-- In data_integrity, after 0424: every cover table is created earlier in
 -- ALL_ORDER.
 -- ===========================================================================
 
@@ -55153,7 +55304,7 @@ do $on$
 declare t text; n int := 0;
 begin
   if to_regproc('public.record_audit_fn') is null then
-    raise notice '0425: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
+    raise notice '0428: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
     return;
   end if;
   foreach t in array array[
@@ -55177,7 +55328,7 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0425: record_audit armed on % of 6 cover tables.', n;
+  raise notice '0428: record_audit armed on % of 6 cover tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
@@ -61915,7 +62066,7 @@ end $$;
 --
 --   calls, pending_calls, calls_view_insert/update   <- 0114_call_registrant_split.sql
 --   field_failure_register                           <- 0197_review_actual_product.sql
---   indoor_job_list                                  <- 0429_indoor_parts_accessories_checks_voided.sql
+--   indoor_job_list                                  <- 0432_indoor_parts_accessories_checks_voided.sql
 --   tracker_list                                     <- 0143_tracker.sql
 --   export_schedule_state                            <- 0228_export_schedules.sql
 --
@@ -62063,8 +62214,8 @@ left join public.call_reviews r on r.ucn = f.ucn;
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
 
--- ---- indoor_job_list (0429, verbatim) --------------------------------------
--- GUARDED BY 0323's AND 0429's COLUMNS (0429 restates 0323's definition with
+-- ---- indoor_job_list (0432, verbatim) --------------------------------------
+-- GUARDED BY 0323's AND 0432's COLUMNS (0432 restates 0323's definition with
 -- voided accessories left out, D-039). Applied in FILE order (the test harness, a
 -- rebuild from the migrations folder) this file runs BEFORE 0323, whose
 -- definition it copies, and the columns that definition names do not exist

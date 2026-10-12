@@ -18,7 +18,7 @@
 --
 --   calls, pending_calls, calls_view_insert/update   <- 0114_call_registrant_split.sql
 --   field_failure_register                           <- 0197_review_actual_product.sql
---   indoor_job_list                                  <- 0429_indoor_parts_accessories_checks_voided.sql
+--   indoor_job_list                                  <- 0432_indoor_parts_accessories_checks_voided.sql
 --   tracker_list                                     <- 0143_tracker.sql
 --   export_schedule_state                            <- 0228_export_schedules.sql
 --
@@ -166,8 +166,8 @@ left join public.call_reviews r on r.ucn = f.ucn;
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
 
--- ---- indoor_job_list (0429, verbatim) --------------------------------------
--- GUARDED BY 0323's AND 0429's COLUMNS (0429 restates 0323's definition with
+-- ---- indoor_job_list (0432, verbatim) --------------------------------------
+-- GUARDED BY 0323's AND 0432's COLUMNS (0432 restates 0323's definition with
 -- voided accessories left out, D-039). Applied in FILE order (the test harness, a
 -- rebuild from the migrations folder) this file runs BEFORE 0323, whose
 -- definition it copies, and the columns that definition names do not exist

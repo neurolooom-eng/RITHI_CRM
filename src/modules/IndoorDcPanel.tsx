@@ -131,7 +131,7 @@ export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
         out.push({ key: `${j.id}:eq`, jobId: j.id, accessoryId: null, jobNo: j.job_no, partNo: code,
                    description: equipmentDescription(j.product_name, j.serial), qty: 1, purpose: '', edited: false });
         // THE ACCESSORIES AS RECEIVED, with the quantity received (0323).
-        // A VOIDED one is left out (0429, D-039): create_indoor_dc leaves it
+        // A VOIDED one is left out (0432, D-039): create_indoor_dc leaves it
         // off the DC, and the preview must show the lines the DC will carry.
         liveEntries(acc).filter((a) => a.name.trim() || a.serial.trim()).sort((a, b) => a.id - b.id).forEach((a) => out.push({
           key: `${j.id}:${a.id}`, jobId: j.id, accessoryId: a.id, jobNo: j.job_no, partNo: '',

@@ -1518,8 +1518,12 @@ typed into a form that reads it.
   - **Every percentage shows two decimal places** (1.01%, 12.50%).
   - **Missed PMs are left out of the PM objective.** A Missed PM is a PM call
     whose **Added On** date is after the month it is registered for — a March
-    PM added in October. Tick **Count Missed PMs** in the objective's definition
-    to count them; the evidence download says which way it was counted.
+    PM added in October. Switch **Missed PM: Excluded / Included** on the PM row
+    of the table (it saves and re-calculates at once, manual overrides kept), or
+    tick **Count Missed PMs** in the objective's definition; the evidence
+    download says which way it was counted. **The switch and the tick are not
+    shown while Audit Mode is on** (a non-auditable requirement); the figure
+    stays as last calculated.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
   - **You can type over a calculated (ƒ) month.** It becomes a **manual
