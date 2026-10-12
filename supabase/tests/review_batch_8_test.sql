@@ -150,7 +150,8 @@ update public.indoor_jobs set damage_note = 'cracked casing',
 update public.indoor_jobs set reported_to_customer_at = now() + interval '2 days' where serial = 'RB8-IN-1';
 insert into public.indoor_job_parts (job_id, part_code, description, qty)
 select id, 'RB8-P', 'RB8 harvested', 1 from public.indoor_jobs where serial = 'RB8-IN-1';
-delete from public.indoor_job_parts where part_code = 'RB8-P';
+-- Removed by voiding (0429, FRS-143.8): a delete is refused now, and the void is imaged.
+update public.indoor_job_parts set voided_at = now(), void_reason = 'entered in error' where part_code = 'RB8-P';
 reset role;
 call public.nobody();
 do $$ begin
@@ -165,9 +166,9 @@ do $$ begin
                   and new_data->>'serial' = 'RB8-IN-1' and new_data->>'damage_note' = 'cracked casing') then
     raise exception 'D-039 FAILED: an indoor job edit was not imaged';
   end if;
-  if not exists (select 1 from public.record_audit where table_name = 'indoor_job_parts' and op = 'DELETE'
-                  and old_data->>'part_code' = 'RB8-P') then
-    raise exception 'D-039 FAILED: a removed harvested part left no image';
+  if not exists (select 1 from public.record_audit where table_name = 'indoor_job_parts' and op = 'UPDATE'
+                  and new_data->>'part_code' = 'RB8-P' and new_data->>'void_reason' = 'entered in error') then
+    raise exception 'D-039 FAILED: a voided harvested part left no image';
   end if;
 end $$;
 -- Clearing the time clears the person.

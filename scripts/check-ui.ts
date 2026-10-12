@@ -19,7 +19,7 @@ import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmou
          upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT, reqidOrRefusal, attendedDateProblem, correctionProblem, NOTHING_SAVED } from '../src/lib/callrequest';
-import { harvestedPartProblem, PART_GRADES } from '../src/lib/indoorforms';
+import { harvestedPartProblem, PART_GRADES, isVoided, liveEntries, voidNote } from '../src/lib/indoorforms';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
@@ -5936,6 +5936,43 @@ console.log('\n-- review batch: D-027, D-030, D-039 (the screen half) --');
   eq('a stored timestamp reads back as the local time it was', localDateTimeInput(localT.toISOString()), '2026-01-02T03:04');
   eq('...nothing is blank', localDateTimeInput(null), '');
   eq('...and nonsense is blank', localDateTimeInput('not a date'), '');
+
+  // D-039 / FRS-143.8 (0429): A PART, AN ACCESSORY OR A CHECK IS VOIDED, NEVER
+  // DELETED. The database refuses the DELETE; the screen must not offer one.
+  for (const t of ['indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks']) {
+    eq(`D-039: nothing in supabase.ts deletes from ${t}`,
+      new RegExp(`from\\('${t}'\\)\\s*\\.delete\\(`).test(sbSrc), false);
+  }
+  eq('D-039: the three delete functions are gone',
+    /export async function delete(IndoorPart|IndoorAccessory|IndoorCheck)\(/.test(sbSrc), false);
+  const voidFn = sbSrc.slice(sbSrc.indexOf('export async function voidIndoorEntry('),
+    sbSrc.indexOf('// ---- Call Review (/call-review)'));
+  eq('D-039: voiding sends voided_at and the reason, and nothing about who',
+    /\.update\(\{ voided_at: new Date\(\)\.toISOString\(\), void_reason: why \}\)/.test(voidFn) && !/voided_by\s*:/.test(voidFn), true);
+  eq('D-039: ...refuses an empty reason before sending', /if \(!why\) return \{ ok: false/.test(voidFn), true);
+  eq('D-039: ...and COUNTS the rows, so a refused update is not "voided"',
+    /\.select\('id'\)/.test(voidFn) && /data\.length === 0\) \{\s*return \{ ok: false/.test(voidFn), true);
+  eq('D-039: the job screen offers Void, never a delete', /deleteIndoor(Part|Accessory|Check)/.test(ind)
+    || !/voidIndoorEntry\(entry\.kind, entry\.id, reason\)/.test(ind), false);
+  eq('D-039: ...the void dialog cannot be sent without a reason', /disabled=\{busy \|\| !reason\.trim\(\)\}>\s*\{busy \? 'Voiding…' : 'Void entry'\}/.test(ind), true);
+  eq('D-039: ...the editable lists are the entries still in force',
+    /\{liveAccessories\.map\(\(x\) =>/.test(ind) && /\{liveParts\.map\(\(p\) => mayWork/.test(ind)
+    && !/\{accessories\.map\(/.test(ind) && !/\{parts\.map\(/.test(ind), true);
+  eq('D-039: ...and a voided entry is shown apart, read only, with when, who and why',
+    /voidedAccessories\.map\(\(x\) => \([\s\S]{0,200}<s>[\s\S]{0,200}voidNote\(x, voidedBy\(x\.voided_by\)\)/.test(ind)
+    && /voidedParts\.map\(\(p\) => \([\s\S]{0,200}<s>[\s\S]{0,300}voidNote\(p, voidedBy\(p\.voided_by\)\)/.test(ind), true);
+  eq('D-039: the Indoor DC preview leaves a voided accessory out',
+    /liveEntries\(acc\)\.filter\(/.test(readFileSync('src/modules/IndoorDcPanel.tsx', 'utf8')), true);
+  {
+    const rows = [{ id: 1, voided_at: null }, { id: 2, voided_at: '2026-10-12T05:00:00Z' }, { id: 3 }, { id: 4, voided_at: ' ' }];
+    eq('D-039: an entry is voided only when voided_at is set', rows.map(isVoided), [false, true, false, false]);
+    eq('D-039: ...and the entries in force keep their order', liveEntries(rows).map((r) => r.id), [1, 3, 4]);
+    eq('D-039: the void line names when, who and why, through the one formatter',
+      voidNote({ voided_at: '2026-10-12T05:00:00Z', void_reason: ' Wrong job ' }, 'Rithi Admin'),
+      `Voided ${formatDayTime('2026-10-12T05:00:00Z')} by Rithi Admin — Wrong job`);
+    eq('D-039: ...and an unnamed voider is said to be one, never blank',
+      /by a user not on the User Master/.test(voidNote({ voided_at: '2026-10-12T05:00:00Z', void_reason: 'x' }, '')), true);
+  }
 }
 
 console.log('\n-- the cover registers open an entry in a pop-up --');
@@ -9825,6 +9862,31 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   eq('Hand Stock\'s sync time and PM Bulk Upload\'s registration time use formatDayTime',
     /formatDayTime\(lastSync\)/.test(readFileSync('src/modules/HandStock.tsx', 'utf8'))
     && /const fmtAt = \(iso: unknown\) => formatDayTime\(s\(iso\)\);/.test(readFileSync('src/modules/PmBulkUpload.tsx', 'utf8')), true);
+}
+
+// D-038 (FRS-142.4, .5, .11), THE SCREEN HALF: PM Bulk Upload writes only
+// what preparePmUpload kept, after reading the lists it checks against, and
+// the PM Due generator does not go through any of it. The rule itself is run
+// as behaviour in check:uploads.
+{
+  console.log('\n-- D-038: the PM upload writes only the rows it kept --');
+  const pmUp = readFileSync('src/modules/PmBulkUpload.tsx', 'utf8');
+  eq('D-038: the upload is prepared through preparePmUpload, not shapePmRows alone',
+    /preparePmUpload\(raw, month, startLocal, stepSec, ctx\)/.test(pmUp) && !/shapePmRows\(/.test(pmUp), true);
+  eq('D-038: ...and only the KEPT rows are written', /const rows = prepared\?\.kept \?\? \[\];/.test(pmUp)
+    && /uploadRows\('calls', rows,/.test(pmUp), true);
+  eq('D-038: ...after the complaint master, the active User Master and the month\u2019s PM calls are read',
+    /listMaster\('complaintProducts'\)/.test(pmUp) && /sbActiveUserNames\(\)/.test(pmUp) && /listPmCallsInMonth\(month\)/.test(pmUp), true);
+  eq('D-038: the preview and the confirmation both say what is held back',
+    /\{heldNote\} They will not be created\./.test(pmUp) && /window\.confirm\([^\n]*\$\{heldNote\}/.test(pmUp), true);
+  const pmDue = readFileSync('src/modules/PmDue.tsx', 'utf8');
+  eq('D-038: PM Due is not held back by the upload\u2019s checks', /preparePmUpload|checkPmUploadRows/.test(pmDue), false);
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const fn = sb.slice(sb.indexOf('export async function listPmCallsInMonth('), sb.indexOf('// PM DUE (0401, 0402)'));
+  eq('D-038: the month\u2019s PM calls are read paged, in a unique order',
+    /allRows</.test(fn) && /\.order\('ucn'\)\.range\(a, b\)/.test(fn), true);
+  eq('D-038: ...asked of EVERY PM call (pm_calls_in_month, 0430), not through the uploader\u2019s row-level security',
+    /\.rpc\('pm_calls_in_month'/.test(fn) && !/\.from\('pm_calls'\)/.test(fn), true);
 }
 
 // BATCH 4 (module review). Each assertion fails on the code before its fix.

@@ -344,6 +344,23 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
   return v ? String(v) : null;
 }
 
+/** THE PM CALLS ALREADY IN A DUE MONTH (YYYY-MM), for the PM Bulk Upload's
+ *  "already a PM call this month" rule (D-038, FRS-142.11): every call whose
+ *  reg_date falls in the month -- an uploaded or a PM Due call is dated the
+ *  1st -- whatever its status. PAGED with a unique order: a month is thousands
+ *  of calls, and a capped read would let a machine past the 1,000th be created
+ *  a second time. Read under the reader's row-level security. */
+export async function listPmCallsInMonth(month: string): Promise<{ ucn: string; product_name: string; serial: string }[]> {
+  // Asked of EVERY PM call of the month, not the ones the uploader's row-level
+  // security shows (0430, D-038): a machine whose call is in somebody else's
+  // team would otherwise be loaded twice. Cancelled calls are not counted, as
+  // PM Due does not count them. Paged and ordered: a month can pass 1,000.
+  const c = must();
+  const rows = await allRows<Record<string, unknown>>((a, b) => c.rpc('pm_calls_in_month', { p_month: `${month}-01` })
+    .order('ucn').range(a, b), 200000);
+  return rows.map((r) => ({ ucn: String(r.ucn ?? ''), product_name: String(r.product_name ?? ''), serial: String(r.serial ?? '') }));
+}
+
 // PM DUE (0401, 0402): each machine with a PM visit due in the month, from the
 // Warranty and Contract Registers, GENERATED when its "k / N" PM call exists
 // and is not cancelled, MISSED PM otherwise. Both reads are definer functions
@@ -6326,17 +6343,24 @@ export interface IndoorPdt {
   inspected_at: string | null;
 }
 
-export interface IndoorAccessory {
+/** A VOIDED ENTRY (0429, D-039, FRS-143.8): a harvested part, an accessory or
+ *  a check is never deleted -- an entry made in error is marked void with the
+ *  reason, and the database stamps when and who. A voided row is kept as it
+ *  was and refuses any later change. Absent on a project without 0429. */
+export interface IndoorVoid {
+  voided_at?: string | null; voided_by?: string | null; void_reason?: string | null;
+}
+export interface IndoorAccessory extends IndoorVoid {
   id: number; job_id: number; name: string; serial: string;
   tag_no: string; returned: boolean; note: string;
   /** How many were RECEIVED (0323), > 0. */
   qty: number;
 }
-export interface IndoorPart {
+export interface IndoorPart extends IndoorVoid {
   id: number; job_id: number; part_code: string; description: string;
   qty: number; condition_grade: string; destination: string; note: string;
 }
-export interface IndoorCheck {
+export interface IndoorCheck extends IndoorVoid {
   id: number; job_id: number; seq: number; parameter: string;
   expected: string; measured: string; verdict: string;
   instrument: string; instrument_serial: string; calibration_due: string | null;
@@ -6685,11 +6709,6 @@ export async function saveIndoorAccessory(
   if (error) return { ok: false, error: errMsg(error) };
   return { ok: true };
 }
-export async function deleteIndoorAccessory(id: number): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('indoor_job_accessories').delete().eq('id', id);
-  if (error) return { ok: false, error: errMsg(error) };
-  return { ok: true };
-}
 
 export async function listIndoorParts(jobId: number): Promise<IndoorPart[]> {
   const { data, error } = await must()
@@ -6722,11 +6741,6 @@ export async function updateIndoorPart(
   if (count === 0) return { ok: false, error: 'Nothing was saved — your role may not change this harvested part.' };
   return { ok: true };
 }
-export async function deleteIndoorPart(id: number): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('indoor_job_parts').delete().eq('id', id);
-  if (error) return { ok: false, error: errMsg(error) };
-  return { ok: true };
-}
 
 export async function listIndoorChecks(jobId: number): Promise<IndoorCheck[]> {
   const { data, error } = await must()
@@ -6749,9 +6763,27 @@ export async function saveIndoorCheck(
   if (error) return { ok: false, error: errMsg(error) };
   return { ok: true };
 }
-export async function deleteIndoorCheck(id: number): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('indoor_job_checks').delete().eq('id', id);
+
+/** VOID A HARVESTED PART, AN ACCESSORY OR A CHECK (0429, D-039, FRS-143.8) --
+ *  the replacement for deleting one, which the database now refuses. Sends the
+ *  reason and a non-null voided_at; the database stamps voided_at = now() and
+ *  voided_by from the session whatever is sent, refuses an empty reason, and
+ *  refuses any later change to the row. COUNTED: row-level security refuses an
+ *  update by matching no row, and no error is not "voided" (finding 48). */
+export const INDOOR_VOID_TABLES = {
+  part: 'indoor_job_parts', accessory: 'indoor_job_accessories', check: 'indoor_job_checks',
+} as const;
+export async function voidIndoorEntry(
+  kind: keyof typeof INDOOR_VOID_TABLES, id: number, reason: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const why = reason.trim();
+  if (!why) return { ok: false, error: 'Give the reason for voiding this entry.' };
+  const { data, error } = await must().from(INDOOR_VOID_TABLES[kind])
+    .update({ voided_at: new Date().toISOString(), void_reason: why }).eq('id', id).select('id');
   if (error) return { ok: false, error: errMsg(error) };
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'Nothing was voided — your role may not change this entry, or it is no longer there.' };
+  }
   return { ok: true };
 }
 

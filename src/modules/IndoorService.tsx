@@ -6,9 +6,9 @@ import { Drawer, FacetChips, Modal, PageHeader, SectionCard } from '../component
 import { DataTable, type Column } from '../components/table/DataTable';
 import {
   supabaseConfigured, listIndoorJobs, saveIndoorJob, markIndoorCleaned,
-  listIndoorAccessories, addIndoorAccessory, saveIndoorAccessory, deleteIndoorAccessory,
-  listIndoorParts, addIndoorPart, updateIndoorPart, deleteIndoorPart,
-  listIndoorChecks, addIndoorCheck, saveIndoorCheck, deleteIndoorCheck,
+  listIndoorAccessories, addIndoorAccessory, saveIndoorAccessory,
+  listIndoorParts, addIndoorPart, updateIndoorPart,
+  listIndoorChecks, voidIndoorEntry, INDOOR_VOID_TABLES,
   getIndoorPdt, saveIndoorPdt, signIndoorPdt, unsignIndoorPdt, verifyIndoorJob, sbProductBySerial, callByUcn,
   listIndoorDcs, saveIndoorReport, deleteIndoorJob,
   INDOOR_KINDS, INDOOR_ACTIVITIES, INDOOR_STATUSES,
@@ -25,8 +25,8 @@ import {
 import { useAuth } from '../lib/auth';
 import { IndoorDcForm, IndoorDcList } from './IndoorDcPanel';
 import { consigneeKey, jobConsignee, jobStage, INDOOR_STAGES, STAGES_DONE, indoorReportFileName, tagOptions, type StageState,
-  PART_GRADES, harvestedPartProblem, type HarvestedPartDraft } from '../lib/indoorforms';
-import { useUserNames } from '../lib/userNames';
+  PART_GRADES, harvestedPartProblem, type HarvestedPartDraft, isVoided, liveEntries, voidNote } from '../lib/indoorforms';
+import { useUserNames, nameForUserId, looksLikeUserId } from '../lib/userNames';
 import { IndoorIntake } from './IndoorIntake';
 import { CallReportDrawer, STATUS_OPTIONS, type IndoorDraftMode, type VisitDraft } from './CallReporting';
 import { useMaster } from '../lib/masters';
@@ -816,6 +816,49 @@ function DeleteJobAction({ job, onDeleted }: { job: IndoorJob; onDeleted: (jobNo
   </>);
 }
 
+// ---------------------------------------------------------------------------
+// VOID AN ENTRY (FRS-143.8, D-039, 0429) -- what Remove used to be on a
+// harvested part, an accessory and a check. It asks WHY and cannot be sent
+// without an answer; the database refuses an empty reason as well, stamps when
+// and who from the session, and keeps the row as it was. The write is COUNTED
+// (voidIndoorEntry): a refused update matches no row and is said to be refused.
+// ---------------------------------------------------------------------------
+function VoidEntryDialog({ entry, onClose, onVoided }: {
+  entry: { kind: keyof typeof INDOOR_VOID_TABLES; id: number; label: string };
+  onClose: () => void;
+  onVoided: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const go = async () => {
+    if (!reason.trim()) { setErr('Give the reason for voiding this entry.'); return; }
+    setBusy(true); setErr('');
+    const r = await voidIndoorEntry(entry.kind, entry.id, reason);
+    setBusy(false);
+    if (!r.ok) { setErr(r.error ?? 'Not voided.'); return; }
+    onVoided();
+  };
+  return (
+    <Modal open onClose={busy ? () => {} : onClose} title="Void this entry?" width={460}>
+      <div className="ind-form ind-confirm">
+        <p className="ind-confirm-lead">Void <b>{entry.label}</b>.</p>
+        <p className="ind-hint">It is not deleted: it stays on the job, struck through, with the reason, your name and the time, and cannot be changed afterwards. It is left out of the counts and of any new Indoor DC.</p>
+        <Field label="Why is it being voided? *" wide>
+          <textarea rows={2} value={reason} autoFocus onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Entered against the wrong job" />
+        </Field>
+        {err ? <p className="ind-warn">{err}</p> : null}
+        <div className="ind-confirm-actions">
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" className="btn btn-danger" onClick={() => void go()} disabled={busy || !reason.trim()}>
+            {busy ? 'Voiding…' : 'Void entry'}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function IndoorJobDrawer({
   job, accessories, parts, checks, pdt, reloadChildren, reload, patch, uid, rights, msg, setMsg,
   stage, dcStatus, startAt, onReportSaved, onCreateDc, dcOpen,
@@ -933,6 +976,16 @@ function IndoorJobDrawer({
     if (!r.ok) setMsg(r.error ?? 'Could not save'); else { setMsg(''); reloadChildren(); }
   };
 
+  // VOID, NEVER REMOVE (FRS-143.8, D-039, 0429): a harvested part, an accessory
+  // or a check made in error is marked void with a reason; the database stamps
+  // when and who, keeps the row, and refuses any later change to it. The
+  // entries still in force are the ones every list and count below uses.
+  const [voiding, setVoiding] = useState<{ kind: keyof typeof INDOOR_VOID_TABLES; id: number; label: string } | null>(null);
+  const liveAccessories = liveEntries(accessories);
+  const voidedAccessories = accessories.filter(isVoided);
+  const liveParts = liveEntries(parts);
+  const voidedParts = parts.filter(isVoided);
+
   // A HARVESTED PART, ENTERED WHOLE BEFORE IT IS ADDED (FRS-143.7, D-039).
   const BLANK_PART: HarvestedPartDraft = { part_code: '', description: '', qty: '1', condition_grade: 'Serviceable', destination: '' };
   const [newPart, setNewPart] = useState<HarvestedPartDraft>(BLANK_PART);
@@ -949,6 +1002,11 @@ function IndoorJobDrawer({
   };
   // Who recorded the damage report to the owner is an id the database wrote.
   const userNames = useUserNames();
+  /** Who voided an entry: the id the database stamped, as a name. */
+  const voidedBy = (id: string | null | undefined) => {
+    const n = nameForUserId(id, userNames);
+    return looksLikeUserId(n) ? '' : n;
+  };
 
   const markCleaned = async () => {
     // WHO is not sent: the database stamps it from the session (0363, D-039).
@@ -1093,14 +1151,14 @@ function IndoorJobDrawer({
 
         {SHOWS.accessories(a) ? (
           <Group title="Accessories received"
-            aside={<span className="ind-meta">{job.accessories_outstanding} of {job.accessory_count} still to go back</span>}>
+            aside={<span className="ind-meta">{job.accessories_outstanding} of {job.accessory_count} still to go back{voidedAccessories.length ? ` · ${voidedAccessories.length} voided, not counted` : ''}</span>}>
             <div className={`ind-rows${reported ? ' has-returned' : ''}`} role="table" aria-label="Accessories received">
               <div className="ind-rows-head" role="row">
                 <span role="columnheader">Item</span><span role="columnheader">Qty</span>
                 <span role="columnheader">Tag</span>
                 {reported ? <span role="columnheader">Back</span> : null}<span />
               </div>
-              {accessories.map((x) => (
+              {liveAccessories.map((x) => (
                 <div className="ind-rows-row" role="row" key={x.id}>
                   <input aria-label="Item" defaultValue={x.name} disabled={!mayWork}
                     onBlur={(e) => child(() => saveIndoorAccessory(x.id, { name: e.target.value }))} />
@@ -1110,12 +1168,23 @@ function IndoorJobDrawer({
                     onChange={(v) => child(() => saveIndoorAccessory(x.id, { tag_no: v }))} />
                   {reported ? <input type="checkbox" aria-label="Returned" checked={x.returned} disabled={!mayWork}
                     onChange={(e) => child(() => saveIndoorAccessory(x.id, { returned: e.target.checked }))} /> : null}
-                  {mayWork ? <button type="button" className="ind-x" aria-label={`Remove ${x.name || 'item'}`} title="Remove"
-                    onClick={() => child(() => deleteIndoorAccessory(x.id))}>×</button> : <span />}
+                  {mayWork ? <button type="button" className="ind-void" aria-label={`Void ${x.name || 'item'}`}
+                    title="Void this entry with a reason — it is kept, not deleted"
+                    onClick={() => setVoiding({ kind: 'accessory', id: x.id, label: `the accessory “${x.name || 'unnamed'}”` })}>Void</button> : <span />}
                 </div>
               ))}
-              {accessories.length === 0 ? <div className="ind-rows-empty">Nothing listed.</div> : null}
+              {liveAccessories.length === 0 ? <div className="ind-rows-empty">Nothing listed.</div> : null}
             </div>
+            {voidedAccessories.length ? (
+              <ul className="ind-voided" aria-label="Voided accessories">
+                {voidedAccessories.map((x) => (
+                  <li key={x.id}>
+                    <s>{x.name || 'unnamed'} × {x.qty ?? 1}{x.tag_no ? ` · tag ${x.tag_no}` : ''}</s>
+                    <span className="ind-voided-note">{voidNote(x, voidedBy(x.voided_by))}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {mayWork ? <button type="button" className="ind-add"
               onClick={() => child(() => addIndoorAccessory(job.id, { name: '', qty: 1 }))}>+ Add item</button> : null}
           </Group>
@@ -1356,7 +1425,7 @@ function IndoorJobDrawer({
               <table className={`ind-lines${mayWork ? ' is-edit' : ''}`}>
                 <thead><tr><th>Code</th><th>Description</th><th>Qty</th><th>Grade</th><th>Destination</th><th /></tr></thead>
                 <tbody>
-                  {parts.map((p) => mayWork ? (
+                  {liveParts.map((p) => mayWork ? (
                     <tr key={`${p.id}-${p.part_code}-${p.description}-${p.qty}-${p.destination}`}>
                       <td><input aria-label="Part code" className="mono" defaultValue={p.part_code}
                         onBlur={(e) => {
@@ -1380,8 +1449,9 @@ function IndoorJobDrawer({
                           onChange={(v) => child(() => updateIndoorPart(p.id, { condition_grade: v }))} /></td>
                       <td><input aria-label="Destination" defaultValue={p.destination}
                         onBlur={(e) => { const v = e.target.value.trim(); if (v !== p.destination) void child(() => updateIndoorPart(p.id, { destination: v })); }} /></td>
-                      <td><button type="button" className="ind-x" aria-label="Remove part" title="Remove"
-                        onClick={() => child(() => deleteIndoorPart(p.id))}>×</button></td>
+                      <td><button type="button" className="ind-void" aria-label={`Void part ${p.part_code}`}
+                        title="Void this entry with a reason — it is kept, not deleted"
+                        onClick={() => setVoiding({ kind: 'part', id: p.id, label: `the harvested part ${p.part_code || ''}${p.description ? ` (${p.description})` : ''}` })}>Void</button></td>
                     </tr>
                   ) : (
                     <tr key={p.id}>
@@ -1390,7 +1460,7 @@ function IndoorJobDrawer({
                       <td />
                     </tr>
                   ))}
-                  {parts.length === 0 ? <tr><td colSpan={6} className="ind-rows-empty">Nothing harvested yet.</td></tr> : null}
+                  {liveParts.length === 0 ? <tr><td colSpan={6} className="ind-rows-empty">Nothing harvested yet.</td></tr> : null}
                   {mayWork && job.decontaminated ? (
                     <tr>
                       <td><input aria-label="New part code" className="mono" placeholder="Part code *" value={newPart.part_code}
@@ -1410,6 +1480,16 @@ function IndoorJobDrawer({
                 </tbody>
               </table>
             </div>
+            {voidedParts.length ? (
+              <ul className="ind-voided" aria-label="Voided harvested parts">
+                {voidedParts.map((p) => (
+                  <li key={p.id}>
+                    <s><span className="mono">{p.part_code}</span> {p.description} × {p.qty} · {p.condition_grade}{p.destination ? ` → ${p.destination}` : ''}</s>
+                    <span className="ind-voided-note">{voidNote(p, voidedBy(p.voided_by))}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {mayWork ? (
               <button type="button" className="ind-add" disabled={!job.decontaminated}
                 title={job.decontaminated ? 'Code, description, quantity, grade and destination are all asked for' : 'The unit has to be decontaminated first (4.5.3)'}
@@ -1718,6 +1798,11 @@ function IndoorJobDrawer({
       {spareCall ? (
         <SpareRequestDrawer call={spareCall} open={!!spareCall} onClose={() => setSpareCall(null)}
           onSaved={(u, _uid, _orNo, visitError) => { setSpareCall(null); setMsg(visitError ? `Spare request raised for ${u}, but its visit entry was not added: ${visitError}` : `Spare request raised for ${u} — track it under Spares → Spare Requests.`); }} />
+      ) : null}
+
+      {voiding ? (
+        <VoidEntryDialog entry={voiding} onClose={() => setVoiding(null)}
+          onVoided={() => { setVoiding(null); setMsg(''); reloadChildren(); reload(); }} />
       ) : null}
 
       <p className="ind-foot">Last changed by {job.updated_by_name || '—'}.</p>

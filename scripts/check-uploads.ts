@@ -9,7 +9,8 @@ import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImp
 import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
 import { machineKey } from '../src/lib/machine';
 import { parseCSV } from '../src/lib/csv';
-import { shapePmRows } from '../src/lib/pmImport';
+import { shapePmRows, shapePmDueRows, checkPmUploadRows, preparePmUpload, pmHeldSummary, PM_STANDARD_COMPLAINT, type PmDueMachine } from '../src/lib/pmImport';
+import { encodeComplaintEntry } from '../src/lib/complaints';
 import { planComplaintKeys, KEY_FIELD } from '../src/lib/complaints';
 import { productToCallPrefill, partyToCallPrefill } from '../src/lib/fieldcall';
 
@@ -1075,6 +1076,76 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   eq('...and so is its Breakdown Date', row.breakdown_date, '2026-10-01');
   eq('...and the sheet\u2019s own dates are not kept in extra',
     Object.keys((row.extra ?? {}) as Record<string, unknown>).filter((k) => /complaint date|breakdown date/i.test(k)), []);
+}
+
+// D-038 (FRS-142.4, .5, .11): WHAT A PM UPLOAD MAY CREATE. Run on real shaped
+// rows, through the same preparation the screen uses. The PM Due path shares
+// shapePmRows and must be untouched by any of it.
+{
+  const ctx = {
+    complaints: [
+      encodeComplaintEntry('PREVENTIVE MAINTENANCE', {}),                       // all products
+      encodeComplaintEntry('O2 CELL CALIBRATION', { products: ['MONNAL T75'] }), // one product only
+    ],
+    activeEngineers: ['SIVARANI', 'KARTHIK SUNDAR'],
+    existing: [{ ucn: '26J01P0001', product_name: 'ORION-G', serial: '873' }],
+  };
+  const r = (party: string, product: string, serial: string, complaint: string, engineer: string) =>
+    ({ 'Party Name': party, 'Product': product, 'Serial No': serial, 'Standard Complaint': complaint, 'Engineer': engineer });
+  const raw = [
+    r('A', 'MONNAL T75', '11414', 'O2 Cell Calibration ', 'sivarani'),   // row 2: kept, master spellings written
+    r('B', 'VEGA', '', 'PREVENTIVE MAINTENANCE', 'SIVARANI'),             // row 3: no serial
+    r('C', 'VEGA', '201', 'O2 CELL CALIBRATION', 'SIVARANI'),             // row 4: complaint not mapped to VEGA
+    r('D', 'VEGA', '202', 'PREVENTIVE MAINTENANCE', 'NOBODY HERE'),       // row 5: engineer not active
+    r('E', ' monnal t75 ', '11414', 'PREVENTIVE MAINTENANCE', 'SIVARANI'),// row 6: same machine as row 2
+    r('F', 'orion-g', ' 873 ', 'PREVENTIVE MAINTENANCE', 'SIVARANI'),     // row 7: already a call this month
+    r('G', 'VEGA', '203', '', ''),                                          // row 8: blanks are not held back
+    { 'Party Name': '', 'Product': '', 'Serial No': '', 'Remarks': 'x' },  // row 9: blank, dropped as before
+  ];
+  const got = preparePmUpload(raw, '2026-10', '2026-10-01T00:30:00', 5, ctx);
+  const why = (row: number) => got.held.find((h) => h.row === row);
+  eq('D-038: the kept rows are rows 2 and 8, in order', got.kept.map((k) => k.party_name), ['A', 'G']);
+  eq('D-038: ...the blank row is dropped and counted, as before', got.blank, 1);
+  eq('D-038: a complaint in the product’s master is kept, in the master’s spelling',
+    [got.kept[0].standard_complaint, got.kept[0].allocated_to], ['O2 CELL CALIBRATION', 'SIVARANI']);
+  eq('D-038: a row with no serial is held back and named', [why(3)?.kinds, why(3)?.reason], [['no-serial'], 'no serial number']);
+  eq('D-038: a complaint not mapped to the row’s product is held back', why(4)?.kinds, ['complaint']);
+  eq('D-038: ...naming the complaint and the product', /O2 CELL CALIBRATION.*VEGA/.test(why(4)?.reason ?? ''), true);
+  eq('D-038: an engineer not active on the User Master is held back', why(5)?.kinds, ['engineer']);
+  eq('D-038: the same machine twice in the file: the first is kept, the second named', why(6)?.reason, 'the same machine is on row 2 of this file');
+  eq('D-038: a machine with a PM call this month is skipped with that UCN (trimmed, case ignored)',
+    [why(7)?.kinds, why(7)?.ucn, why(7)?.reason], [['exists'], '26J01P0001', 'already a PM call this month: 26J01P0001']);
+  eq('D-038: a blank complaint and a blank engineer are not held back (FRS-142.5: "a value on neither")',
+    [got.kept[1].standard_complaint, got.kept[1].allocated_to], [undefined, undefined]);
+  eq('D-038: registration times step across the KEPT rows only',
+    got.kept.map((k) => k.reg_at), [new Date('2026-10-01T00:30:00').toISOString(), new Date('2026-10-01T00:30:05').toISOString()]);
+  eq('D-038: the summary counts each reason',
+    pmHeldSummary(got.held), '5 rows held back — 1 already have a PM call this month (skipped, not changed); 1 repeat a machine already on an earlier row; 1 have no serial number; 1 carry a Standard Complaint not on the product’s complaint master; 1 name an engineer who is not active on the User Master.');
+  eq('D-038: a duplicate is decided before the value checks, so a bad first row still holds back its twin',
+    checkPmUploadRows([{ row: 2, rec: { product_name: 'VEGA', serial: '9', allocated_to: 'NOBODY' } },
+                       { row: 3, rec: { product_name: 'VEGA', serial: '9', allocated_to: 'SIVARANI' } }], ctx).held.map((h) => h.kinds[0]),
+    ['engineer', 'repeated']);
+  eq('D-038: an empty complaint master holds back every named complaint, it does not wave them through',
+    checkPmUploadRows([{ row: 2, rec: { product_name: 'VEGA', serial: '9', standard_complaint: 'PREVENTIVE MAINTENANCE' } }],
+      { ...ctx, complaints: [] }).held.length, 1);
+  // With nothing held back the preparation is EXACTLY shapePmRows -- the shaping is unchanged.
+  const clean = [r('A', 'MONNAL T75', '11414', 'O2 CELL CALIBRATION', 'SIVARANI'), r('G', 'VEGA', '203', '', '')];
+  eq('D-038: shapePmRows is unchanged -- a clean file prepares to exactly its output',
+    preparePmUpload(clean, '2026-10', '2026-10-01T00:30:00', 5, { ...ctx, existing: [] }).kept,
+    shapePmRows(clean, '2026-10', '2026-10-01T00:30:00', 5));
+  // PM DUE IS NOT FILTERED: its own complaint is on no master here, its engineer
+  // on no User Master, and two of its machines share a serial -- and every row
+  // still comes through, shaped as before.
+  const due = (serial: string, product: string, engineer: string): PmDueMachine => ({
+    source: 'Contract', ref_no: 'MC1', product_name: product, serial, party_name: 'P', city: null, state: null,
+    engineer, cover_type: 'CMC', cover_start: '2026-01-01', cover_end: '2026-12-31', pm_visits: 2, visit_no: 1, due_date: '2026-10-01' });
+  const dueRows = shapePmDueRows([due('', 'VEGA', 'NOT ON THE MASTER'), due('873', 'ORION-G', ''), due('873', 'ORION-G', '')],
+    '2026-10', '2026-10-01T00:30:00', 5);
+  eq('D-038: PM Due rows are not filtered by the upload checks', dueRows.length, 3);
+  eq('...they keep SCHEDULED PM VISIT and the engineer as given',
+    [dueRows[0].standard_complaint, dueRows[0].allocated_to], [PM_STANDARD_COMPLAINT, 'NOT ON THE MASTER']);
+  eq('...and are stepped as before', dueRows.map((d) => d.reg_at),
+    [0, 5, 10].map((sec) => new Date(new Date('2026-10-01T00:30:00').getTime() + sec * 1000).toISOString()));
 }
 
 // EXCEL'S SEMICOLON "CSV" (2026-10-05): a PM Reports file saved on a machine

@@ -906,7 +906,9 @@ const MODULES = {
             // the visit columns say the visit is filed at approval (0419).
             '0419_indoor_record_visit_closed_and_comments.sql',
             // D-039: who reported damage to the customer is the session (0427).
-            '0427_indoor_reported_to_customer_stamp.sql'],
+            '0427_indoor_reported_to_customer_stamp.sql',
+            // D-039 (FRS-143.8): parts, accessories and checks are voided, not deleted (0429).
+            '0429_indoor_parts_accessories_checks_voided.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -1320,7 +1322,10 @@ const MODULES = {
             '0404_pm_due_no_install_call_allowed.sql',
             // The PM schedule of one Warranty / Contract entry (the user,
             // 2026-10-09), listed and generated from the entry window.
-            '0407_pm_schedule.sql'],
+            '0407_pm_schedule.sql',
+            // D-038: which machines already have a PM call this month, asked of
+            // every PM call -- the upload skips and names them (0430).
+            '0430_pm_calls_in_month.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

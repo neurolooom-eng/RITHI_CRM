@@ -1,5 +1,6 @@
 import { coverCode } from './fieldcall';
 import { toIsoDate as toDate, todayLocal } from './dates';
+import { complaintAppliesTo, decodeComplaintEntry } from './complaints';
 
 // ===========================================================================
 // PM bulk upload — shape a monthly Preventive-Maintenance spreadsheet into
@@ -143,6 +144,169 @@ export function pmTemplateCsv(): string {
     'Monthly PM visit', 'Nurse Station', '9840000000',
   ];
   return `${PM_TEMPLATE_HEADERS.join(',')}\n${sample.map((c) => `"${c}"`).join(',')}\n`;
+}
+
+// ===========================================================================
+// WHAT A PM UPLOAD MAY CREATE (D-038; FRS-142.4, .5, .11). THE UPLOAD PATH
+// ONLY -- shapePmRows above is shared with the PM Due generator, which builds
+// its rows from the registers (Standard Complaint "SCHEDULED PM VISIT", an
+// engineer from the cover) and has its own "already generated" rule, so none
+// of this is applied there.
+//
+// Each shaped row is KEPT or HELD BACK with the reason, and the reason names
+// the row, so the operator can correct the file rather than guess:
+//
+//   no serial        FRS-142.4 -- a PM call that identifies no device.
+//   already a call   FRS-142.11, as the user decided it (2026-10-12): the
+//                    machine (product + serial, trimmed, case ignored) already
+//                    has a PM call in the due month -- from an earlier load or
+//                    from PM Due -- so the row is SKIPPED and that call's UCN
+//                    named. No second call; the existing one is NOT changed.
+//   twice in file    the same machine on two rows: the FIRST is kept, the rest
+//                    held back naming it. Decided before the value checks, so
+//                    which row stands never depends on which one is valid.
+//   complaint        FRS-142.5 -- not on the Standard Complaint master FOR THIS
+//                    PRODUCT, by the rule every call form uses
+//                    (complaints.ts: mapped to the product, or to all
+//                    products). Matched ignoring case and surrounding spaces,
+//                    and the MASTER's spelling is written, so the call counts
+//                    with every other call carrying that complaint.
+//   engineer         FRS-142.5 -- not an ACTIVE name on the User Master
+//                    (validity true). Matched the same way, master spelling
+//                    written.
+//
+// A BLANK complaint or engineer is NOT held back: FRS-142.5 holds back a row
+// "carrying a value on neither", and a blank carries no value. A blank engineer
+// is an unallocated call, which the register already shows as such.
+//
+// Pure, so check:uploads runs it as behaviour (the paging.ts reason).
+// ===========================================================================
+export type PmHoldKind = 'no-serial' | 'exists' | 'repeated' | 'complaint' | 'engineer';
+export interface PmHeldRow {
+  /** The line in the file, the headings being line 1 (blank lines are not counted). */
+  row: number;
+  product: string; serial: string; party: string;
+  kinds: PmHoldKind[];
+  reason: string;
+  /** The UCN of the call already there, for 'exists'. */
+  ucn?: string;
+}
+export interface PmUploadContext {
+  /** The ACTIVE Standard Complaints, each as complaints.ts encodes it
+   *  (value + the products it is mapped to) -- listMaster('complaintProducts'). */
+  complaints: string[];
+  /** The ACTIVE User Master names (sbActiveUserNames). */
+  activeEngineers: string[];
+  /** The PM calls already in the due month. */
+  existing: { ucn: string; product_name: string; serial: string }[];
+}
+
+const keyText = (v: unknown) => String(v ?? '').trim().toLowerCase();
+/** A machine for FRS-142.11: product + serial, trimmed, case ignored. */
+export const pmMachineKey = (product: unknown, serial: unknown): string => `${keyText(product)}|${keyText(serial)}`;
+
+export function checkPmUploadRows(
+  rows: { row: number; rec: Record<string, unknown> }[], ctx: PmUploadContext,
+): { kept: Record<string, unknown>[]; held: PmHeldRow[] } {
+  const existing = new Map<string, string>();
+  for (const c of ctx.existing) {
+    const k = pmMachineKey(c.product_name, c.serial);
+    if (!existing.has(k)) existing.set(k, String(c.ucn ?? ''));
+  }
+  const engineers = new Map<string, string>();
+  for (const n of ctx.activeEngineers) {
+    const k = keyText(n);
+    if (k && !engineers.has(k)) engineers.set(k, String(n).trim());
+  }
+  const complaints = ctx.complaints.map(decodeComplaintEntry).filter((c) => c.value.trim());
+  const firstRow = new Map<string, number>();
+  const kept: Record<string, unknown>[] = [];
+  const held: PmHeldRow[] = [];
+
+  for (const { row, rec } of rows) {
+    const product = String(rec.product_name ?? '').trim();
+    const serial = String(rec.serial ?? '').trim();
+    const base = { row, product, serial, party: String(rec.party_name ?? '').trim() };
+    if (!serial) {
+      held.push({ ...base, kinds: ['no-serial'], reason: 'no serial number' });
+      continue;
+    }
+    const key = pmMachineKey(product, serial);
+    const ucn = existing.get(key);
+    if (ucn !== undefined) {
+      held.push({ ...base, kinds: ['exists'], ucn, reason: `already a PM call this month: ${ucn || '(no UCN)'}` });
+      continue;
+    }
+    const first = firstRow.get(key);
+    if (first !== undefined) {
+      held.push({ ...base, kinds: ['repeated'], reason: `the same machine is on row ${first} of this file` });
+      continue;
+    }
+    firstRow.set(key, row);
+
+    const out = { ...rec };
+    const kinds: PmHoldKind[] = [];
+    const why: string[] = [];
+    const complaint = String(rec.standard_complaint ?? '').trim();
+    if (complaint) {
+      const hit = complaints.find((c) => keyText(c.value) === keyText(complaint)
+        && complaintAppliesTo({ products: c.products }, product));
+      if (hit) out.standard_complaint = hit.value;
+      else {
+        kinds.push('complaint');
+        why.push(`Standard Complaint “${complaint}” is not on the complaint master for ${product || 'this product'}`);
+      }
+    }
+    const engineer = String(rec.allocated_to ?? '').trim();
+    if (engineer) {
+      const name = engineers.get(keyText(engineer));
+      if (name) out.allocated_to = name;
+      else {
+        kinds.push('engineer');
+        why.push(`engineer “${engineer}” is not an active name on the User Master`);
+      }
+    }
+    if (kinds.length) { held.push({ ...base, kinds, reason: why.join('; ') }); continue; }
+    kept.push(out);
+  }
+  return { kept, held };
+}
+
+/** The upload's whole preparation: shape each line (shapePmRows, unchanged),
+ *  check them, and step the registration times across the KEPT rows only --
+ *  the rule shapePmRows applies to blank rows, so a held-back row leaves no
+ *  gap in the batch either. With nothing held back the result is exactly
+ *  shapePmRows' own. */
+export function preparePmUpload(
+  raw: Record<string, string>[], month: string, startLocal: string, stepSec: number, ctx: PmUploadContext,
+): { kept: Record<string, unknown>[]; held: PmHeldRow[]; blank: number } {
+  const shaped: { row: number; rec: Record<string, unknown> }[] = [];
+  raw.forEach((r, i) => {
+    const [rec] = shapePmRows([r], month, startLocal, 0);
+    if (rec) shaped.push({ row: i + 2, rec });
+  });
+  const { kept, held } = checkPmUploadRows(shaped, ctx);
+  const startMs = new Date(startLocal).getTime();
+  const stepMs = Math.max(0, Math.round((stepSec || 0) * 1000));
+  kept.forEach((o, i) => {
+    if (Number.isNaN(startMs)) delete o.reg_at;
+    else o.reg_at = new Date(startMs + i * stepMs).toISOString();
+  });
+  return { kept, held, blank: raw.length - shaped.length };
+}
+
+/** One line per reason, for the preview and the confirmation. */
+export function pmHeldSummary(held: PmHeldRow[]): string {
+  if (!held.length) return '';
+  const n = (k: PmHoldKind) => held.filter((h) => h.kinds.includes(k)).length;
+  const parts = [
+    [n('exists'), 'already have a PM call this month (skipped, not changed)'],
+    [n('repeated'), 'repeat a machine already on an earlier row'],
+    [n('no-serial'), 'have no serial number'],
+    [n('complaint'), 'carry a Standard Complaint not on the product’s complaint master'],
+    [n('engineer'), 'name an engineer who is not active on the User Master'],
+  ].filter(([c]) => (c as number) > 0).map(([c, t]) => `${c} ${t}`);
+  return `${held.length} row${held.length === 1 ? '' : 's'} held back — ${parts.join('; ')}.`;
 }
 
 // ===========================================================================
