@@ -92,6 +92,21 @@ up)_
 
 ---
 
+## 2026-10-12 — Zoho Creator build sheet, part 1: Masters, Product Database, Calls, Spares (docs only)
+
+`docs/ZOHO_CREATOR_MIGRATION.md` — what a rebuild of those four groups in Zoho
+Creator has to carry, read out of the generated references (`DATABASE_SCHEMA.md`,
+the migrations, `uploads.ts`, `rbac.ts`, the inventory and the three standing
+requirement documents): forms and keys, every guard by name as STAMPS / REFUSES
+/ DERIVES, the read rules, the number series, the load order, and the places
+where the design cannot be copied and a decision is owed (name links →
+lookups, the recursive team tree, ONE cover rule out of three, the
+`cover_period_end` month overflow, hand stock stored rather than derived).
+Extraction is the Data Export screen signed in as the **Zoho Migration** role
+(0155). Nothing in it was checked against Zoho's current limits; §9 lists what
+to verify. No SQL, no app change, no version bump. Parts 2+ (Cover beyond what
+Product Database needs, Indoor, Quality, Reports, Admin) are pending.
+
 ## 2026-10-11 — FFR Update log: a loaded report starts on its FFR Date (D-159, 0410, v0.10.162)
 
 - The user: "The FFR Date in the Log has to match with Actual FFR Date, it is
