@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.187',
+    version: '0.10.188',
     date: '2026-10-12',
     title: 'Fifth re-review of every module recorded (no behaviour changed)',
     changes: [
@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.186',
+    version: '0.10.187',
     date: '2026-10-12',
     title: 'Review fixes: loading a file again corrects it instead of adding it twice',
     changes: [
@@ -35,7 +35,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.185',
+    version: '0.10.186',
     date: '2026-10-12',
     title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',
     changes: [
@@ -44,7 +44,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.184',
+    version: '0.10.185',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -55,7 +55,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.183',
+    version: '0.10.184',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -68,7 +68,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.182',
+    version: '0.10.183',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -78,7 +78,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.181',
+    version: '0.10.182',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -89,7 +89,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.180',
+    version: '0.10.181',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -103,7 +103,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.179',
+    version: '0.10.180',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -117,7 +117,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.178',
+    version: '0.10.179',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -131,12 +131,22 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.10.178',
+    date: '2026-10-12',
+    title: 'Supporting documents: only the Latest Technical Notes',
+    changes: [
+      'A call\'s 📄 Supporting documents now lists only the Technical Notes tagged Latest for the call\'s product. An older note for the same product is no longer offered.',
+      'A note covering several products is offered on a call only if it is Latest for that call\'s product. A note with no product is offered only while it is Latest for Every product. An accessory\'s note, reached through its Tags, is offered only while it is Latest for that accessory.',
+      'Service manuals are listed exactly as before. The same list shows on a Call Request.',
+    ],
+  },
+  {
     version: '0.10.177',
     date: '2026-10-12',
     title: 'Objective: visit dates are India dates',
     changes: [
       'FIXED: the Breakdown, Preventive Maintenance and Installation figures and the "attended within 3 days" figure took a visit\'s date in UTC, so a visit made between midnight and 05:30 India time counted as the day before. They now use the India date, as Customer feedback already did.',
-      'Press Re-Calculate to update the figures. Only calls visited in those early-morning hours can change.',
+      'Press Re-Calculate to update the figures. This moves most of them a little: almost every visit loaded from a file is recorded at midnight India time, so almost every one was being counted a day early.',
     ],
   },
   {

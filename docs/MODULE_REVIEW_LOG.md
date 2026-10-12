@@ -161,8 +161,8 @@ dates are shown and exported, not how they are stored.**
 Newest first. Each entry says what was done, where it landed, and how it was
 checked.
 
-### 2026-10-12 — Re-review 5: every module re-read (v0.10.187, D-169–D-210)
-- **Your ask:** *"Next batch — re-review every module"*. First I merged main (#641–#642): main took 0422, v0.10.175–0.10.176, status row 342, OQ-277 and D-167/D-168, so this branch's numbers moved up again (0424–0440, v0.10.178–0.10.186, rows 344–368, OQ-278–286), line by line; the View-as allowlist reason for `objective_evidence` now names 0422, which redefines it.
+### 2026-10-12 — Re-review 5: every module re-read (v0.10.188, D-169–D-210)
+- **Your ask:** *"Next batch — re-review every module"*. First I merged main (#641–#642): main took 0422, v0.10.175–0.10.176, status row 342, OQ-277 and D-167/D-168, so this branch's numbers moved up again (0424–0440, v0.10.179–0.10.187, rows 344–368, OQ-278–286), line by line; the View-as allowlist reason for `objective_evidence` now names 0422, which redefines it.
 - **How:** seven reviewers, one per area (overview & analytics; service calls; spares & stock; masters & cover; knowledge, quality & feedback; reports, data & indoor; administration & security), each re-checking the open defects in its area and reading every screen afresh, with a database built from every migration to measure on. Nothing was recorded on a reviewer's word alone where it was High: **I re-ran D-169, D-170, D-171, D-172, D-173, D-174 and D-175 myself** on fresh copies, and each reproduced.
 - **High (12):** D-169 a login with no User Master row is given an Engineer profile on first sign-in -- a **regression of D-074**: `ensure_my_profile()` (0033) inserts `engineer` whether or not a row matched, so the "holds nothing" path runs only if the call fails; D-170 the Customer feedback objective's evidence shows feedback to a calls.view holder and refuses a feedback.view holder; D-171 an engineer acknowledged a shipment on a spare line he could not see, naming somebody else; D-172 an FFR's number, imported marker and raiser's name are the caller's, and its log was back-dated to 2020; D-173 a training manager marked somebody else's training read, unrecorded; **D-174 and D-175 are faults in my own batch 11 fix (D-071)**: a corrected file without row numbers renumbers every later line, so a transfer re-loaded without its first line lost it and counted the third twice; copies loaded before 0439 are numbered apart and so invisible to the probe; and 0439's header claimed every overwrite is imaged when `stock_transfer_lines` has no audit trigger -- I wrote that claim without checking it; D-176 the KPI Export (and the Feedback and Stores Dispatch reports) drop what was registered 00:00–05:29 IST on the 1st, which is when a month's PM calls are raised; D-177 a Pre-Delivery Quality Check corrected by somebody else keeps no trace of the original; D-178 the DCCR reviewer's name is the client's and editable after completion; D-179 validation evidence can be back-dated and deleted; D-180 deleting a fresh-warranty transfer leaves the warranty on a machine with no sale.
 - **Medium (19):** D-181 QMS controls bypassed by administrators and importers, documents not imaged; D-182 any login burns FFR numbers; D-183 the Audit Log accepts a forged sign-in; D-184 roles and extra permissions not imaged; D-185 the masters not imaged and a User Master row deleted silently; D-186 Recorded By on transfers is the browser's; D-187 PM Due offers a second PM call where the upload would skip; D-188 a withdrawn re-open recorded nowhere; D-189 a cancelled installation call holds PM Due back; D-190 Call Review says "nothing booked" when the spares could not be read; D-191 Machine History and Training date by UTC day; D-192 a second importer cannot re-load; D-193 the FFR weekly review dated in the future under another name; D-194 the FFR log counts every save; D-195 a QMS manager cannot assign training at upload; D-196 spare approval times from the device clock; D-197 an importer can edit imported lines outside a load; D-198 the Missed PM switch re-calculates without asking, and two objective functions bypass the read rules; D-199 the public key resets a spare request's stage.
@@ -171,8 +171,8 @@ checked.
 - **Your decisions needed:** D-169 (no profile for an unmatched login; public sign-up), D-174 (require a line number in the file, or replace the whole SI Number / transfer on a re-load), D-175 (cleaning the copies already loaded), D-178, D-180, D-181, D-185, D-187, D-188, D-189, D-197, D-198, D-201, D-210 -- and those already waiting. Everything else can be fixed without one.
 - **Checked:** no code changed in this revision; the register, the package revision and the requirements document were regenerated, and `validate` re-run. Live Auth settings (D-169's reach), live counts (D-175, D-199) and the screens in a browser were not checked -- they cannot be from here.
 
-### 2026-10-12 — Review batch 11: D-071, a re-load overwrites (v0.10.186, 0439–0440)
-- **Your ask:** *"Next batch"*. First I merged main (#638–#640): main took 0419–0421 and v0.10.173–0.10.174, so this branch's 0419–0435 became 0424–0438 and its versions 0.10.178–0.10.185, line by line; main's lines were not touched.
+### 2026-10-12 — Review batch 11: D-071, a re-load overwrites (v0.10.187, 0439–0440)
+- **Your ask:** *"Next batch"*. First I merged main (#638–#640): main took 0419–0421 and v0.10.173–0.10.174, so this branch's 0419–0435 became 0424–0438 and its versions 0.10.179–0.10.186, line by line; main's lines were not touched.
 - **Your decision:** asked what a re-loaded row already in the register should do, you chose *"Overwrite with the file"*.
 - **Bulk Uploads (0439):** the MRN Register is keyed on SI Number + part code + line number and Stock Transfer Lines on transfer + line number. The part code became a column (`material_returns.part_key`) because the upload cannot name an expression index. A line the file does not number takes its position within its SI Number or transfer -- the number the database gave the first load, which is exactly why a file without row numbers used to go in twice. An importer-only UPDATE policy on each table, and the return guard, let an IMPORTED line be overwritten; a return or transfer raised in the app is untouched. An MRN row with no SI Number is now held back by name.
 - **The transfer-line key is conditional:** a file loaded twice before this fix leaves two lines sharing a number, and a unique key cannot be built over them. 0439 then says so in the migration log and leaves the key off; row 367 reads NO and `_stock_transfer_lines_repeated.sql` lists them. I cannot see the live data from here, so whether that happens is not known yet.
@@ -181,13 +181,13 @@ checked.
 - **Found while doing it:** a stored generated column is not computed yet in a BEFORE trigger, so the return guard's rename comparison would refuse every part rename of a return once `part_key` existed. 0439's guard leaves it out -- and so does **0310**, corrected in place: `part_hsn_code_test` replays 0310 on its own and failed, and on that replay 0310's one-time fill had *silently* left the return on its old name (it catches the refusal and only says so in a notice; the suite's printed count read 0 where it expects 1, and the harness does not read printed counts). Subtracting a key that is absent is a no-op, so 0310 is unchanged on a database without 0439; on live its fill finished long ago.
 - **Checked:** `review_batch_11_test` is clean as a signed-in user, and fails on a database built without 0439/0440; `check:uploads`, `check:ui`, `check:upserts` pass. Rows 366–368; OQ-286. The screens were not run in a browser.
 
-### 2026-10-12 — Review batch 10: D-039 completed, D-038 (v0.10.185, 0434–0435)
+### 2026-10-12 — Review batch 10: D-039 completed, D-038 (v0.10.186, 0434–0435)
 - **Your ask:** *"Next batch"*. First I merged main four times (#598–#637, 90+ commits): main took 0401–0418, versions up to 0.10.172, status rows 329–341 and OQ-267–276, so my numbers moved above theirs, line by line. Resolved with it: main's D-158 (a spare line whose request is in neither file is held back, not given a stub request) carried into my D-075 planner; main's new Installation-calls section on the cover register made to read a dealer from the Party Master (your D-151 decision); `negative_handstock_test` given its coordinator on the User Master (D-049).
 - **D-039 (0434):** harvested parts, accessories and checks are voided with a reason -- stamped from the session and final -- and a signed-in delete is refused; a voided accessory is left off a new DC and out of the list's counts. `indoor_job_list` and its 0245 mirror changed together. **Found while doing it:** my first draft restated `create_indoor_dc` from 0323 and would have dropped 0374's New device rule -- 0374 writes it in upper case and my search was case-sensitive; `check:status` caught it, and it is now restated from 0374.
 - **D-038 (0435 + screens):** the PM upload holds back a row with no serial, a complaint not on the product's master, an engineer not on the active User Master, and a second row for one machine; your decision: a machine already called this month is skipped and named with its UCN. `pm_calls_in_month()` asks every PM call, so the uploader's row-level security cannot hide one. PM Due is untouched.
 - **Checked:** `review_batch_10_test` is clean; without 0434 or 0435 its sections fail (one assertion first passed on NULL and was fixed). Rows 361–362; OQ-285. Screens by a helper agent, reviewed; not run in a browser.
 
-### 2026-10-06 — Review batch 9: four defects (v0.10.184, 0429–0431)
+### 2026-10-06 — Review batch 9: four defects (v0.10.185, 0429–0431)
 - **Your ask:** *"Next batch"*. First I merged main twice (#593–#597); main took 0394–0400, versions 0.10.129–0.10.135 and status rows 323–328, so my numbers moved above theirs, line by line, and the ranges that made wrong were rewritten as explicit lists.
 - **D-056 (0429):** a list value that records carry is not deleted -- deactivate it instead -- unless another row of the list holds the same word. The count runs as its owner, so row-level security cannot make it read low; `standardComplaint` and `complaint` are one list. Screens: Master Lists asks the count first and offers Deactivate.
 - **D-035 (0431):** `reopen_call()` refuses an empty reason and writes `call_reopens` (UCN, when, who, why). Screens: every Re-open asks for a reason; the call's history lists the re-opens; a call solved again keeps its feedback.
@@ -196,7 +196,7 @@ checked.
 - **Found while doing it:** the screen agent noticed that Standard Complaint rows can still carry the legacy list name, which 0429 first missed; and a test that "passed" was passing because row-level security hid the row, not because the guard fired -- given the right key, the guard now refuses it.
 - **Checked:** `review_batch_9_test` is clean on a fresh database; without 0429–0431 each section fails. Rows 348–350; OQ-284. Not run in a browser.
 
-### 2026-10-06 — Review batch 8: six defects that needed no decision (v0.10.183, 0437, 0426–0428, 0432)
+### 2026-10-06 — Review batch 8: six defects that needed no decision (v0.10.184, 0437, 0426–0428, 0432)
 - **Your ask:** *"Next batch"*. First I merged main three times (#582–#590); main took 0387–0391, versions 0.10.122–0.10.128, status rows 319–322 and OQ-262–263, so my numbers moved above theirs, line by line.
 - **D-067, D-021, D-039 (0426):** record_audit now images app_roles, app_settings, sla_rules, quality_objectives, objective_cutoffs, objective_settings and the seven indoor tables. The audit key gains `role`, `key` and `sys_id` after the five it had, so a role or a setting is recorded under its own name and a two-role save pairs each after with its own before.
 - **D-027 (0427):** a Field Failure Report needs Customer Name and Problem Reported; an edit may not blank either. Screens: the drawer records the weekly review (date, reviewer, attachment) and Edit is offered only with ffr.manage.
@@ -207,14 +207,14 @@ checked.
 - **Found while doing it:** an earlier renumbering had left ranges reading backwards in the records ("0394–0373", "0391–0363"); each is now an explicit list.
 - **Checked:** `review_batch_8_test` is clean; on a database built without 0437, 0426–0428 and 0432 every section fails. Rows 332–335 and 338; OQ-283. Screens by two helper agents, reviewed; not run in a browser.
 
-### 2026-10-05 — Review batch 7: the three larger defects (v0.10.182, 0392–0393)
+### 2026-10-05 — Review batch 7: the three larger defects (v0.10.183, 0392–0393)
 - **Your ask:** *"Continue work"*. First I merged main again (#579–#581); my 0378–0382 moved above main's; after later merges they are 0438, 0424, 0425, 0433 and 0436.
 - **D-041 (0393):** the five names on a spare line (approved at each stage, dispatched, received) are written from the session, and the value sent is discarded. Imports, renames and Auto-Approved are untouched.
 - **D-044 (0392):** three `SECURITY INVOKER` functions save the header and the lines in one transaction. The screens call them, and the clean-up deletes that could never run are gone.
 - **D-075** (screens, done by a helper agent and reviewed): Bulk Uploads plans with reads only. The confirmation states the preparation writes, which happen only after OK. A failed preparation stops the upload and says what was written.
 - **Checked:** `review_batch_7_test` is clean. On a database built without 0392–0393 every section fails. `check:uploads` has 18 new assertions; rows 364–365; OQ-282. Not run in a browser.
 
-### 2026-10-05 — Your decisions of 2026-10-05 built (v0.10.181, 0375, 0433, 0436)
+### 2026-10-05 — Your decisions of 2026-10-05 built (v0.10.182, 0375, 0433, 0436)
 - **Your answers:**
   - **D-033:** blank, must be answered.
   - **D-049:** same rule as spares.
@@ -232,7 +232,7 @@ checked.
 - **Found while merging main:** main's 0372 re-stated `approve_indoor_dc` without my D-145 skip. My 0360 is now 0438, built on 0372. It skips the visit only when the call is already Solved and the workshop's visit would not be Solved, so both changes stand.
 - **Checked:** `review_decisions_2_test`, and the three older fixtures the new rules broke, updated (`call_creator`, `call_registrant`, `review_batch_6`).
 
-### 2026-10-04 — Review batch 6: eleven defects fixed (v0.10.180, 0371, 0373, 0424, 0425)
+### 2026-10-04 — Review batch 6: eleven defects fixed (v0.10.181, 0371, 0373, 0424, 0425)
 - **Your ask:** *"D107, I don't have clarity. Park it. Move to the next batch"*. D-107 is recorded as parked. D-102 waits on your reading of `_d102_calls_mapped_by_call_number.sql`.
 - **Database:**
   - **D-108, D-116 (0424):** `record_indoor_visit()` is revoked from signed-in users; the visit column comments are corrected.
@@ -248,7 +248,7 @@ checked.
   - **D-099 follow-up:** unsaved machine lines survive a re-read.
 - **Checked:** `review_batch_6_test` is clean with 0371, 0373, 0424 and 0425. On a database built without them, every section fails. `indoor_stages_test` and `indoor_delete_job_test` were updated for the revoke. `_status.sql` rows 328–321; OQ-280. Not run in a browser.
 
-### 2026-10-04 — Review batch 5: ten defects fixed (v0.10.179, 0366–0368)
+### 2026-10-04 — Review batch 5: ten defects fixed (v0.10.180, 0366–0368)
 - **Your ask:** *"Next batch"*. I took the open defects that need no decision.
 - **Database:**
   - **D-140, D-058, D-138 (0366):** the masters' required fields and case-variant codes; the KYC verifier kept when the status is unchanged (the rename half was already closed by 0335); a product line that Indoor jobs name is not deleted, and `product_line_name_uses()` backs the rename warning. These are triggers, not a unique index, so the migration cannot fail on a pair the live data already holds.
@@ -264,7 +264,7 @@ checked.
   - **D-107:** a real fix means only an issued Indoor DC can send a unit out.
 - **Checked:** `review_batch_5_test` is clean with the migrations. On a database built without 0366–0368, every section fails. `_status.sql` rows 300–302; OQ-279.
 
-### 2026-10-04 — Your decisions built: ten defects (v0.10.178, 0361–0363, 0369 and 0438)
+### 2026-10-04 — Your decisions built: ten defects (v0.10.179, 0361–0363, 0369 and 0438)
 - **Your answers**, one question at a time: D-125 (own name, team for RM/RGM, anybody else by a key ticked per person; spare requests also Technical Support), D-145 (approve, skip that visit), D-149 (blank only if a transfer set it), D-150 (button only on dealer transfers; the database refuses a duplicate call number and a second installation call), D-151 (Party Master decides), D-152 (just flag it for now), D-154 (at the Call Request), D-111 (lock once signed; a new key to un-sign), D-112 (the date it is marked Dispatched), D-114 (allow an earlier time).
 - **Database:**
   - **D-125 (0369):** `filed_under_own_name` on visits, consumption and spare requests; `created_by` stamped from the session. Before writing it I read every path that files in somebody else's name: imports, Reconciliation and the functions that do it by design are exempt.

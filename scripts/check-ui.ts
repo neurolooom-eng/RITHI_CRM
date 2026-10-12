@@ -27,7 +27,7 @@ import { periodKey } from '../src/modules/FieldFailureInsights';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
-import { manualMatchesCall, docTags } from '../src/lib/docmatch';
+import { manualMatchesCall, docTags, noteMatchesCall, docMatchesCall } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callreview';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
@@ -582,6 +582,37 @@ console.log('\n-- which manuals belong on a call --');
     manualMatchesCall(cpxManual, { product: 'EXTEND-XT', complaint: 'AIR SUPPLY FAILURE', reported: 'no air' }), false);
   // Tags below the floor cannot match everything.
   eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
+}
+
+// ONLY A TECHNICAL NOTE TAGGED LATEST IS OFFERED ON A CALL (the user,
+// 2026-10-12), and Latest FOR THE PRODUCT THAT BROUGHT IT THERE -- the mark is
+// per product (0354), so a two-product note can be Latest for one only.
+console.log('\n-- only the Latest Technical Notes on a call --');
+{
+  const extendXT = { product: 'EXTEND-XT', complaint: 'NO OUTPUT PRESSURE-ASU,CPX', reported: 'CPX care failure - No output pressure' };
+  eq('a note Latest for the call\'s machine is offered',
+    noteMatchesCall({ product: 'EXTEND-XT', tags: '', latest_for: ['EXTEND-XT'] }, extendXT), true);
+  eq('a note for the machine that is NOT Latest is not',
+    noteMatchesCall({ product: 'EXTEND-XT', tags: '', latest_for: [] }, extendXT), false);
+  eq('a two-product note Latest only for the OTHER product is not offered',
+    noteMatchesCall({ product: 'MONNAL T60, EXTEND-XT', tags: '', latest_for: ['MONNAL T60'] }, extendXT), false);
+  eq('...and is, where it is Latest for this machine',
+    noteMatchesCall({ product: 'MONNAL T60, EXTEND-XT', tags: '', latest_for: ['EXTEND-XT'] }, extendXT), true);
+  eq('a note with no product is offered only if Latest for Every product',
+    [noteMatchesCall({ product: '', tags: '', latest_for: [''] }, extendXT),
+     noteMatchesCall({ product: '', tags: '', latest_for: [] }, extendXT)], [true, false]);
+  eq('an accessory note reached through its tags needs its own Latest tag',
+    [noteMatchesCall({ product: 'CPX CARE', tags: 'CPX Care Failure', latest_for: ['CPX CARE'] }, extendXT),
+     noteMatchesCall({ product: 'CPX CARE', tags: 'CPX Care Failure', latest_for: [] }, extendXT)], [true, false]);
+  eq('a Latest note for another product is still not dragged in',
+    noteMatchesCall({ product: 'MONNAL T60', tags: 'Alarm 012', latest_for: ['MONNAL T60'] }, extendXT), false);
+  eq('a SERVICE MANUAL has no Latest mark and keeps the manuals\' rule',
+    docMatchesCall({ kind: 'service_manual', product: 'EXTEND-XT', tags: '' }, extendXT), true);
+  eq('a NOTE goes through the Latest rule',
+    docMatchesCall({ kind: 'service_note', product: 'EXTEND-XT', tags: '', latest_for: [] }, extendXT), false);
+  const src = readFileSync('src/lib/supabase.ts', 'utf8');
+  eq('serviceManualsForProduct filters with docMatchesCall, not manualMatchesCall',
+    /serviceManualsForProduct[\s\S]{0,1600}docMatchesCall\(r,/.test(src) && !/manualMatchesCall\(r,/.test(src), true);
 }
 
 // ---------------------------------------------------------------------------

@@ -204,7 +204,9 @@ Satisfaction %, and the average.
 Every date is an **India date** — a day runs midnight to midnight IST: "today", the period
 boundaries, a visit's date, a report's entry date, a call's registration time and a spare request's
 date. *(Until 0423 the open-call and attended rates took a visit's date in UTC, so a visit between
-00:00 and 05:30 IST counted the day before — D-168, fixed 12-Oct-2026.)*
+00:00 and 05:30 IST counted the day before — D-168, fixed 12-Oct-2026. That was nearly every visit:
+29,970 of the 31,262 on the live project are stored at exactly midnight IST, because an imported visit
+carries a date and no time.)*
 
 ### 4.2 Cancelled calls
 Cancelled calls are never counted in any calculation.

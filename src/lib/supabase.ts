@@ -19,7 +19,7 @@ import { byColumnSet, planConsumptionVisitUpload, planSpareLineParents, describe
   type UploadPlan } from './uploads';
 import { callFamily, callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { manualMatchesCall } from './docmatch';
+import { docMatchesCall } from './docmatch';
 import { masterValueApplies } from './dccr';
 import { callAging } from './aging';
 import { rankSerialHits, reqidOrRefusal, NOTHING_SAVED } from './callrequest';
@@ -5889,12 +5889,16 @@ export async function serviceManualsForProduct(
   const { data, error } = await c.from('documents')
     // Technical / Service Notes too (the user, 2026-09-30: "Supporting
     // documents should list Technical Notes as well -- all the active ones"),
-    // by the same rule. Retired ones are never offered.
+    // by the same rule. Retired ones are never offered -- and since
+    // 2026-10-12 only a note tagged Latest for the product that brought it
+    // here ("list only the Technical notes tagged as Latest"; noteMatchesCall).
     .select('*').in('kind', ['service_manual', 'service_note']).eq('active', true).order('kind').order('title');
   if (error) return [];
   const rows = (data ?? []) as DocRow[];
-  if (!(product ?? '').trim() && !complaint && !reported) return rows;
-  return rows.filter((r) => manualMatchesCall(r, { product, complaint, reported }));
+  if (!(product ?? '').trim() && !complaint && !reported) {
+    return rows.filter((r) => r.kind !== 'service_note' || (r.latest_for ?? []).length > 0);
+  }
+  return rows.filter((r) => docMatchesCall(r, { product, complaint, reported }));
 }
 
 export async function addDocument(d: DocInput): Promise<{ ok: boolean; id?: number; error?: string }> {

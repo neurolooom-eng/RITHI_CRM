@@ -25,7 +25,9 @@ import './fieldcalls.css';
 // ACCESSORY's manual reaches the call that names the accessory, whatever
 // machine it is fitted to (lib/docmatch.ts). A manual with no product is a
 // general one and is offered on every call. Active Technical / Service Notes
-// are offered by the same rule, against each product a note names.
+// are offered by the same rule, against each product a note names -- and only
+// where tagged Latest for the product that brought them here (2026-10-12,
+// noteMatchesCall).
 // ===========================================================================
 
 type Row = Record<string, unknown>;
@@ -184,7 +186,7 @@ export function SupportingDocs({ product, complaint, reported }: { product: stri
         <div className="detail-hint">
           No service manual, technical note or article is filed for {product.trim() ? <b>{product}</b> : 'this machine'} yet.
           Manuals and notes are added under <b>Service Manuals</b> and <b>Technical / Service Notes</b>; one with no
-          product set is offered on every call.
+          product set is offered on every call. A technical note is offered only while it is tagged <b>Latest</b> for the product.
         </div>
       )}
       {!empty && (
