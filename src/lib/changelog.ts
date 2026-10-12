@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.175',
+    date: '2026-10-12',
+    title: 'Request Call Registration: the Planned Visit Date is saved as shown',
+    changes: [
+      'FIXED: when a call was not yet attended, the Planned Visit Date showed today but was saved blank unless a date was picked. The date shown is now the date saved.',
+    ],
+  },
+  {
     version: '0.10.174',
     date: '2026-10-12',
     title: 'The Missed PM switch is hidden in Audit Mode',

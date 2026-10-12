@@ -4,18 +4,18 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-12T14:25:27.885Z
-- **Took** 185s
-- **Commit** `b0a9aa59` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.174
+- **Run at** 2026-10-12T15:47:58.331Z
+- **Took** 16s
+- **Commit** `a18b998d` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.175
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
-| Database suites | 175 | 175 |
-| Automated checks | 22 | 22 |
-| Labelled `expect ERROR` outcomes matched | 413 | 413 |
+| Database suites | 0 | 0 |
+| Automated checks | 15 | 22 |
+| Labelled `expect ERROR` outcomes matched | 0 | 0 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
 built from every migration, because run against one shared database they
@@ -29,14 +29,16 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `426 migrations applied to a fresh database` | ✅ pass |  |
+| `building the template database` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused
+	Is the server running locally and accepting connections on that socket?
+ |
 
 ## Automated checks
 
 | | Result | |
 | --- | --- | --- |
 | `check:bundles` | ✅ pass | no NEW object is split across modules (604 checked, 37 known and listed) |
-| `check:columns` | ✅ pass | every column of all 37 registers exists |
+| `check:columns` | ❌ **FAIL** | > esbuild scripts/check-upload-columns.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-upload-columns.mjs --log-level=error && node node_modules/.cache/check-upload-columns.mjs -h /tmp/pg -p 55432 -U postgres -d val_checks · psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Err |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
 | `check:generated` | ✅ pass | every generated bundle matches its migrations (133 checked) |
@@ -44,23 +46,23 @@ stopped working produces a suite that runs clean.
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
 | `check:nar003` | ✅ pass | all passed |
-| `check:orders` | ✅ pass |   ✓ 197 order columns across 71 relations |
+| `check:orders` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -Atc  |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
 | `check:picklist:open` | ✅ pass | all passed |
-| `check:replay` | ✅ pass | every bundle (31) replays with no change to the schema |
-| `check:reports` | ✅ pass | all passed |
+| `check:replay` | ❌ **FAIL** | node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c create database rithi_replay_ref · psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused |
+| `check:reports` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -Atc select string_agg(column_name, E'\n' order by ordinal_position) |
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 352 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 339 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
-| `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
-| `check:views` | ✅ pass | every view over an RLS-protected table applies RLS to the reader |
+| `check:upserts` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -Atc select coalesce((select relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='field_calls'), '?') |
+| `check:views` | ❌ **FAIL** | psql: error: connection to server on socket "/tmp/pg/.s.PGSQL.55432" failed: Connection refused · node:internal/errors:983 ·   const err = new Error(message); · Error: Command failed: psql -h /tmp/pg -p 55432 -U postgres -d val_checks -At -c  |
 
 ## Database suites
 
-### ✅ 175 suite(s) clean
+### ✅ 0 suite(s) clean
 
-`additional_entry_machine_key` · `admin_keys_grantable` · `admin_reset_password` · `analysis_roles` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel_batch` · `call_cancel` · `call_cancelled_state` · `call_creator` · `call_edit_sections` · `call_refresh_from_masters` · `call_registrant` · `call_reopen` · `call_request_edit` · `call_request_unmap` · `call_requests` · `calls_view_honest_update` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_needs_visit` · `consumption_report` · `consumption_visit_dates` · `convert_skips_transferred` · `cover_code` · `cover_expiry` · `daily_call_review` · `data_export` · `dccr_auto_review_switch` · `dccr_failure_cohort` · `dccr_history_import` · `dccr_updated_by` · `delete_so16233_ky732930` · `delete_voided_ky550200_consumption` · `device_cache_status` · `directory_rename_carries_records` · `directory_rename_carries_team` · `dispatched_by_stamped` · `document_drive_details` · `documents` · `drop_or44271_ky550200` · `engineer_address` · `export_schedule` · `failure_within_months` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `feedback_without_report` · `ffr_call_context` · `ffr_import` · `ffr_log_raised_date` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_update_sheet_import` · `ffr_view_right` · `frequent_failure_rule2` · `frequent_failure` · `handstock_adjustments` · `handstock_balance_all` · `handstock_needs_nsm` · `handstock_opening` · `handstock_starts_at_winmax` · `handstock` · `high_batch_1` · `high_batch_2` · `how_rithi_functions_key` · `indoor_call_status` · `indoor_dc` · `indoor_dc_user_master` · `indoor_delete_job` · `indoor_register_pdt` · `indoor_service` · `indoor_stages` · `install_call_mapping_once` · `install_call_registers_requests` · `install_warranty_start` · `installation_warranty_starts` · `kpi_field_inst` · `labour_charges` · `link_install_call` · `lockdown` · `master_add_edit_delete` · `master_list_permissions` · `material_returns` · `missed_pm` · `negative_handstock` · `objective_ffr_count` · `objective_overrides` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `part_hsn_code` · `party_kyc` · `party_service_engineer` · `pdqc` · `people_training` · `permissions_by_screen` · `pm_due` · `pm_spare_dccr` · `product_accessories` · `product_database_2_materialised` · `product_database_v2` · `product_serial_key` · `quality_objectives` · `reconciliation_needs_no_visit` · `refurb_audit_mode` · `registers_fill_product_database` · `reliability_wrr` · `rename_part` · `retention` · `review_actual_product` · `review_batch_3` · `review_batch_4` · `role_table_views` · `sales_contracts` · `saved_charts` · `service_note_latest` · `service_note_upload_key` · `service_notes_batch_save` · `sold_through_dealer` · `solved_without_report` · `spare_approval_forms` · `spare_approval_whole_word` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_engineer_from_history` · `spare_fixes_0311` · `spare_import_exemption` · `spare_insights_ist_window` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_recycling` · `spare_request_files_visit` · `spare_request_follows_call` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `stores_dispatch_report` · `stores_spare_view_all` · `sys_columns` · `technical_support` · `tracker` · `transfer_fresh_warranty` · `transfer_ot_number_invoice` · `transferred_machine_address` · `ucn_daily_reset` · `unresolved_login` · `unused_spare_report` · `user_directory_role` · `user_master_sync` · `user_signatures` · `user_tags` · `view_all_except_three` · `visible_engineers_blank` · `visible_engineers` · `visit_date` · `warranty_party_refresh_once` · `winmax_opening_good_only` · `zoho_migration_role` · `zoho_readonly`
+
 

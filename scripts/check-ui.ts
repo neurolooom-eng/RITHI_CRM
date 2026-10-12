@@ -1853,6 +1853,15 @@ console.log('\n-- the evidence workbook --');
     && /saveCutoff\(i \+ 1, e\.target\.value\)/.test(obj), true);
   // Re-Calculate READS them; setting is its own act. Two ways to set one thing
   // is how a figure ends up disagreeing with the setting behind it.
+  // THE PLANNED VISIT DATE SAVES WHAT IT SHOWS (D-167): the field displays
+  // today when untouched, and the submit used to send blank for it.
+  {
+    const rcr = code(readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8'));
+    eq('the Planned Visit Date shows today when untouched',
+      /value=\{f\.planDate \|\| todayISO\(\)\}/.test(rcr), true);
+    eq('...and saves today when untouched, not blank',
+      /plan_date: attended \? \(f\.planDate \|\| null\) : \(f\.planDate \|\| todayISO\(\)\)/.test(rcr), true);
+  }
   eq('Re-calculate reads the cut-offs and does not set one',
     // Its only other argument is the manual-override choice (0349) -- never a
     // date. The Missed PM switch (FRS-121.16) passes `true`: it keeps them.
