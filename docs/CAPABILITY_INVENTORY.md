@@ -249,6 +249,7 @@ Purpose: the yearly quality and business objectives, with monthly figures that a
 | 13 | Scope chip; not-connected and "no objectives for YEAR — run objective.sql" messages | :453, 456-461, 590-592 | none | GAP | |
 | 14 | Count Missed PMs tick on a PM open-rate objective's definition: unticked (default) leaves out PM calls added after their month, from the figure and the evidence; the evidence says which | Objective.tsx (setMissedPm); 0418 | Objective edit rights | FRS-121.15, NAR-010, OQ-276 | Not shown while Audit Mode is on |
 | 15 | Missed PM: Excluded / Included switch on a PM objective's row — saves the setting and re-calculates the year (overrides kept); disabled without the right | Objective.tsx (switchMissedPm) | objective.manage | NAR-010 | Not shown while Audit Mode is on |
+| 16 | Customer feedback objective computed as the Customer Feedback workbook (feedback_satisfaction); its evidence lists each feedback with every score | Objective.tsx (feedback_satisfaction); 0422 | objective.manage to set; calls.view / reports.view to read evidence | FRS-121.17, OQ-277 | |
 
 ### Field Failure Register (`/failure-report`) — `src/modules/FieldFailureReport.tsx` (+ `FieldFailureDesk.tsx`, `FieldFailureInsights.tsx`)
 Purpose: the register of Field Failure Reports (R-SER-03): raise, complete, weekly-review, print and analyse them.

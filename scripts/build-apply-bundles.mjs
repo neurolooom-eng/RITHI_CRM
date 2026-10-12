@@ -622,7 +622,11 @@ const MODULES = {
             // A Missed PM (added after its month) is left out of the PM
             // objective unless it says to count it (0418). Restates
             // objective_value and objective_evidence, one branch each.
-            '0418_missed_pm_left_out.sql'],
+            '0418_missed_pm_left_out.sql',
+            // The Customer Feedback objective as the workbook works it out
+            // (0422): feedback_satisfaction() + one branch in objective_value
+            // and objective_evidence each.
+            '0422_feedback_satisfaction_objective.sql'],
   },
   validation: {
     title: 'Software Validation',

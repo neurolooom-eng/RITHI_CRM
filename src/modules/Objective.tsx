@@ -292,6 +292,51 @@ export function Objective() {
       } catch (e) { setOMsg(e instanceof Error ? e.message : String(e)); }
       return;
     }
+    // CUSTOMER FEEDBACK SATISFACTION (0422): the workbook's own layout -- one
+    // row per feedback counted, each question's score, the call's
+    // Satisfaction %, and the average that is the figure.
+    if (o.calc_key === 'feedback_satisfaction') {
+      try {
+        const [rows, period] = await Promise.all([objectiveEvidence(o.id, monthIndex + 1), objectivePeriod(o.id, monthIndex + 1)]);
+        if (period && !period.applies) { setOMsg(period.label || 'That month has not been reached yet.'); return; }
+        if (!rows.length) { setOMsg('No feedback has a visit date in that period.'); return; }
+        const det = (r: Record<string, unknown>) => (r.details ?? {}) as Record<string, unknown>;
+        const questions = [...new Set(rows.flatMap((r) => Object.keys(det(r))
+          .filter((k) => k !== 'Satisfaction %' && k !== 'Scored on')))];
+        const pcts = rows.map((r) => Number(det(r)['Satisfaction %']));
+        const avg = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+        const stored = o[MONTH_KEYS[monthIndex]];
+        const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+        xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
+          { name: 'Feedback counted',
+            columns: ['UCN', 'Call No', 'Visit Date (Solved Date)', 'Call Type', 'Product', 'Serial', 'Party', 'Engineer', 'Scored on', ...questions, 'Satisfaction %'],
+            rows: rows.map((r) => ({
+              UCN: r.ucn, 'Call No': r.call_number, 'Visit Date (Solved Date)': r.reg_date, 'Call Type': r.call_type,
+              Product: r.product_name, Serial: r.serial, Party: r.party_name, Engineer: r.allocated_to,
+              'Scored on': det(r)['Scored on'],
+              ...Object.fromEntries(questions.map((q) => [q, det(r)[q] ?? 'NA'])),
+              'Satisfaction %': Number(det(r)['Satisfaction %']),
+            })) },
+          { name: 'Calculation', columns: ['Item', 'Value'], rows: [
+            { Item: 'Objective', Value: o.parameter },
+            { Item: 'Reported in', Value: `${YEAR} ${MONTHS[monthIndex]}` },
+            { Item: 'Measured over', Value: period?.label || '' },
+            { Item: 'Feedback dated (visit date)', Value: period ? `${period.period_start} to ${period.period_end}` : '' },
+            { Item: 'Scores', Value: 'Excellent 4, Good 3, Average 2, Poor 1' },
+            { Item: 'A call\'s Satisfaction %', Value: 'an installation call (any call type with INSTALLATION): its 5 installation questions / 20; any other call: its 6 PM / Field questions / 24' },
+            { Item: 'Left out', Value: 'feedback missing an answer to one of its questions' },
+            { Item: 'Feedback counted', Value: rows.length },
+            { Item: 'Average Satisfaction % (the figure)', Value: Number(avg.toFixed(6)) },
+            { Item: 'Figure on the Objective page', Value: stored == null ? '(blank)' : Number(stored) },
+            { Item: 'Agrees with this file?', Value: stored == null ? 'no figure recorded'
+                : Math.abs(Number(stored) - avg) < 1e-6 ? 'yes' : 'NO — re-calculate; the feedback has changed since the figure was written' },
+            { Item: 'Downloaded', Value: new Date().toISOString() },
+          ] },
+        ], COMPLETE);
+        setOMsg(`Downloaded the evidence for ${o.parameter} — ${MONTHS[monthIndex]}: ${rows.length} feedback, average ${(avg * 100).toFixed(2)}%.`);
+      } catch (e) { setOMsg(e instanceof Error ? e.message : String(e)); }
+      return;
+    }
     try {
       const [rows, notes, period] = await Promise.all([
         objectiveEvidence(o.id, monthIndex + 1),
@@ -861,6 +906,7 @@ export function Objective() {
                   { value: 'failure_rate_12m', label: 'failure_rate_12m — machines failed within 3 months of installation ÷ installed in a rolling 12 months (set on SLA / Objective Configuration)' },
                   { value: 'open_rate_monthly', label: "open_rate_monthly — still open at the cut-off ÷ that period's calls" },
                   { value: 'attended_within_days', label: "attended_within_days — attended inside the limit ÷ that period's calls" },
+                  { value: 'feedback_satisfaction', label: 'feedback_satisfaction — the Customer Feedback workbook: each call\'s Satisfaction % (Excellent 4 … Poor 1; installation /20, PM / Field /24), averaged over the feedback whose visit date is in the period' },
                 ]} />
             </div>
             {String(defDraft.calc_key ?? '') === 'open_rate_monthly' && (

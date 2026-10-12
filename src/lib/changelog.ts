@@ -14,6 +14,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.176',
+    date: '2026-10-12',
+    title: 'Objective: Customer feedback worked out as the Customer Feedback workbook does',
+    changes: [
+      'The Customer feedback objective is now calculated, the way the Customer Feedback workbook calculates it. Each answer is scored Excellent 4, Good 3, Average 2, Poor 1. An installation call\'s satisfaction is its 5 installation answers out of 20; any other call\'s is its 6 PM / Field answers out of 24. The figure is the average satisfaction of the feedback whose visit date falls in the period.',
+      'Press Re-Calculate to fill it. The 95% typed in for March and June is replaced by the calculated figure (about 94.5% and 95.4%).',
+      'The evidence download lists every feedback counted, with each answer\'s score and its satisfaction %, and the average.',
+    ],
+  },
+  {
+    version: '0.10.175',
+    date: '2026-10-12',
+    title: 'Request Call Registration: the Planned Visit Date is saved as shown',
+    changes: [
+      'FIXED: when a call was not yet attended, the Planned Visit Date showed today but was saved blank unless a date was picked. The date shown is now the date saved.',
+    ],
+  },
+  {
     version: '0.10.174',
     date: '2026-10-12',
     title: 'The Missed PM switch is hidden in Audit Mode',
