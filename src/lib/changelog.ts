@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.163',
+    date: '2026-10-12',
+    title: 'Hand Stock: Balance after no longer counts the opening twice',
+    changes: [
+      'FIXED: in a line\'s Movements table, Balance after read too high by the opening balance on every row. For example, EM-851 / SIVAKUMAR showed 10 and 9 where the stock level is 4. The opening is itself the first movement on the trail and was being added a second time. The column now ends on the stock level.',
+      'If a line\'s full movement trail ever adds up to something other than its stock level, the drawer now says so, with both figures, so it can be looked into.',
+    ],
+  },
+  {
     version: '0.10.162',
     date: '2026-10-11',
     title: 'FFR Update log: a loaded report starts on its FFR Date',
