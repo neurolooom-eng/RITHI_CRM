@@ -14,6 +14,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.166',
+    date: '2026-10-12',
+    title: 'Hand Stock starts at the WinMax opening; labour charges on a consumption',
+    changes: [
+      'Hand stock now counts from 09-Jun-2022, the WinMax opening. Consumption, stock outs and returns from before that day are inside the opening balance, so they are no longer counted again. For example, MP-010 / SUNIL KUMAR.K.V now reads 1 instead of −2. Nothing is deleted: the old records stay where they were, and the Hand Stock page says the day it counts from.',
+      'A day now starts at midnight India time for hand stock, not at 05:30.',
+      'Labour charges (SC001 Service Charges, TC001 Transportation Charges, INS-001 Installation Charges) can be added to a consumption on a visit, on Spare Consumption and on Call Review. They are always offered whatever the engineer holds, and their quantity is always 1.',
+      'Labour charges are not hand stock. They no longer appear on Hand Stock, no longer read below zero and no longer send the Spare Coordinator a negative-stock notice. They still appear in every consumption report.',
+      'The Part Master has a new Labour Charge tick, on the list and on the add and edit forms. The three charges above are ticked already.',
+      'WinMax opening stock: a row whose Good Balance is blank (zero) is now kept as an opening of 0 instead of being left out. To bring back the rows the last fix left out, load the WinMax export again (Bulk Uploads → Opening Stock — the WinMax export).',
+    ],
+  },
+  {
     version: '0.10.165',
     date: '2026-10-12',
     title: 'Hand Stock: the WinMax opening is the Good Balance only',

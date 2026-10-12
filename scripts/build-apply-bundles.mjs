@@ -1098,6 +1098,14 @@ const MODULES = {
             // The WinMax opening is the Good Balance only (D-161, 0411): a
             // one-time, re-runnable data fix of the WinMax HS pool.
             '0411_winmax_opening_good_only.sql',
+            // Hand stock starts at the WinMax opening, 09-Jun-2022 (D-162, 0412):
+            // the period line, drawn at midnight in India, and the close reads
+            // the same line. Redefines 0096's handstock_cutoff and close.
+            '0412_handstock_starts_at_winmax.sql',
+            // Labour charges (D-163, 0413): parts.labour_charge, out of every arm
+            // of handstock_movements (wraps 0266's view), no negative-stock
+            // notice (redefines 0401's), quantity 1 on a consumption.
+            '0413_labour_charges.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

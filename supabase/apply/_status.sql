@@ -2160,7 +2160,20 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select p.prosrc like '%rithi.ffr_sheet_import%'
                      from pg_proc p where p.oid = to_regprocedure('public.ffr_history_write()')), false))),
     (334, 'An imported FFR''s update log starts on its FFR Date', 'ffr_history_created() (0410): a report loaded from the old register is logged as raised on its FFR Date, the load time kept as changes._loaded_at (and, once, the entries already written moved to it). Only the function is tested: an FFR Date corrected later leaves its entry on the date the report was raised with, which is not a fault. NO means imported reports are still logged as raised on the day they are loaded. Restore: data_integrity.sql (0410)',
-        (coalesce((select p.prosrc like '%_loaded_at%' from pg_proc p where p.oid = to_regprocedure('public.ffr_history_created()')), false)))
+        (coalesce((select p.prosrc like '%_loaded_at%' from pg_proc p where p.oid = to_regprocedure('public.ffr_history_created()')), false))),
+    (335, 'Hand stock starts at the WinMax opening, 09-Jun-2022', 'handstock_line(date) (0412): the period line at midnight in India, read by handstock_cutoff() and close_handstock_period() alike; handstock_period closed through 08-Jun-2022 or later, so nothing older than the WinMax opening is counted. NO means hand stock still counts movements the WinMax opening already holds, or splits days at 05:30 IST. Restore: HandStock_X.sql (0412)',
+        (to_regprocedure('public.handstock_line(date)') is not null
+     and coalesce((select p.prosrc like '%handstock_line%' from pg_proc p where p.oid = to_regprocedure('public.handstock_cutoff()')), false)
+     and coalesce((select p.prosrc like '%handstock_line(p_through)%' from pg_proc p where p.oid = to_regprocedure('public.close_handstock_period(date)')), false)
+     and coalesce((select closed_through >= date '2022-06-08' from public.handstock_period limit 1), false))),
+    (336, 'Labour charges are booked, never stock', 'parts.labour_charge, labour_part_codes() and the trigger labour_charge_qty_one on spare_consumption (0413): a labour charge is quantity 1, has no hand stock line (handstock_movements leaves it out) and sends no negative-stock notice. NO means SC001 / TC001 / INS-001 still show as hand stock below zero. Restore: HandStock_X.sql (0413)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'parts' and column_name = 'labour_charge')
+     and to_regprocedure('public.labour_part_codes()') is not null
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.spare_consumption') and tgname = 'labour_charge_qty_one')
+     and coalesce(pg_get_viewdef(to_regclass('public.handstock_movements')) like '%labour_part_codes%', false)
+     and coalesce((select p.prosrc like '%labour_part_codes%' from pg_proc p
+                     where p.oid = to_regprocedure('public.notify_negative_handstock(text,text,numeric,numeric,text,text)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

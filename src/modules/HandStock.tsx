@@ -7,7 +7,7 @@ import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { useArrivingFilter } from '../lib/arriveWith';
 import {
-  listHandstockBalanceAll, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
+  listHandstockBalanceAll, handstockCountedFrom, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
 } from '../lib/supabase';
 import { PickList } from '../components/ui/PickList';
 import { useMaster } from '../lib/masters';
@@ -20,7 +20,7 @@ import {
 } from '../lib/handstock';
 import './fieldcalls.css';
 import { partial, searchScope } from '../lib/exportscope';
-import { formatDayTime, todayLocal } from '../lib/dates';
+import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
 import { COMPLETE, cappedAt } from '../lib/exportscope';
 
@@ -173,6 +173,14 @@ export function HandStock() {
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
 
+  // WHERE THE COUNT STARTS (0412): 09-Jun-2022, the WinMax opening. Said on
+  // the screen, or a consumption from before it reads as lost.
+  const [countedFrom, setCountedFrom] = useState<string | null>(null);
+  useEffect(() => {
+    if (!onDb) return;
+    handstockCountedFrom().then(setCountedFrom).catch(() => setCountedFrom(null));
+  }, [onDb]);
+
   const load = async () => {
     if (!onDb) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading hand stock…' });
@@ -283,7 +291,9 @@ export function HandStock() {
         onRefresh={() => void load()}
         refreshing={busy}
         title="Hand Stock"
-        subtitle="Stock level per engineer and spare: opening + stock out from Stores − consumption − transfers out + transfers in − returns ± adjustments."
+        subtitle={'Stock level per engineer and spare: opening + stock out from Stores − consumption − transfers out + transfers in − returns ± adjustments.'
+          + (countedFrom ? ` Counted from ${formatDay(countedFrom)}: anything older is inside that day's opening balance and is not counted again.` : '')
+          + ' Labour charges (service, transport, installation) are not hand stock.'}
         icon="🎒"
         count={visible.length}
         // EXACT once the whole balance is in; a "+" only over a device cache
