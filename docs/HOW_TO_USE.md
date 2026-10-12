@@ -1252,8 +1252,11 @@ typed into a form that reads it.
   > once. If one cannot be saved, none are, and the message names the note.
   > **Cancel** asks before throwing changes away.
   > **A note can cover several products** — tick them all. None ticked means it
-  > applies to every product. **A call's 📄 Supporting documents lists every
-  > active note for its product** beside the manuals; a retired note is not offered.
+  > applies to every product. **A call's 📄 Supporting documents lists only the
+  > notes tagged Latest for its product** beside the manuals — an older note for
+  > the same product is not offered, nor a retired one. A note with no product is
+  > offered only while it is Latest for Every product, and an accessory's note
+  > (reached through its Tags) only while it is Latest for that accessory.
   > **Added, Added By and Updated are Drive's** for a note loaded from the Drive
   > listing — its Created, Last Modified By and Last Modified. When and by whom
   > it was entered in RITHI is under **Record details** when you edit it.

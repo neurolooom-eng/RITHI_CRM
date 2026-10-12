@@ -68,3 +68,42 @@ export function manualMatchesCall(doc: ManualLike, call: CallWords): boolean {
   if (!words) return false;
   return docTags(doc.tags).some((t) => words.includes(t));
 }
+
+// ---------------------------------------------------------------------------
+// A TECHNICAL NOTE IS OFFERED ONLY WHERE IT IS THE LATEST (the user,
+// 2026-10-12: "in supporting Docs, list only the Technical notes tagged as
+// Latest"; settled the same day: Latest for THIS call's product, and an
+// accessory's note only where it is Latest for the accessory it names).
+//
+// The Latest mark is PER PRODUCT (`documents.latest_for`, 0354, written only by
+// the database; '' = "Every product"), because a note naming two products can
+// be the newest for one and not the other. So the question is never "is this
+// note Latest?" but "is it Latest for the product that brought it here?":
+//
+//   • a note naming no product      → only if Latest for Every product
+//   • a note naming the call's machine → only if Latest for that machine
+//   • an accessory's note, reached through its tags (it names none of the
+//     call's machine) → only if Latest for a product it names
+//
+// Service manuals are untouched: they have no Latest mark.
+// ---------------------------------------------------------------------------
+
+export interface NoteLike extends ManualLike { latest_for?: unknown }
+
+/** Is this Technical Note offered on this call? */
+export function noteMatchesCall(doc: NoteLike, call: CallWords): boolean {
+  const latest = Array.isArray(doc.latest_for) ? doc.latest_for.map((p) => norm(p)) : [];
+  const owns = docProducts(doc.product);
+  if (!owns.length) return latest.includes('');
+
+  const want = norm(call.product);
+  const isCalls = (p: string) => !!want && !!p && (p === want || want.includes(p) || p.includes(want));
+  if (owns.some(isCalls)) return latest.some(isCalls);
+
+  return manualMatchesCall(doc, call) && latest.some(Boolean);
+}
+
+/** The one test a call's Supporting documents applies to each document. */
+export function docMatchesCall(doc: NoteLike & { kind?: unknown }, call: CallWords): boolean {
+  return doc.kind === 'service_note' ? noteMatchesCall(doc, call) : manualMatchesCall(doc, call);
+}
