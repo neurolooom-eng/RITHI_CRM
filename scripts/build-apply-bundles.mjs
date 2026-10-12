@@ -618,7 +618,11 @@ const MODULES = {
             // A recent failure rate counts failures up to TODAY, the month only
             // choosing the twelve commissioning months (0416). Restates 0393's
             // objective_value with one branch changed.
-            '0416_recent_failure_as_of_today.sql'],
+            '0416_recent_failure_as_of_today.sql',
+            // A Missed PM (added after its month) is left out of the PM
+            // objective unless it says to count it (0418). Restates
+            // objective_value and objective_evidence, one branch each.
+            '0418_missed_pm_left_out.sql'],
   },
   validation: {
     title: 'Software Validation',

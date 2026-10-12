@@ -1405,6 +1405,10 @@ typed into a form that reads it.
     month's figure rises on Re-Calculate when a late failure comes in. ⭳ Download
     gives the table, the failing calls and the months averaged.
   - **Every percentage shows two decimal places** (1.01%, 12.50%).
+  - **Missed PMs are left out of the PM objective.** A Missed PM is a PM call
+    whose **Added On** date is after the month it is registered for — a March
+    PM added in October. Tick **Count Missed PMs** in the objective's definition
+    to count them; the evidence download says which way it was counted.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
   - **You can type over a calculated (ƒ) month.** It becomes a **manual
