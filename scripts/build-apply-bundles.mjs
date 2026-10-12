@@ -614,7 +614,11 @@ const MODULES = {
             // Re-calculate only Active objectives, and the DCCR rate counted
             // once per month (2026-10-06). Restates 0349's recalc and 0393's
             // two helpers, so after both.
-            '0396_objective_recalc_active_fast.sql'],
+            '0396_objective_recalc_active_fast.sql',
+            // A recent failure rate counts failures up to TODAY, the month only
+            // choosing the twelve commissioning months (0416). Restates 0393's
+            // objective_value with one branch changed.
+            '0416_recent_failure_as_of_today.sql'],
   },
   validation: {
     title: 'Software Validation',

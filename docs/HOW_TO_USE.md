@@ -1400,8 +1400,11 @@ typed into a form that reads it.
     Calibration** is **SPARE**, or whose **Any Potential Effect** is **YES**;
     every call counts, so a rate can pass 100%. A month younger than the window
     is blank. The objective's figure for a month is the **average of the 3-month
-    rates of the 12 months ending in it** (blanks left out). ⭳ Download gives the
-    table, the failing calls and the months averaged.
+    rates of the 12 months ending in it** (blanks left out), **counting every
+    failure registered up to today** — no cut-off date applies, so an earlier
+    month's figure rises on Re-Calculate when a late failure comes in. ⭳ Download
+    gives the table, the failing calls and the months averaged.
+  - **Every percentage shows two decimal places** (1.01%, 12.50%).
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
     a formula, only up to this month, never a typed figure.
   - **You can type over a calculated (ƒ) month.** It becomes a **manual
@@ -1409,11 +1412,11 @@ typed into a form that reads it.
     calculation had said. Every Re-Calculate that finds overrides lists them and
     asks: **Keep** them (the default — they stay exactly as typed, every run) or
     **Discard** them (those months are recalculated and the ✎ goes).
-  - Each month is measured as at the end of that month.
-  - A **Recent Failure Rate** is the machines installed (warranty start) in the
-    last 12 months that had a field call within 3 months of installation, over
-    all the machines installed in those 12 months. Both numbers are set on
-    SLA / Objective Configuration.
+  - Each month is measured as at the end of that month — **except the Recent
+    Failure Rates**, which are measured as of today (above).
+  - A **Recent Failure Rate** is worked out from the DCCR, by month of
+    commissioning, as on the Failure Rate (DCCR) tab above. The 3 months and the
+    12 months are set on SLA / Objective Configuration.
   - A quarterly objective reports in its quarter's last month; the others read NA,
     not zero.
   - It shows its working on three tabs, the third counted from the first two.
