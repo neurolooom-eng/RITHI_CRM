@@ -30,12 +30,12 @@
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
 --   0378_pdqc_number.sql
---   0437_indoor_approval_skips_a_solved_call.sql
+--   0438_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0423_indoor_record_visit_closed_and_comments.sql
---   0431_indoor_reported_to_customer_stamp.sql
---   0433_indoor_parts_accessories_checks_voided.sql
+--   0424_indoor_record_visit_closed_and_comments.sql
+--   0432_indoor_reported_to_customer_stamp.sql
+--   0434_indoor_parts_accessories_checks_voided.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4578,11 +4578,11 @@ create trigger zy_pdqc_number before insert or update on public.pdqc_records
 alter table public.pdqc_records alter column pdqc_no set not null;
 
 -- ------------------------------------------------------------------------
--- 0437_indoor_approval_skips_a_solved_call.sql
+-- 0438_indoor_approval_skips_a_solved_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0437 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0438 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -4792,7 +4792,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0437.
+-- In the indoor module, after 0438.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -4981,11 +4981,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0423_indoor_record_visit_closed_and_comments.sql
+-- 0424_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0423 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0424 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --
@@ -5015,11 +5015,11 @@ comment on column public.indoor_jobs.visit_filed_at is
   'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
 
 -- ------------------------------------------------------------------------
--- 0431_indoor_reported_to_customer_stamp.sql
+-- 0432_indoor_reported_to_customer_stamp.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0431 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+-- 0432 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
 --        (second re-review D-039, FRS-143.9)
 --
 -- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
@@ -5030,7 +5030,7 @@ comment on column public.indoor_jobs.visit_filed_at is
 --   * a time in the future is refused (five minutes' grace for a clock);
 --   * clearing the time clears the person.
 -- A connection with no session (a repair, an import) is left alone.
--- In the indoor module, after 0423.
+-- In the indoor module, after 0424.
 -- ===========================================================================
 
 create or replace function public.indoor_reported_to_customer_stamp()
@@ -5058,16 +5058,16 @@ create trigger zzy_indoor_reported_to_customer
   for each row execute function public.indoor_reported_to_customer_stamp();
 
 -- ------------------------------------------------------------------------
--- 0433_indoor_parts_accessories_checks_voided.sql
+-- 0434_indoor_parts_accessories_checks_voided.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0433 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
+-- 0434 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
 --        (second re-review D-039, FRS-143.8)
 --
 -- The parts, accessories and checks under an indoor job were FOR ALL policies
 -- with DELETE granted (0158), and the screen offered Remove on each, so a
--- harvested part or a recorded check verdict could be erased. 0425 images the
+-- harvested part or a recorded check verdict could be erased. 0426 images the
 -- delete; FRS-143.8 asks for more: they "shall not be deletable through the
 -- application; an entry made in error shall be marked void with the reason,
 -- the person and the time retained".
@@ -5285,7 +5285,7 @@ begin
     for a in
       select * from public.indoor_job_accessories
        where job_id = j.id and (btrim(name) <> '' or btrim(serial) <> '')
-         and voided_at is null   -- 0433 (D-039): a voided accessory does not travel
+         and voided_at is null   -- 0434 (D-039): a voided accessory does not travel
        order by id
     loop
       v_line := v_line + 1;

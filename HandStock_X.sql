@@ -68,7 +68,7 @@
 --   0373_stock_movement_dates.sql
 --   0375_stock_transfer_own_or_team.sql
 --   0392_save_records_whole.sql
---   0438_stock_loads_overwrite_on_reload.sql
+--   0439_stock_loads_overwrite_on_reload.sql
 --   0385_stores_dispatch_report.sql
 --   0387_stores_dispatch_2025_history.sql
 --   0388_stores_dispatch_2026_history.sql
@@ -5032,10 +5032,10 @@ begin
   -- A PART RENAME (0310): only the part changed, exactly as the ticket that
   -- rename_part_records() filed in this transaction says. Nothing else on a
   -- return may change, by anybody but an administrator.
-  -- 'part_key' (0438, D-071) is the part code, generated from `part` and not
+  -- 'part_key' (0439, D-071) is the part code, generated from `part` and not
   -- yet computed in a BEFORE trigger, so it would never compare equal; left
   -- out here too, so a replay of this file alone does not refuse every rename
-  -- once 0438 has added the column. A no-op where the column is absent.
+  -- once 0439 has added the column. A no-op where the column is absent.
   if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
        = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
      and exists (select 1 from public.part_rename_ticket t
@@ -6438,7 +6438,7 @@ revoke execute on function public.save_material_return(jsonb, jsonb) from public
 grant execute on function public.save_material_return(jsonb, jsonb) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0438_stock_loads_overwrite_on_reload.sql
+-- 0439_stock_loads_overwrite_on_reload.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -6479,7 +6479,7 @@ grant execute on function public.save_material_return(jsonb, jsonb) to authentic
 alter table public.material_returns
   add column if not exists part_key text generated always as (public.part_code(part)) stored;
 comment on column public.material_returns.part_key is
-  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0438).';
+  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0439).';
 -- Cannot collide with existing rows: material_returns_uid_part_idx is unique
 -- on (uid, part_code(part), coalesce(row_no, 0)), and row_no is always set.
 create unique index if not exists material_returns_natural_key
@@ -6527,7 +6527,7 @@ create or replace function public.material_returns_immutable()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if public.is_admin() then return new; end if;
-  -- D-071 (0438): an IMPORTED return re-loaded from its file takes the file's
+  -- D-071 (0439): an IMPORTED return re-loaded from its file takes the file's
   -- values, by an importer only. It stays imported -- a return raised in the
   -- app is never reached by this.
   if old.source = 'import' and new.source = 'import'

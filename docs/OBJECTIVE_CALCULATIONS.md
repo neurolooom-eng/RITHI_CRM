@@ -200,12 +200,11 @@ Satisfaction %, and the average.
 
 ## 4. Special rules
 
-### 4.1 India time — and one exception
-"Today", the period boundaries and the Customer feedback's visit date are **India dates** (a day runs
-midnight to midnight IST). **Exception (open defect D-168):** the open-call rate (§3.3) and the
-attended rate (§3.4) take a visit's date in **UTC**, so a visit made between 00:00 and 05:30 IST is
-dated the **previous day**. It can move a call across a cut-off or a month end only when the visit
-falls in those hours.
+### 4.1 India time
+Every date is an **India date** — a day runs midnight to midnight IST: "today", the period
+boundaries, a visit's date, a report's entry date, a call's registration time and a spare request's
+date. *(Until 0423 the open-call and attended rates took a visit's date in UTC, so a visit between
+00:00 and 05:30 IST counted the day before — D-168, fixed 12-Oct-2026.)*
 
 ### 4.2 Cancelled calls
 Cancelled calls are never counted in any calculation.

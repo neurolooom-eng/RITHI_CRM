@@ -1190,7 +1190,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // the Call Review asked for one, so the same act was explained on one screen
   // and not the other. Now a dialog whose Re-open button stays disabled until a
   // reason is typed, as the Call Review's does; reopen_call() refuses a blank
-  // one too (0430) and records the reason, the person and the time.
+  // one too (0431) and records the reason, the person and the time.
   const [reopenFor, setReopenFor] = useState<Rec | null>(null);
   const [reopenWhy, setReopenWhy] = useState('');
   const [reopenBusy, setReopenBusy] = useState(false);

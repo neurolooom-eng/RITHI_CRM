@@ -1027,7 +1027,7 @@ export const UPLOADS: UploadDef[] = [
     reject: (r) => (Number(r.good_qty ?? 0) + Number(r.defective_qty ?? 0) > 0
       ? '' : 'nothing returned — good and defective are both zero'),
     // D-071 (the user's decision, 2026-10-12: "Overwrite with the file"): a line
-    // is matched on SI Number + part code + line number (0438), so loading the
+    // is matched on SI Number + part code + line number (0439), so loading the
     // file again gives an IMPORTED return the file's values instead of returning
     // the stock a second time. The line number is the file's, or its position
     // within the SI Number -- the number the database gave the first load.
@@ -1078,7 +1078,7 @@ export const UPLOADS: UploadDef[] = [
     // and one of those failed the first batch of 500. Held back by name.
     prepare: 'stock-transfer-parents',
     requires: 'Stock Transfer Register',
-    // D-071 (0438): matched on transfer + line number; the line number is the
+    // D-071 (0439): matched on transfer + line number; the line number is the
     // file's, or its position within the transfer.
     conflict: 'transfer_uid,row_no', conflictFrom: ['transfer_uid', 'row_no'],
     numberLines: { field: 'row_no', within: 'transfer_uid' },

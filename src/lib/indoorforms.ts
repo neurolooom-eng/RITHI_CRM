@@ -338,7 +338,7 @@ export function harvestedPartProblem(p: HarvestedPartDraft): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// A VOIDED ENTRY IS KEPT, NOT COUNTED (FRS-143.8, D-039, 0433).
+// A VOIDED ENTRY IS KEPT, NOT COUNTED (FRS-143.8, D-039, 0434).
 //
 // A harvested part, an accessory or a check is never deleted: an entry made in
 // error is marked void with the reason, and the database stamps when and who.

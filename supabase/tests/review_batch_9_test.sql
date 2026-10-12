@@ -1,12 +1,12 @@
 -- ===========================================================================
--- REVIEW BATCH 9, PROVED ON A DATABASE (0428-0430).
+-- REVIEW BATCH 9, PROVED ON A DATABASE (0429-0431).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
 --   1. D-056  a master value records carry is not deleted; a duplicate or an
---             unused value is, and the count reads past row-level security (0428)
---   2. D-055  the cover registers are imaged (0429, FRS-187.3 only)
---   3. D-035  a re-open says why, and the reason, person and time are kept (0430)
+--             unused value is, and the count reads past row-level security (0429)
+--   2. D-055  the cover registers are imaged (0430, FRS-187.3 only)
+--   3. D-035  a re-open says why, and the reason, person and time are kept (0431)
 --
 -- Checks raise an unlabelled error when they are wrong, so the harness counts
 -- a failure; an error that is meant to happen is labelled `expect ERROR`.

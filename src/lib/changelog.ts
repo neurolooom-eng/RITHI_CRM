@@ -14,17 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.186',
+    version: '0.10.187',
     date: '2026-10-12',
     title: 'Fifth re-review of every module recorded (no behaviour changed)',
     changes: [
       'Software Validation → Defects: every module was re-read and 42 new defects are recorded (D-169 to D-210), each with what was measured. Nothing in the application changed in this version.',
       'The most serious: a sign-in with no User Master row is given Engineer permissions on first sign-in (D-169); the Customer Feedback objective\'s evidence shows feedback to people who may not read it (D-170); an engineer can acknowledge a spare shipment on somebody else\'s line under any name (D-171); an FFR\'s number and raiser can be chosen by whoever raises it (D-172); a training manager can mark somebody else\'s training read (D-173); and re-loading a corrected MRN or transfer file without row numbers can still double the stock (D-174, D-175).',
-      'The older open defects were re-checked: D-025 and D-073 now read fixed; the rest are still open, and D-168 reaches every date-only visit loaded from a file.',
+      'The older open defects were re-checked: D-025 and D-073 now read fixed; the rest are still open. D-168 was found to reach every date-only visit loaded from a file; it has since been fixed (0423).',
     ],
   },
   {
-    version: '0.10.185',
+    version: '0.10.186',
     date: '2026-10-12',
     title: 'Review fixes: loading a file again corrects it instead of adding it twice',
     changes: [
@@ -35,7 +35,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.184',
+    version: '0.10.185',
     date: '2026-10-12',
     title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',
     changes: [
@@ -44,7 +44,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.183',
+    version: '0.10.184',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -55,7 +55,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.182',
+    version: '0.10.183',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -68,7 +68,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.181',
+    version: '0.10.182',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -78,7 +78,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.180',
+    version: '0.10.181',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -89,7 +89,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.179',
+    version: '0.10.180',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -103,7 +103,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.178',
+    version: '0.10.179',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -117,7 +117,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.177',
+    version: '0.10.178',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -128,6 +128,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.177',
+    date: '2026-10-12',
+    title: 'Objective: visit dates are India dates',
+    changes: [
+      'FIXED: the Breakdown, Preventive Maintenance and Installation figures and the "attended within 3 days" figure took a visit\'s date in UTC, so a visit made between midnight and 05:30 India time counted as the day before. They now use the India date, as Customer feedback already did.',
+      'Press Re-Calculate to update the figures. Only calls visited in those early-morning hours can change.',
     ],
   },
   {

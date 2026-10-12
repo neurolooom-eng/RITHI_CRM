@@ -1,18 +1,18 @@
 -- ===========================================================================
--- READ-ONLY. Transfer lines that share a transfer and a line number (D-071, 0438).
+-- READ-ONLY. Transfer lines that share a transfer and a line number (D-071, 0439).
 --
--- 0438 keys the Stock Transfer Lines upload on transfer + line number, so a
+-- 0439 keys the Stock Transfer Lines upload on transfer + line number, so a
 -- re-loaded line takes the file's values instead of moving the stock again. A
 -- unique key cannot be built while two lines already share one -- which is what
--- a file loaded twice before 0438 leaves -- and 0438 then says so and leaves the
+-- a file loaded twice before 0439 leaves -- and 0439 then says so and leaves the
 -- key off. This lists those lines, one result grid: row 1 says how many pairs
 -- there are, rows 101 onwards name each line.
 --
 -- What to do with them is a decision about stock, not something this file does:
 -- a repeated line is usually the same movement loaded twice, and each copy counts
--- in the engineers' hand stock. Once none is left, re-run 0438
--- (supabase/migrations/0438_stock_loads_overwrite_on_reload.sql), or the
--- handstock bundle, and _status.sql row 366 reads YES.
+-- in the engineers' hand stock. Once none is left, re-run 0439
+-- (supabase/migrations/0439_stock_loads_overwrite_on_reload.sql), or the
+-- handstock bundle, and _status.sql row 367 reads YES.
 -- ===========================================================================
 with rep as (
   select transfer_uid, row_no, count(*) as copies

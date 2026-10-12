@@ -58,8 +58,8 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
---   0434_pm_calls_in_month.sql
---   0439_cover_normalise_says_first.sql
+--   0435_pm_calls_in_month.sql
+--   0440_cover_normalise_says_first.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -6322,11 +6322,11 @@ revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0434_pm_calls_in_month.sql
+-- 0435_pm_calls_in_month.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0434 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
+-- 0435 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
 --        PM CALL (second re-review D-038, FRS-142.11 as the user decided)
 --
 -- The user's decision (2026-10-12): when a PM upload names a machine that
@@ -6363,7 +6363,7 @@ revoke execute on function public.pm_calls_in_month(date) from public, anon;
 grant execute on function public.pm_calls_in_month(date) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0439_cover_normalise_says_first.sql
+-- 0440_cover_normalise_says_first.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -6462,7 +6462,7 @@ begin
   if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
     raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
   end if;
-  -- 0439: only the lines with a value to hand back, so the count is the count
+  -- 0440: only the lines with a value to hand back, so the count is the count
   -- changed -- the same test cover_unpin_preview() counts by.
   update public.sale_items i set
     invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,

@@ -388,12 +388,12 @@ const MODULES = {
       // already pending for a machine already installed.
       '0406_install_call_registers_requests.sql',
       // D-033: a field call is registered with its three vigilance questions
-      // answered (0432). Before the cr_read tail, which must stay last.
-      '0432_field_call_vigilance_answered.sql',
-      // D-030: the Attended Date of a call request is not in the future (0427).
-      '0427_call_request_attended_not_future.sql',
-      // D-035: a re-open records its reason, person and time (0430).
-      '0430_call_reopen_reason_recorded.sql',
+      // answered (0433). Before the cr_read tail, which must stay last.
+      '0433_field_call_vigilance_answered.sql',
+      // D-030: the Attended Date of a call request is not in the future (0428).
+      '0428_call_request_attended_not_future.sql',
+      // D-035: a re-open records its reason, person and time (0431).
+      '0431_call_reopen_reason_recorded.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -540,10 +540,10 @@ const MODULES = {
             // SPARE on a PM review row that is blank; restates 0397's trigger function.
             '0400_pm_spare_blank_review.sql',
             // D-129: review answers are read by holders of review.view, given
-            // once to the roles that held review.edit (0435).
-            '0435_review_answers_read_key.sql',
-            // D-027: a Field Failure Report names its customer and problem (0426).
-            '0426_ffr_customer_and_problem_required.sql'],
+            // once to the roles that held review.edit (0436).
+            '0436_review_answers_read_key.sql',
+            // D-027: a Field Failure Report names its customer and problem (0427).
+            '0427_ffr_customer_and_problem_required.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -639,8 +639,11 @@ const MODULES = {
             // (0422): feedback_satisfaction() + one branch in objective_value
             // and objective_evidence each.
             '0422_feedback_satisfaction_objective.sql',
-            // D-021: an objective carrying a recorded figure is not deleted (0436).
-            '0436_objective_with_figures_kept.sql'],
+            // The objective figures date a visit in India time (D-168, 0423).
+            // Restates objective_value and objective_evidence.
+            '0423_objective_dates_in_india_time.sql',
+            // D-021: an objective carrying a recorded figure is not deleted (0437).
+            '0437_objective_with_figures_kept.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -674,10 +677,10 @@ const MODULES = {
             // triggers it copies; here, after every module that creates them.
             '0314_record_audit_on_movements_and_training.sql',
             // D-067/D-021/D-039: configuration, quality objectives and the indoor
-            // workshop imaged too; the audit key gains role / key / sys_id (0425).
-            '0425_record_audit_on_configuration_objectives_indoor.sql',
-            // D-055 (FRS-187.3): the six cover tables imaged (0429).
-            '0429_cover_registers_imaged.sql',
+            // workshop imaged too; the audit key gains role / key / sys_id (0426).
+            '0426_record_audit_on_configuration_objectives_indoor.sql',
+            // D-055 (FRS-187.3): the six cover tables imaged (0430).
+            '0430_cover_registers_imaged.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
@@ -905,9 +908,9 @@ const MODULES = {
             // Its number, PDQC/YY/NNNN (2026-10-05).
             '0378_pdqc_number.sql',
             // D-145 (the user's decision): approving a DC skips filing the visit
-            // of a unit whose call is already Solved, and says so (0437).
+            // of a unit whose call is already Solved, and says so (0438).
             // Redefines 0327's approve_indoor_dc(), so after it.
-            '0437_indoor_approval_skips_a_solved_call.sql',
+            '0438_indoor_approval_skips_a_solved_call.sql',
             // D-111 / D-112 / D-114 (the user's decisions): a signed PDT is locked
             // and un-signed only with indoor.pdt_unsign and a reason; the dispatch
             // date is when the unit is marked Dispatched; a cleaning time may be
@@ -918,12 +921,12 @@ const MODULES = {
             // 0323's indoor_dc_may_approve(), so after it.
             '0367_indoor_dc_approver_is_the_login.sql',
             // D-108 / D-116: record_indoor_visit() is no signed-in user's, and
-            // the visit columns say the visit is filed at approval (0423).
-            '0423_indoor_record_visit_closed_and_comments.sql',
-            // D-039: who reported damage to the customer is the session (0431).
-            '0431_indoor_reported_to_customer_stamp.sql',
-            // D-039 (FRS-143.8): parts, accessories and checks are voided, not deleted (0433).
-            '0433_indoor_parts_accessories_checks_voided.sql'],
+            // the visit columns say the visit is filed at approval (0424).
+            '0424_indoor_record_visit_closed_and_comments.sql',
+            // D-039: who reported damage to the customer is the session (0432).
+            '0432_indoor_reported_to_customer_stamp.sql',
+            // D-039 (FRS-143.8): parts, accessories and checks are voided, not deleted (0434).
+            '0434_indoor_parts_accessories_checks_voided.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
@@ -970,8 +973,8 @@ const MODULES = {
             // and split keys; see 0286 for the parent rule.
             '0295_user_profile_details_key.sql',
             // D-059: a User Master entry with a profile or R&R history is not
-            // deleted -- set Active to No instead (0424).
-            '0424_user_master_keeps_history.sql'],
+            // deleted -- set Active to No instead (0425).
+            '0425_user_master_keeps_history.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -1031,8 +1034,8 @@ const MODULES = {
             // masters.edit, not "Add / edit master records" (0371). 0121's tail
             // mirrors it.
             '0371_master_list_delete_key.sql',
-            // D-056: a value records carry is deactivated, not deleted (0428).
-            '0428_master_value_in_use_kept.sql'],
+            // D-056: a value records carry is deactivated, not deleted (0429).
+            '0429_master_value_in_use_kept.sql'],
   },
   reports: {
     title: 'Reports',
@@ -1170,8 +1173,8 @@ const MODULES = {
             // a re-loaded MRN or stock-transfer line takes the file's values --
             // the MRN and transfer-line keys, their UPDATE policies, and the
             // return guard letting an importer overwrite an IMPORTED return
-            // (0438). Restates 0310's guard, so after it.
-            '0438_stock_loads_overwrite_on_reload.sql',
+            // (0439). Restates 0310's guard, so after it.
+            '0439_stock_loads_overwrite_on_reload.sql',
             // The Stores Dispatch Report (the AppSheet Stores view) and the part's
             // IND/IMP; reads the dispatch, request-line and parts tables (0385).
             '0385_stores_dispatch_report.sql',
@@ -1354,12 +1357,12 @@ const MODULES = {
             // 2026-10-09), listed and generated from the entry window.
             '0407_pm_schedule.sql',
             // D-038: which machines already have a PM call this month, asked of
-            // every PM call -- the upload skips and names them (0434).
-            '0434_pm_calls_in_month.sql',
+            // every PM call -- the upload skips and names them (0435).
+            '0435_pm_calls_in_month.sql',
             // D-071 / URS-072: Normalise cover says what it will hand back before
             // it runs, and counts only what it changed; restates 0291's
-            // cover_unpin_inherited, so after it (0439).
-            '0439_cover_normalise_says_first.sql'],
+            // cover_unpin_inherited, so after it (0440).
+            '0440_cover_normalise_says_first.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

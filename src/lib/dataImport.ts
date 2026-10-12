@@ -156,7 +156,7 @@ export interface ImportProgress { done: number; total: number }
 const CONFLICT_KEY: Partial<Record<ImportTable, string>> = {
   sale_entries: 'sa_number', sale_items: 'uid',
   contract_entries: 'mc_number', contract_items: 'uid',
-  // D-071 (0438, the user's decision 2026-10-12: "Overwrite with the file"):
+  // D-071 (0439, the user's decision 2026-10-12: "Overwrite with the file"):
   // SI Number + part code + line, so a re-loaded MRN line takes the file's
   // values instead of returning the stock a second time.
   material_returns: 'uid,part_key,row_no',
@@ -268,7 +268,7 @@ export async function applyDirectory(
   return { ok: true, inserted, updated };
 }
 
-/** What Normalise cover would hand back, per register and field (0439). */
+/** What Normalise cover would hand back, per register and field (0440). */
 export async function previewNormalise(): Promise<UnpinCount[]> {
   const c = getSupabase(); if (!c) throw new Error('Not connected to Supabase.');
   const { data, error } = await c.rpc('cover_unpin_preview');
