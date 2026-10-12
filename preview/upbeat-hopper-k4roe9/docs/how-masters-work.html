@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the Masters Work</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Master · process reference</p>
+  <h1>How the masters work</h1>
+  <p class="standfirst">
+    <b>What every form picks from.</b> The customer, the machine, the product line, the part, the person and
+    the short value lists behind the dropdowns are each kept in one master, and the rest of the application
+    reads them. This page covers the seven screens under <b>Master</b>: Party Master, Product Database,
+    Product Database 2.0, Product Master, User Master, Part Master and All Masters — what each is for, what
+    you can do there, what it refuses, which permission each action needs, and where its values are used.
+    Read the middle column for <b>what happens</b>, the left for <b>what the step reads</b>, and the right for
+    <b>what the system refuses and what it demands</b>.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Reads</strong>The record, master or rule the step draws on.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not allow, and where the refusal comes from.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+<nav class="flownav" aria-label="The four flows">
+  <a href="#flow1">
+    <span class="flownav-n">Flow 1</span>
+    <span class="flownav-t">The customer</span>
+    <span class="flownav-s">Party Master · KYC · Change engineer</span>
+  </a>
+  <a href="#flow2">
+    <span class="flownav-n">Flow 2</span>
+    <span class="flownav-t">Machines and product lines</span>
+    <span class="flownav-s">Product Database · Product Database 2.0 · Product Master</span>
+  </a>
+  <a href="#flow3">
+    <span class="flownav-n">Flow 3</span>
+    <span class="flownav-t">Parts</span>
+    <span class="flownav-s">Part Master · rename · accessories</span>
+  </a>
+  <a href="#flow4">
+    <span class="flownav-n">Flow 4</span>
+    <span class="flownav-t">People and value lists</span>
+    <span class="flownav-s">User Master · All Masters</span>
+  </a>
+</nav>
+
+<main class="flow">
+
+  <!-- ================= FLOW 1 ================= -->
+  <section class="flowhead" id="flow1">
+    <p class="flowhead-n">Flow 1</p>
+    <h2 class="flowhead-t">The customer — Party Master</h2>
+    <p class="flowhead-p">
+      One row per customer. <b>The party name is the key</b>: machines, calls and contracts name the customer
+      by that text, so the name is matched ignoring capitals and spaces at either end, and it is not editable
+      on this screen. Each party is also given a short <b>Key</b> — Party-1, Party-2 … — on the day it is first
+      added, and keeps it for ever.
+    </p>
+    <p class="flowhead-p">
+      <b>Three rights, not one</b> (since 30-Sep-2026): editing a party's record, verifying its KYC, and changing
+      the Serviceman on every party at once are ticked separately on Roles &amp; Permissions. <b>Edit masters
+      (all of the below)</b> is the parent of all three — a role holding it has every one.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Party Master</b> — every signed-in user may read it</li>
+        <li><b>A copy kept on this device</b>, shown at once and refreshed every 30 minutes</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 01</p>
+      <h2>Find a customer</h2>
+      <span class="who">Open: Party Master</span>
+      <p>
+        The list opens from the copy on this device and says when it was synced; <b>↻ Refresh</b> reads it again.
+        Typing in <b>Party name</b>, <b>State</b>, <b>City</b> or <b>Type</b> searches the database directly. Parties
+        load 1,000 at a time with <b>Load more</b>, and while more remain the count carries a <b>+</b>.
+      </p>
+      <p>
+        The table opens with Key, Party Name, City, State, Type, Profile, Address, Pincode, Serviceman, Phone, Email,
+        KYC, KYC Records, GSTIN and PAN; <b>⚙ Columns</b> offers every other field on the row.
+        <b>⭳ Export CSV</b> downloads the columns shown.
+      </p>
+      <p>
+        Clicking a party opens it for editing if you may edit it, and otherwise opens a read-only view that says
+        <i>"Read only. Changing a party needs the right to edit masters."</i> There is no Add button on this screen:
+        parties are added by the <b>Party Master</b> upload (Step 05).
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Reading is open to every signed-in user — the call forms pick customers from it. The page itself opens only with <b>Open: Party Master</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The party's row</b>, re-read after saving</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 02</p>
+      <h2>Edit a party</h2>
+      <span class="who">Add / edit master records (parties, parts, products, lists)</span>
+      <p>
+        The drawer has three groups. <b>The customer</b>: Type, Profile, Serviceman, Route. <b>Where the machine
+        is</b> — the installation address, <i>"what a call sends somebody to"</i>: Address, City, State, Pincode,
+        Phone, Phone 2, Fax, Email. <b>Where the bill goes</b> — <i>"Left blank means the same as above"</i>: Address,
+        Pincode, Phone, Phone 2, Fax, Email. Then the KYC block (Step 03). <b>Save</b> writes them and re-reads the
+        row, so what the database filled in is what you see.
+      </p>
+      <p>
+        The <b>party name</b> is shown in the title and not offered for editing: <i>"Every machine, call and contract
+        names this customer by it, so changing it would strand them — ask for a rename rather than typing over it."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Changing a party needs <b>Add / edit master records</b> (or its parent, <b>Edit masters</b>).</li>
+        <li><span class="tag db">Trigger</span>The <b>Key</b> cannot be changed once given; the party name is trimmed of spaces at either end on every save.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>The party name cannot be changed through the data interface either</b> (0335): <i>"A party's name is the key every machine, call and contract names it by, so it is not changed here"</i>. A change of capital letters or outer spaces is allowed; a re-load by Bulk Uploads matches on the name and does not change it. This is also what keeps the delete guard honest — a party cannot be renamed first and then deleted.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Tax columns</b> the party arrived with, for GSTIN and PAN</li>
+        <li><b>Your sign-in</b>, to stamp who verified</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 1 · Step 03</p>
+      <h2>KYC — status, numbers and records</h2>
+      <span class="who">Verify a party’s KYC</span><span class="who">Add / edit master records</span>
+      <p>
+        Every customer starts <b>Pending</b>; the other statuses are <b>Verified</b> and <b>Rejected</b>. Marking one
+        Verified records who did it and when, from the sign-in; moving it off Verified clears both again. The register
+        shows <b>✓ KYC Verified</b> on the row, and <b>KYC Records</b> links to each attached document.
+      </p>
+      <p>
+        <b>GSTIN and PAN.</b> Where either is blank, the database fills it from the Tax columns the party was loaded
+        with; a GSTIN contains a PAN, so a GSTIN alone gives both. A number already in the box is never replaced by
+        this.
+      </p>
+      <p>
+        <b>⤴ Attach a KYC record</b> uploads a file to Drive and saves the link at once, with who attached it and when;
+        <b>Remove</b> unlinks it and leaves the file in Drive. <i>Verified</i> with nothing attached still stands — the
+        drawer says <i>"Marked Verified with no record attached. The status stands — attaching the certificate is what
+        lets somebody else check it."</i>
+      </p>
+      <p>
+        The KYC of each customer is also shown beside the request on <b>Request Registration</b>, with a filter on it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>Changing the status without the KYC right: <i>"RBAC: changing a party's KYC status needs "Verify KYC""</i>. Without it the Status box is greyed and says <i>"Changing the status needs the “Verify a party’s KYC” permission."</i></li>
+        <li><span class="tag db">Check</span>The status can only be Pending, Verified or Rejected.</li>
+        <li>A KYC record larger than 10 MB is refused before upload.</li>
+        <li>Attaching and removing records is offered only to holders of <b>Add / edit master records</b>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every Serviceman spelling</b> on the Party Master, with how many customers carry it</li>
+        <li><b>The User Master names</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 1 · Step 04</p>
+      <h2>✎ Change engineer — one Serviceman, every customer</h2>
+      <span class="who">Swap the Serviceman on every party at once</span>
+      <p>
+        The <b>Serviceman</b> on a party is who looks after that customer. On a new call it fills <b>Call Allocated
+        To</b> where the machine has no Service Engineer of its own — the machine's engineer wins where it has one.
+        It is a suggestion, not an assignment: whoever registers the call can change it.
+      </p>
+      <p>
+        Because a call is allotted by <b>name</b>, a Serviceman spelled differently from the User Master names
+        somebody who does not exist. <b>Change this</b> lists every spelling with its count, marking those
+        <i>"⚠ not in User Master"</i>; <b>To this</b> offers only User Master names, or <b>Leave nobody — this
+        engineer has gone</b>. Before you press it, the drawer says how many customers will change, and that
+        <i>"Calls already registered keep the engineer they were allotted to."</i>
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Function</span>Without the right: <i>"RBAC: changing the Serviceman on every party needs "Swap the Serviceman in bulk""</i>.</li>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Pick the name to change"</i>; and the two names must differ — <i>"That is the same name"</i>.</li>
+        <li>The match is on the exact stored spelling, so a second spelling is never caught by accident.</li>
+        <li>The new name cannot be typed — it must come from the User Master.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Party Master file</b>, loaded under Bulk Uploads → Masters</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 1 · Step 05</p>
+      <h2>Load parties in bulk</h2>
+      <span class="who">Load registers in bulk (Bulk Uploads)</span><span class="who">Add / edit master records</span>
+      <p>
+        Each row is matched on the <b>party name</b>, so re-loading a corrected sheet updates those parties instead
+        of adding them again. A new party gets its Key on first load. The installation and billing contact blocks
+        each have their own columns, the <b>Serviceman</b> column fills the Serviceman, and GSTIN / PAN columns fill
+        those numbers where the file has them. A column with no place of its own is kept on the row rather than
+        dropped.
+      </p>
+      <p>
+        A blank cell in this file does <b>not</b> clear a value already on the party.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><b>Party Name</b> is required; a row without one is held back and listed.</li>
+        <li><span class="tag db">Index</span>One party per name — capitals and surrounding spaces ignored.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 1, as a ledger</h2>
+    <p>Where a party's values are used after they leave this screen.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Value</th><th>Used by</th></tr></thead>
+        <tbody>
+          <tr><td>Party name</td><td>The customer box on the call forms; the Party Name picker on a Warranty Register sale (a name the master does not hold may still be typed there, and nothing is filled in for it)</td></tr>
+          <tr><td>Serviceman</td><td>Fills <b>Call Allocated To</b> on a new call where the machine has none; is the <b>Engineer</b> shown on the Product Database</td></tr>
+          <tr><td>City, State</td><td><b>🏢 Update Party Details</b> on a call copies them from the Party Master onto the call (hidden, and refused, while Audit Mode is on)</td></tr>
+          <tr><td>KYC status and records</td><td>Shown on the Party Master and beside each request on Request Registration</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 2 ================= -->
+  <section class="flowhead" id="flow2">
+    <p class="flowhead-n">Flow 2</p>
+    <h2 class="flowhead-t">Machines and product lines</h2>
+    <p class="flowhead-p">
+      Three screens with similar names that hold different things. <b>Product Database</b> is the install base —
+      one row per <b>machine</b>, its customer and its cover. <b>Product Database 2.0</b> is the same machines
+      <b>worked out</b> from the cover registers instead of stored, kept beside the first so the two can be compared.
+      <b>Product Master</b> is the <b>catalogue</b> — one row per product code, not per machine.
+    </p>
+    <p class="flowhead-p">
+      <b>A machine is its model and its serial, never the serial alone</b>: serial numbers repeat across models,
+      so both registers of machines key on the two together.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The install base</b>, with Status, Contract, INST Call and Engineer worked out when read (Step 02)</li>
+        <li><b>A copy of the machines and customers on this device</b>, and the line above the table says how old it is</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 2 · Step 01</p>
+      <h2>Product Database — search the install base</h2>
+      <span class="who">Open: Product Database</span><span class="who">Create / register calls · Create installation calls (Commercial)</span>
+      <p>
+        Filter by <b>Party</b>, <b>Product</b>, <b>Serial Number</b> and status, or <b>🔎 Global search</b>; press
+        <b>Search</b> (or Enter) and <b>Clear</b>. Machines load 1,000 at a time with <b>Load more</b>, newest first.
+        Eleven columns show when it opens; <b>⚙ Columns</b> offers all 32 of the export, and <b>⭳ Export CSV</b> carries
+        all 32 whether shown or not.
+      </p>
+      <p>
+        <b>Register Call</b>: <b>+ Field</b> and <b>+ Install</b> on a row open the Field Call or Installation Call form
+        already filled from that machine.
+      </p>
+      <p>
+        Nothing on this screen changes a machine.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>+ Field</b> appears with <b>Create / register calls</b>; <b>+ Install</b> with <b>Create installation calls (Commercial)</b>.</li>
+        <li>A search too wide to answer in time says so — <i>"That was too much to answer in one go — the install base is 20,000 machines. Narrow it…"</i> — with the database's own words after it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Product Database file</b> (Bulk Uploads)</li>
+        <li><b>Warranty Register</b> sale entries and their machines</li>
+        <li><b>Ownership Transfer</b></li>
+        <li><b>Contract Register</b> contracts and their machines</li>
+        <li><b>Installation warranty record</b> — the engineer's Warranty Start Date? choice, from a report or the bulk upload</li>
+        <li><b>Party Master</b> — the Serviceman</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 2 · Step 02 · automatic</p>
+      <h2>How a machine gets there, and what is worked out</h2>
+      <p>
+        <b>Stored — by product AND serial, never the serial alone.</b> The <b>Product Database</b> upload adds or
+        corrects machines. A <b>Warranty Register</b> sale adds each machine, or updates it — warranty number and dates,
+        PM visits, invoice number and date, warranty years and months, accessories included. A <b>Contract Register</b>
+        entry gives that machine its contract number, dates, type, status and PM visits (which replace the sale's), and
+        adds a machine not yet held. An <b>Ownership Transfer</b> moves that one machine to its new owner, with the new
+        owner's Party Master address and the transfer's Ref and Date. The owner written is the machine's <b>current
+        owner</b>: whichever is later of its latest sale entry and its latest ownership transfer.
+      </p>
+      <p>
+        <b>Where the warranty starts.</b> The installing engineer chooses on the installation report —
+        <b>Installation Call Solved Date</b> or <b>Invoice Date</b>. The first starts the machine's warranty on the day
+        the installation call was solved and ends it one warranty period later; the second keeps the sale's start.
+        Each installation's choice, solved date and resulting warranty are kept in the <b>installation warranty
+        record</b>, one row per call, which Bulk Uploads can fill for installations back to 2018.
+      </p>
+      <p>
+        <b>Worked out each time it is read.</b> <b>Status</b>: <i>WGP</i> while the warranty end date is today or
+        later; otherwise, while a contract that names this machine <b>and its current customer</b> runs to today or
+        later, <i>AMC</i> for a labour contract, <i>CMC</i> for a comprehensive one, or <i>CONTRACT (TYPE NOT
+        RECORDED)</i> where the contract has no type; otherwise <i>OGP</i>. The <b>Contract</b> and <b>INST Call</b>
+        shown are the ones naming this machine and its current customer, so a machine re-sold stops showing the
+        previous owner's. The <b>Engineer</b> is the customer's Serviceman on the Party Master, and is blank where
+        the Party Master does not carry the customer.
+      </p>
+      <p>
+        <b>Warranty Status</b> and <b>Contract Status</b> among the 32 columns are the words the file carried, not the
+        status worked out from the dates; the two can disagree.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>The upload needs <b>Item Serial Number</b> and <b>Item Name</b> on every row; a row missing either is held back.</li>
+        <li>In this upload a <b>blank cell clears</b> its column: the file is the machine's whole row, so a blank means "none".</li>
+        <li><span class="tag db">Policy</span>Writing machines through the upload needs <b>Add / edit master records</b>; the screen itself offers no edit.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Warranty Register</b> — the sale's machine lines</li>
+        <li><b>Contract Register</b> — the contract's machine lines</li>
+        <li><b>Additional Entry Details</b> — machines recovered by hand</li>
+        <li><b>Ownership Transfer</b></li>
+        <li><b>The installation call</b> — its Warranty Start Date or solved date</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 2 · Step 03</p>
+      <h2>Product Database 2.0 — the machine as the registers describe it</h2>
+      <span class="who">Open: Product Database 2.0</span><span class="who">Rebuild Product Database 2.0</span>
+      <p>
+        One row per machine that the warranty sale, contract or additional entry register names <b>with both a model
+        and a serial</b>. The model and serial are compared with spaces, punctuation and capitals ignored. Every answer
+        says where it came from: <b>Party from</b>, <b>Because</b>, and the warranty and contract sources.
+      </p>
+      <p>
+        <b>Whose machine.</b> The latest dated record wins — an ownership transfer, an additional entry, a contract or
+        the warranty sale — with a tie going to the ownership transfer. <b>Warranty start</b> is the installation
+        call's Warranty Start Date, or failing that the date it was solved, then the additional entry, then the sale.
+        <b>Status</b> is worked out on every read, warranty first: WGP, then AMC / CMC, then OGP, with a contract of no
+        recognised type reading <i>CONTRACT (TYPE NOT RECORDED)</i>.
+      </p>
+      <p>
+        Search by product, serial, party, contract or SA number, and filter with the status chips (exact counts).
+        Clicking a row opens the whole record, with links to the sale, contract, transfer, installation call and
+        <b>Machine History</b>. <b>⭳ Export CSV</b> gives every column.
+      </p>
+      <p>
+        The machines are assembled ahead of time. The header says <i>"Live as of …"</i>, or <i>"A register has changed
+        since … — updating within 5 minutes"</i>; a change to any of the registers marks it for a rebuild, which runs
+        on a five-minute schedule. <b>⟳ Rebuild from the registers</b> does it now, without blocking anybody reading.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Function</span>Rebuilding without the right: <i>"Your role may not rebuild Product Database 2.0."</i> The button is shown only to holders of <b>Rebuild Product Database 2.0</b>.</li>
+        <li>Every signed-in user who can open the screen reads every machine, with its warranty and contract detail.</li>
+        <li>A register row with a serial and no model, or a model and no serial, is left out rather than guessed.</li>
+        <li>An empty screen says why: for each register, the rows held and how many have no serial or no model.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Product Master file</b> (Bulk Uploads → Product Master (product lines))</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 2 · Step 04</p>
+      <h2>Product Master — the catalogue of product lines</h2>
+      <span class="who">Open: Product Master (product lines)</span>
+      <p>
+        One row per <b>Product Code</b>: Product Name, Type, Category, Short Form, <b>Still sold?</b>, Added and Added by.
+        Several codes can share a name. Search by code, name, type, category or short form; the chips <b>All</b>,
+        <b>Active</b> and <b>Inactive</b> carry exact counts. <b>⭳ Export CSV</b>.
+      </p>
+      <p>
+        Lines are loaded and corrected by the upload, matched on the Product Code; a line the file does not clearly
+        mark Inactive comes in Active. <b>＋ Add entry</b>, <b>✎ Edit</b> and <b>🗑 Delete</b> are on the screen, each
+        with its own permission; Edit changes everything but the Product Code.
+      </p>
+      <p>
+        <b>Inactive</b> stops the line being offered for a <b>new sale</b> on the Warranty Register — the Product Code
+        and Product Name pickers on a sale's machine list Active lines only, and the sale says how many lines are
+        retired. Contracts, calls, visits, spares and feedback on machines already sold carry on.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>The upload needs <b>Product Code</b> and <b>Product Name</b> on every row.</li>
+        <li><span class="tag db">Policy</span>Writing lines needs the Product Master's add, edit or delete permission (or <b>Add / edit master records</b>); reading is open to every signed-in user.</li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>The Product Code is never changed</b> (0335): <i>"A product line's code is the key machines name it by, so it is not changed"</i> — not by the screen and not through the data interface.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 2, as a ledger</h2>
+    <p>The three screens side by side.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th></th><th>Product Database</th><th>Product Database 2.0</th><th>Product Master</th></tr></thead>
+        <tbody>
+          <tr><td>One row per</td><td>Machine — model + serial</td><td>Machine — model + serial</td><td>Product code</td></tr>
+          <tr><td>Kept by</td><td>Its upload, Warranty Register sales and ownership transfers</td><td>Assembled from five registers; never typed</td><td>Its upload</td></tr>
+          <tr><td>Customer</td><td>Stored: the later of the latest sale and the latest transfer</td><td>The latest dated record among transfer, additional entry, contract and sale</td><td>—</td></tr>
+          <tr><td>Status</td><td>Worked out on read, warranty first, against the contract naming the current customer</td><td>Worked out on read, warranty first, against the machine's latest contract</td><td>Active / Inactive, as loaded</td></tr>
+          <tr><td>Changed on the screen</td><td>No</td><td>No — Rebuild only</td><td>No</td></tr>
+          <tr><td>Used by</td><td>The call forms' machine picker; + Field / + Install; the product names on Part Master and Standard Complaint</td><td>Its own screen</td><td>New-sale product pickers; the accessories panel on Part Master (Category ACCESSORY)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin:18px 0 8px; color:var(--ink-2); font-size:14.5px; max-width:70ch">
+      <b>Why 2.0 exists beside the older cover view.</b> The database also has a machine-and-cover view that 2.0 was
+      written not to copy, and it differs from it deliberately in three ways:
+    </p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Question</th><th>The older cover view</th><th>Product Database 2.0</th></tr></thead>
+        <tbody>
+          <tr><td>Which machine</td><td>The serial alone — machines of different models sharing a serial become one row</td><td>Model + serial</td></tr>
+          <tr><td>Which registers</td><td>Two: warranty and contract</td><td>Five: adds Additional Entries, Ownership Transfer and the installation call</td></tr>
+          <tr><td>Status order</td><td>Contract first</td><td>Warranty first</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin:14px 0 0; color:var(--ink-2); font-size:14.5px; max-width:70ch">
+      <b>Why 2.0 can list fewer machines.</b> It lists only machines that the warranty sale, contract or additional
+      entry register names with <b>both</b> a model and a serial. A machine that is only in the Product Database — from
+      its upload, with no sale, contract or additional entry behind it — is not on 2.0, and a register whose rows carry
+      serials with blank product names gives an empty 2.0. Neither means a fault.
+    </p>
+  </section>
+
+  <!-- ================= FLOW 3 ================= -->
+  <section class="flowhead" id="flow3">
+    <p class="flowhead-n">Flow 3</p>
+    <h2 class="flowhead-t">Parts — Part Master</h2>
+    <p class="flowhead-p">
+      The item catalogue. A part is listed as <b>CODE|Description</b>, and that string is its identity: spare
+      requests, dispatches, consumption, hand stock, transfers and returns all name the part by it. So the code and
+      description are changed only by a <b>rename</b>, which carries every one of those records with it.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The whole catalogue</b>, on opening and every 30 minutes</li>
+        <li><b>Product Database product names</b>, for the Product filter</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 01</p>
+      <h2>Find a part</h2>
+      <span class="who">Open: Part Master</span>
+      <p>
+        Columns: Part Code, Description, Item Detail, Spare / Consumable, Product, HSN Code, Purchase Cost, Active.
+        <b>🔍 Search everything</b> matches every word you type anywhere in a part, in any order; there are boxes for
+        <b>Part code</b> and <b>Description</b>, a product filter (a product, <b>Common (all products)</b> or <b>⚠
+        Unrecognised product</b>) and Active / Inactive. A product the Product Database does not name shows in red
+        with ⚠. <b>⭳ Export CSV</b>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Reading is open to every signed-in user.</li>
+        <li>Without <b>Add / edit master records</b> the screen has no Add, Edit, Deactivate or tick boxes.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Existing part codes</b>, to refuse a duplicate</li>
+        <li><b>Product Database product names</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 3 · Step 02</p>
+      <h2>＋ Add part</h2>
+      <span class="who">Add / edit master records</span>
+      <p>
+        Part code (stored upper-case, spaces removed), Description, <b>Spare / Consumable</b> (Spare, Consumable,
+        Product or Labour), <b>Product</b> — one or more Product Database names, or <b>Common to all products</b> —
+        then optional Purchase cost and HSN Code. <b>Will be listed as</b> shows the CODE|Description it will carry.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><i>"Give the part code."</i> · <i>"Give the description."</i> · <i>"Choose Spare / Consumable."</i> · <i>"Choose the product(s) this part is for, or tick Common to all products."</i></li>
+        <li><i>"A part code cannot contain "|" — that separates the code from the description."</i> · <i>"Use letters, digits and - _ . / only, starting with a letter or digit."</i></li>
+        <li><i>"Part … already exists."</i> — the code is checked, ignoring capitals.</li>
+        <li><i>"Purchase cost must be a number."</i> · <i>"The HSN code takes digits only."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Every record naming the part</b>, counted before a rename</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 3 · Step 03</p>
+      <h2>✎ Edit, and rename</h2>
+      <span class="who">Add / edit master records</span><span class="who">Rename a part (moves every record that names it)</span>
+      <p>
+        Spare / Consumable, Product, Purchase cost and HSN Code are ordinary fields. A Spare / Consumable value the Item
+        Master brought that is not one of the four is kept and offered at the top. Product empty means common to all
+        products. Editing an existing part does not demand Spare / Consumable or Product.
+      </p>
+      <p>
+        Changing the <b>code</b> or <b>description</b> is a rename. Before you save, the drawer counts what will move —
+        spare consumption, consumption history, issues to engineers, opening hand stock, spare request lines, dispatch
+        lines, material returns, indoor job parts, stock adjustments and stock transfer lines — or says nothing else
+        names the part. All of it moves in one go, or none of it, so hand stock is the same afterwards. The button reads
+        <b>Rename and save</b>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Without the rename right the screen refuses first: <i>"Changing the code or description renames the part everywhere, which needs the “Rename a part” permission."</i></li>
+        <li><span class="tag db">Function</span><i>"RBAC: only a role that maintains the masters may rename a part"</i></li>
+        <li class="mandate"><span class="tag db">Trigger</span><b>Rename is the only way</b> (0335): a code or description changed any other way is refused — <i>"A part's code and description are renamed with "Rename part", which carries every record that names it"</i>.</li>
+        <li><span class="tag db">Function</span><i>"Another part is already called "…" — a rename cannot merge two parts"</i></li>
+        <li><span class="tag db">Function</span><i>"A part needs both a code and a description"</i> · <i>"Neither the code nor the description may contain "|""</i></li>
+        <li><i>"A description cannot contain "|" either."</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The ticked parts</b></li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 04</p>
+      <h2>Deactivate, and change many at once</h2>
+      <span class="who">Add / edit master records</span>
+      <p>
+        <b>⊘ Deactivate</b> asks first: <i>"It stays on every record that already uses it, but stops being offered in
+        the pickers."</i> <b>↩ Reactivate</b> puts it back. The screen offers no delete.
+      </p>
+      <p>
+        Tick parts to <b>Set products to</b>, <b>Add products</b> or <b>Remove products</b> (Set with none chosen makes
+        them common to all products), or pick a <b>Spare / Consumable</b> value and <b>Set for</b>. Each asks to confirm
+        and reports how many saved and which did not.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>An inactive part is not offered in the spare pickers; records already naming it keep it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Product Master</b> — Category ACCESSORY is an accessory, anything else a main product</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 05</p>
+      <h2>Main product → Accessories &amp; allied products</h2>
+      <span class="who">Add / edit master records</span>
+      <p>
+        A panel above the table: for each main product, the accessories sold with it and an optional note. One list per
+        main product; ✎ edits it and 🗑 removes it.
+      </p>
+      <p>
+        <b>What it does on a call:</b> the Spare Request and the visit report's spare consumption offer the parts of the
+        call's product, the parts of its accessories, and the common parts. <b>Show all parts</b> on either form opens
+        everything.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Index</span>One list per main product.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The Item Master file</b> (Bulk Uploads → Part Master)</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 3 · Step 06</p>
+      <h2>Load parts in bulk</h2>
+      <span class="who">Load registers in bulk (Bulk Uploads)</span><span class="who">Add / edit master records</span>
+      <p>
+        Matched on <b>CODE|Description</b> — not the code alone, because one code can belong to two parts — so a
+        corrected sheet updates those parts. Where the file has only a code and a description, the CODE|Description is
+        built from them. Spare / Consumable is title-cased and a word outside the four is kept as written; a blank stays
+        blank and Spare Insights reports it as Unclassified. A part marked Inactive comes in retired. An <b>HSN Code</b>
+        column fills the HSN Code.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><b>Item Code</b> and <b>Item Details</b> (or a description to build it from) on every row.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 3, as a ledger</h2>
+    <p>Where a part is offered.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Screen</th><th>Offers</th></tr></thead>
+        <tbody>
+          <tr><td>Spare Request</td><td>Active parts fitting the call's product, its accessories, and the common parts; Show all parts for the rest</td></tr>
+          <tr><td>Visit report — spares used</td><td>The same, from the engineer's hand stock</td></tr>
+          <tr><td>Hand Stock</td><td>Active parts</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 4 ================= -->
+  <section class="flowhead" id="flow4">
+    <p class="flowhead-n">Flow 4</p>
+    <h2 class="flowhead-t">People and value lists</h2>
+    <p class="flowhead-p">
+      The <b>User Master</b> holds everybody, signed in or not, and the reporting line: a manager's team is worked out
+      from the Reporting and Regional Manager each row names. A call is allotted to a <b>User Master name</b>, which is
+      why the name is required. <b>Designation</b> is the job somebody holds; <b>Role</b> is what the application lets
+      them do, and the two often differ.
+    </p>
+    <p class="flowhead-p">
+      <b>All Masters</b> is the overview of every master, and the home of the short <b>value lists</b> behind the
+      dropdowns — each with its own screen and its own rights.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The User Master</b></li>
+        <li><b>Every sign-in</b>, matched by Air Liquide ID or Gmail</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 4 · Step 01</p>
+      <h2>User Master — the directory</h2>
+      <span class="who">Open: User Master</span>
+      <p>
+        Columns: Name, Designation, Department, Role, Signed in, Air Liquide ID, Gmail, Region, Active, Reporting Mgr,
+        Regional Mgr, Contact, Address, City, State. Search by name, email, region, designation or role; <b>⭳ Export
+        CSV</b>. Clicking a row opens the person, with their profile, Roles &amp; Responsibilities and training, and the
+        actions you may take on them.
+      </p>
+      <p>
+        Where a person's sign-in carries a different role from this list, a banner counts them — that is the access they
+        actually have — and <b>Apply this list's role to them</b> sets it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Policy</span>Every signed-in user may read the User Master.</li>
+        <li>Access, Clone, Data and Reset password need the person to have signed in at least once.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Department</b> list, from All Masters</li>
+        <li><b>User Master names and regions</b>, suggested in the manager and region boxes</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--mandate)">
+      <p class="n">Flow 4 · Step 02</p>
+      <h2>+ New User, and a login</h2>
+      <span class="who">Edit User Master details, profiles and R&amp;R</span><span class="who">Create logins</span><span class="who">Assign roles &amp; grant permissions</span>
+      <p>
+        The form: User Name, Designation, Department, Air Liquide ID, Gmail ID, Role, Active, Reporting Manager, Regional
+        Manager, Region, Contact No, Address, City, State. <b>Create a sign-in login now</b> (offered with <b>Create logins</b>) makes the login
+        too, with a starting password you can change before saving. A person who has not signed in gets the Role the moment they first do.
+      </p>
+      <p>
+        <b>⧉ Clone</b> — offered to holders of both <b>Create logins</b> and <b>Assign roles &amp; grant permissions</b> — starts a new person with another's role and extra permissions — <b>Permissions only</b>, or
+        <b>Permissions + Data</b>, which adds <b>View all data (every record)</b>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><i>"A user needs a name — it is what calls are allotted to."</i></li>
+        <li class="mandate"><span class="tag">Mandate</span>A login needs an email: <i>"A login needs an email — enter the Air Liquide or Gmail ID."</i></li>
+        <li><span class="tag db">Trigger</span><i>"RBAC: creating a login with a role other than Engineer, or with extra permissions, needs "Assign roles &amp; grant permissions""</i></li>
+        <li><span class="tag db">Trigger</span>Giving a User Master row a Role: <i>"RBAC: setting the role a person signs in with needs "Assign roles &amp; grant permissions""</i></li>
+        <li><span class="tag db">Trigger</span><i>"RBAC: granting admin requires an administrator"</i></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Everybody who names this person as manager</b>, counted before a rename</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 4 · Step 03</p>
+      <h2>Edit people — one, or the whole table</h2>
+      <span class="who">Edit User Master details, profiles and R&amp;R</span>
+      <p>
+        <b>⋯</b> or <b>✏️ Edit</b> opens one person in the full form. <b>✎ Edit</b> in the header turns every row into
+        boxes; Enter saves, Esc cancels. Ticking people and choosing a <b>Department</b> sets it for all of them.
+      </p>
+      <p>
+        <b>Renaming a person</b> is confirmed first. The screen says who moves with it: the people naming them as
+        Reporting or Regional Manager, and <i>"calls allotted to it, call requests, spare requests, consumption, hand stock
+        and stock transfers, and the Service Engineer on the Party Master and Product Database"</i>. Who approved,
+        dispatched or recorded something is not changed. If another row has the same old name, nothing moves.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>Only an administrator may change an existing row's name, email, designation, managers, region, Active or role: <i>"Only an administrator may edit the user directory; dispatch may set the address only"</i>. See <b>Not yet in place</b>.</li>
+        <li><span class="tag db">Trigger</span>Changing a role: <i>"RBAC: setting the role a person signs in with needs "Assign roles &amp; grant permissions""</i>; the Role box is greyed without it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The person's role</b> on Roles &amp; Permissions</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--rule)">
+      <p class="n">Flow 4 · Step 04</p>
+      <h2>🔐 Access, password and login</h2>
+      <span class="who">Assign roles &amp; grant permissions</span><span class="who">Reset a person’s password</span><span class="who">Disable or delete logins</span>
+      <p>
+        <b>🔐 Access</b> sets the role and ticks <b>Extra</b> permissions for this person alone; what the role already
+        grants is shown under <b>Via role</b>.
+      </p>
+      <p>
+        <b>🔑 Reset password</b> generates a new password and shows it <b>once</b>; it is not stored anywhere, and every
+        device the person was signed in on is signed out. <b>🔒 Disable login</b> stops them signing in and keeps all their
+        records; <b>🔓 Enable login</b> reverses it. <b>🗑 Delete</b> removes the User Master entry only — the login and
+        all history are kept. <b>📊 Data</b> lists what the person entered: calls, spare requests, dispatches, approvals,
+        reports and consumption.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><i>"RBAC: changing a role or permissions needs "Assign roles &amp; grant permissions""</i></li>
+        <li><span class="tag db">Trigger</span><i>"RBAC: you cannot change your own role or permissions"</i></li>
+        <li><span class="tag db">Trigger</span><i>"RBAC: switching a login on or off needs "Disable or delete logins""</i></li>
+        <li><span class="tag db">Policy</span>Deleting a User Master row needs <b>Disable or delete logins</b>.</li>
+        <li><b>Reset a person’s password</b> is not part of Manage users; it is ticked on its own.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Party Master, Product Database, Part Master, User Master</b> — counted</li>
+        <li><b>Every value list</b> and its entries</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--master)">
+      <p class="n">Flow 4 · Step 05</p>
+      <h2>All Masters and the value lists</h2>
+      <span class="who">Open: All Masters</span><span class="who">Add / edit values in this list</span><span class="who">Delete values from this list</span>
+      <p>
+        One table of every master: the four registers with their counts and an <b>Open</b> button, then each value list
+        with its entries, status and where it is used. <b>Edit list</b> (or <b>View list</b>) opens a list below;
+        <b>↗ Open its own screen</b> goes to its page.
+      </p>
+      <p>
+        On a list: type a new value and <b>+ Add</b>; <b>⊘ Deactivate</b> — <i>"It stays on every record that already uses
+        it, but stops being offered"</i> — and <b>↩ Reactivate</b>; <b>🗑</b> removes a value. On <b>Standard
+        Complaint</b>, each complaint carries the products it applies to (none means all products), set one at a time or
+        by ticking several and choosing Set / Add / Remove products; its export carries a <b>Key</b> for re-loading. Each
+        list also has its own upload under Bulk Uploads → Master Value Lists, which stamps the list name for you.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Index</span>A duplicate value is refused: <i>"That entry is already in this list."</i></li>
+        <li><span class="tag db">Policy</span>Adding or changing a value needs that list's <b>Add / edit values in this list</b> or <b>Add / edit master records</b>; removing one needs <b>Delete values from this list</b> or <b>Add / edit master records</b>.</li>
+        <li>Without the right the list says <i>"You need the “Add / edit values” permission for … to change this list."</i></li>
+        <li>Pickers offer only active values.</li>
+        <li>A Standard Complaint upload never renames a complaint.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 4, as a ledger</h2>
+    <p>Each value list and the screen that reads it, as found in the code.</p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>List</th><th>Read by</th></tr></thead>
+        <tbody>
+          <tr><td>Call Type</td><td>Request Registration — Call Type</td></tr>
+          <tr><td>Standard Complaint</td><td>The call forms, Request Registration and the visit report, narrowed to the call's product</td></tr>
+          <tr><td>Call Pending Reason</td><td>The visit report, when a call is left Unsolved</td></tr>
+          <tr><td>Call Cancel Reason</td><td>No screen — cancelling a request on Pending Registrations takes a typed reason</td></tr>
+          <tr><td>Feedback Rating</td><td>The customer feedback ratings on the visit report</td></tr>
+          <tr><td>Spare Approval Reason</td><td>No screen found — see Not yet in place</td></tr>
+          <tr><td>DCCR Complaint Grouping, Root Cause Key Word</td><td>Daily Complaint Review Register — Review 3, per product</td></tr>
+          <tr><td>Department</td><td>User Master — Department; Training</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- permissions ----------------------------------------------------------- -->
+<section class="states">
+  <h2>Who may do what</h2>
+  <p>
+    Each screen opens with its own <b>Open:</b> key; the actions below are ticked on Roles &amp; Permissions under
+    <b>Master</b> and <b>Admin</b>. A key marked with a parent is also granted by holding the parent. The screen's tick
+    opens the page; reading the master records themselves is open to every signed-in user.
+  </p>
+  <div class="scroll">
+    <table class="transitions">
+      <thead><tr><th>To</th><th>Permission</th><th>Granted also by</th></tr></thead>
+      <tbody>
+        <tr><td>Edit a party, part, accessory list, product line or value</td><td>Add / edit master records (parties, parts, products, lists)</td><td>Edit masters (all of the below)</td></tr>
+        <tr><td>Change a party's KYC status</td><td>Verify a party’s KYC</td><td>Edit masters (all of the below)</td></tr>
+        <tr><td>✎ Change engineer</td><td>Swap the Serviceman on every party at once</td><td>Edit masters (all of the below)</td></tr>
+        <tr><td>Rename a part</td><td>Rename a part (moves every record that names it)</td><td>Edit masters (all of the below)</td></tr>
+        <tr><td>One value list</td><td>Add / edit values in this list · Delete values from this list</td><td>Edit masters (all of the below)</td></tr>
+        <tr><td>⟳ Rebuild Product Database 2.0</td><td>Rebuild Product Database 2.0</td><td>—</td></tr>
+        <tr><td>+ Field on the Product Database</td><td>Create / register calls</td><td>—</td></tr>
+        <tr><td>+ Install on the Product Database</td><td>Create installation calls (Commercial)</td><td>—</td></tr>
+        <tr><td>Load a master in bulk</td><td>Load registers in bulk (Bulk Uploads), and the master's own write right</td><td>—</td></tr>
+        <tr><td>Edit people, add a person</td><td>Edit User Master details, profiles and R&amp;R</td><td>Manage users (all of the below)</td></tr>
+        <tr><td>Create a login</td><td>Create logins</td><td>Manage users (all of the below)</td></tr>
+        <tr><td>Role and extra permissions</td><td>Assign roles &amp; grant permissions</td><td>Manage users (all of the below)</td></tr>
+        <tr><td>Disable a login, delete a row</td><td>Disable or delete logins</td><td>Manage users (all of the below)</td></tr>
+        <tr><td>Reset a password</td><td>Reset a person’s password</td><td>— (ticked on its own)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- panels --------------------------------------------------------------- -->
+<div class="panels">
+
+  <div class="panel">
+    <h3>The records kept</h3>
+    <ul>
+      <li><b>Party Key.</b> Party-1, Party-2 … given once, on first insert, and never changed.</li>
+      <li><b>KYC.</b> Who verified and when, from the sign-in, cleared again if the status leaves Verified; each attached record keeps its file name, link, who attached it and when.</li>
+      <li><b>The migrated system's answers.</b> The Product Database keeps the file's own Item Status, Service Engineer, contract number and INST Call beside the values it works out, so the two can be compared.</li>
+      <li><b>Part renames.</b> Every record naming the part moves with it in one go, or none does.</li>
+      <li><b>Product Database 2.0</b> records when it was last built and whether a register has changed since.</li>
+      <li><b>System columns.</b> Every table also records which login created and last changed each row, and when, written by the database.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h3>Not yet in place</h3>
+    <p>Stated here so nobody reads this page as describing them as done.</p>
+    <ul>
+      <li><b>Editing an existing person needs an administrator</b> (D-084). The User Master offers <i>Edit</i>, the Department bar and the role to holders of <b>Edit User Master details</b>, but the database refuses any change to an existing row's name, email, designation, managers, region, Active or role from anybody who is not an administrator — and a change to Department, phone or address only from somebody holding <b>Dispatch / DC (Stores)</b>. Adding a new person is not affected.</li>
+      <li><b>Verify a party’s KYC, held alone, changes nothing</b> (D-085). The Party Master opens read-only without <b>Add / edit master records</b>, and the database writes no party change without it.</li>
+      <li><b>A value list's Add is hidden from a holder of Add / edit master records alone</b> (D-086). The database accepts that key for every list; the screen asks for the list's own key or <b>Edit masters</b>.</li>
+      <li><b>KYC is shown, not enforced.</b> Nothing refuses a sale or an installation call for a customer whose KYC is not Verified.</li>
+      <li><b>An Inactive product line can still be typed on a new sale.</b> The picker does not offer it, but the box accepts a typed name.</li>
+      <li><b>Spare Approval Reason</b> is read by no screen — the Commercial and NSM approval reasons are a fixed list on the form.</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    Drawn from the running system: <code>src/modules/PartyMaster.tsx</code>, <code>ProductMaster.tsx</code>
+    (Product Database), <code>ProductDatabase2.tsx</code>, <code>ProductLines.tsx</code> (Product Master),
+    <code>PartMaster.tsx</code>, <code>ProductAccessories.tsx</code>, <code>UserMasterView.tsx</code>,
+    <code>AllMasters.tsx</code> and <code>MasterListTable.tsx</code>; <code>src/lib/rbac.ts</code> and
+    <code>src/lib/uploads.ts</code>; and the migrations they rest on, read at their latest definition. Where this page
+    and the code disagree, the code is the fact and this page is the bug.
+  </p>
+</footer>
+
+</div>
+
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH THE SHARED DIAGRAM AND THE IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>
