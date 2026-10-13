@@ -1275,6 +1275,22 @@ const MODULES = {
             // 2026-10-09), listed and generated from the entry window.
             '0407_pm_schedule.sql'],
   },
+  quotations: {
+    title: 'Quotations',
+    blurb: ['A quotation to a customer -- a service contract on their machines (AMC',
+            'or CMC, a period and a rate per machine), spares (a Part Master part,',
+            'HSN, quantity and unit price), or both on one document (0425).',
+            'Numbered QT/YY/NNNN by the database; Prepared by stamped from the',
+            'session; taxable, GST and total GENERATED on every line. Never deleted:',
+            'Cancelled instead, and frozen once Accepted, Declined or Cancelled, so',
+            'what was sent stays as sent -- a change is a revision.',
+            '',
+            'mod:/quotations opens the page and reads the rows; quote.edit writes.',
+            'The bundle gives the page to admin, technical_support, nsm and',
+            'commercial and quote.edit to admin, nsm and commercial.'],
+    needs: ['profiles', 'rbac'],
+    files: ['0425_quotations.sql'],
+  },
   stock_transfer: {
     title: 'Stock Transfer',
     blurb: ['Engineer-to-engineer hand-stock transfers, with the stock balance derived',
@@ -1679,7 +1695,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'recycling', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'permissions', 'sys_columns', 'lockdown'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'recycling', 'masters', 'documents', 'training', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'quotations', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2', 'feedback_checks', 'data_export', 'device_cache', 'permissions', 'sys_columns', 'lockdown'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

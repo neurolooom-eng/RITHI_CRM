@@ -291,6 +291,23 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
   },
   {
+    route: '/quotations',
+    purpose: 'Quotations to customers: a service contract on their machines (AMC or CMC, one line per machine), spares from the Part Master, or both on one document — numbered QT/YY/NNNN, priced here, printed on the company letterhead.',
+    does: [
+      'Raise a quotation: pick the party (a Party Master entry fills its address, GSTIN and PAN), set the date and how long it stands, add machines on contract from the party\u2019s Product Database machines and spares from the Part Master',
+      'Type the rate or unit price per line, with the machine\u2019s last contract rate or the part\u2019s last quoted price and purchase cost shown beside the box; discount and GST per line, totals as you type',
+      'Mark it Sent, Accepted, Declined or Cancelled; Revise a sent or frozen quotation into a new Draft that names the one it revises',
+      'Print it (or save as PDF) on the Air Liquide letterhead; export the register as CSV',
+    ],
+    records: ['quotations', 'quotation_lines', 'quotation_register', 'parties', 'product_database', 'contract_details', 'parts'],
+    rules: [
+      'The number, Prepared by and every line\u2019s taxable, GST and total are the database\u2019s — what the screen shows after a save is read back',
+      'A quotation is never deleted; once Accepted, Declined or Cancelled it is frozen and the database refuses a change — revise it instead',
+      'A context price is shown beside the box and never written into it: a price is on a quotation because somebody typed it',
+      'A spare line names a Part Master part; a part not on the master is added there first',
+    ],
+  },
+  {
     route: '/ownership-transfer',
     purpose: 'One row per machine changing hands, plus warranty and contract details recovered for machines whose sale paperwork was lost.',
     does: [

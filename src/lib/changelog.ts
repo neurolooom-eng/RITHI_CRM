@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.180',
+    date: '2026-10-13',
+    title: 'Quotations: a service contract on a customer\'s machines, spares, or both on one document',
+    changes: [
+      'NEW: Contracts & Warranty → Quotations. Raise a quotation to a customer for a service contract (AMC or CMC, one line per machine with its period and rate), for spares (a Part Master part, HSN, quantity and unit price), or for both on the one document. Numbered QT/YY/NNNN when saved.',
+      'Pick the party and its address, GSTIN and PAN fill in from the Party Master; the party\'s machines on the Product Database are offered for the contract lines. The rate is typed — what the machine was charged on its last contract is shown beside the box, as is a part\'s last quoted price and purchase cost — and taxable, GST and total work out as you type, per line and for the document.',
+      'Print / Save as PDF on the Air Liquide letterhead: both tables, totals with the amount in words, terms and a signature block. A Draft prints marked DRAFT.',
+      'Mark it Sent, Accepted, Declined or Cancelled. A quotation is never deleted; once Accepted, Declined or Cancelled it is frozen, and Revise copies it into a new Draft that names the one it revises.',
+      'Who sees it: the page is given to Admin, Technical Support, NSM and Commercial; raising and editing (quote.edit) to Admin, NSM and Commercial. Grant the rest on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.179',
     date: '2026-10-13',
     title: 'Call registers: First Attended, Last Visit and Solved dates; cancelled calls off the SLA list',

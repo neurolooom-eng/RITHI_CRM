@@ -7389,3 +7389,169 @@ export async function dccrFailureCalls(objectiveId: number, asof?: string): Prom
   return allRows<DccrFailureCall>((a, b) => c.rpc('dccr_failure_calls', { p_objective: objectiveId, p_asof: asof ?? null })
     .order('reg_date', { ascending: false }).order('ucn').range(a, b));
 }
+
+// ---- quotations (0425) ------------------------------------------------------
+// A quotation is a header and its lines, read and written as one. The number,
+// the Prepared by and the money on a line are the DATABASE'S: the header is
+// read back after a write so the screen shows what was recorded, never what
+// it sent.
+export interface Quotation {
+  id: number; quote_no: string; quote_date: string; valid_until: string | null;
+  party_name: string; party_address: string; party_city: string; party_state: string; party_pincode: string;
+  party_gstin: string; party_pan: string;
+  contact_name: string; contact_phone: string; contact_email: string;
+  subject: string; customer_ref: string; status: string; status_at: string | null;
+  terms: string; remarks: string; revision_of: string;
+  prepared_by: string | null; prepared_by_name: string; created_at: string; updated_at: string;
+}
+export interface QuotationLine {
+  id?: number; quote_id?: number; row_no: number; line_type: 'Contract' | 'Spare';
+  description: string; product_name: string; serial_number: string; cover_type: string;
+  period_months: number | null; period_start: string | null; period_end: string | null;
+  part_code: string; hsn_code: string;
+  qty: number; unit_price: number; discount_pct: number; gst_pct: number;
+  taxable_amount?: number; tax_amount?: number; total_amount?: number;
+}
+/** One row of the register view: the header with its counts and totals. */
+export interface QuotationRow {
+  id: number; quote_no: string; quote_date: string; valid_until: string | null;
+  party_name: string; party_city: string; party_state: string; contact_name: string;
+  subject: string; customer_ref: string; status: string; status_at: string | null; revision_of: string;
+  prepared_by: string | null; prepared_by_name: string; created_at: string; updated_at: string;
+  lines: number; contract_lines: number; spare_lines: number;
+  taxable_total: number; tax_total: number; grand_total: number;
+}
+const QUOTE_LINE_COLS = 'id,quote_id,row_no,line_type,description,product_name,serial_number,cover_type,period_months,period_start,period_end,part_code,hsn_code,qty,unit_price,discount_pct,gst_pct,taxable_amount,tax_amount,total_amount';
+
+export async function listQuotations(): Promise<QuotationRow[]> {
+  const c = must();
+  // PAGED, newest first, `id` as the tiebreaker: two quotations raised on one
+  // day are the ordinary case, and a tie puts a row on two pages or neither.
+  return allRows<QuotationRow>((a, b) => c.from('quotation_register').select('*')
+    .order('quote_date', { ascending: false }).order('id', { ascending: false }).range(a, b));
+}
+export async function getQuotation(quoteNo: string): Promise<{ head: Quotation; lines: QuotationLine[] } | null> {
+  const c = must();
+  const { data, error } = await c.from('quotations').select('*').eq('quote_no', quoteNo.trim()).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  if (!data) return null;
+  const head = data as Quotation;
+  const lines = await allRows<QuotationLine>((a, b) => c.from('quotation_lines').select(QUOTE_LINE_COLS)
+    .eq('quote_id', head.id).order('row_no').order('id').range(a, b));
+  return { head, lines };
+}
+/** What a line sends: never the id, the parent or the generated money. */
+function quoteLineBody(l: QuotationLine, quoteId: number, rowNo: number): Record<string, unknown> {
+  return {
+    quote_id: quoteId, row_no: rowNo, line_type: l.line_type, description: l.description,
+    product_name: l.product_name ?? '', serial_number: l.serial_number ?? '', cover_type: l.cover_type ?? '',
+    period_months: l.period_months ?? null, period_start: l.period_start || null, period_end: l.period_end || null,
+    part_code: l.part_code ?? '', hsn_code: l.hsn_code ?? '',
+    qty: l.qty, unit_price: l.unit_price, discount_pct: l.discount_pct ?? 0, gst_pct: l.gst_pct,
+  };
+}
+const QUOTE_HEAD_KEYS: (keyof Quotation)[] = ['quote_date', 'valid_until', 'party_name', 'party_address', 'party_city',
+  'party_state', 'party_pincode', 'party_gstin', 'party_pan', 'contact_name', 'contact_phone', 'contact_email',
+  'subject', 'customer_ref', 'terms', 'remarks', 'revision_of'];
+/** Save a quotation whole: the header (new, or by id) and ITS LINES REPLACED
+ *  by the ones given. The status is not written here -- setQuotationStatus is
+ *  the one place it moves. The header comes back as recorded (its number, its
+ *  Prepared by); a write RLS refused matches nothing and is reported as such. */
+export async function saveQuotation(id: number | null, head: Partial<Quotation>, lines: QuotationLine[]): Promise<Res<Quotation>> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const body: Record<string, unknown> = {};
+  for (const k of QUOTE_HEAD_KEYS) if (head[k] !== undefined) body[k] = head[k] === '' && k === 'valid_until' ? null : head[k];
+  const q = id == null
+    ? c.from('quotations').insert(body).select('*')
+    : c.from('quotations').update(body).eq('id', id).select('*');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || !data.length) return { ok: false, error: 'Nothing was saved: your role may not write this quotation.' };
+  const saved = data[0] as Quotation;
+  // The lines: remove what is there, write what is given. A frozen quotation
+  // never reaches here with changed lines (the screen is read-only), and the
+  // database refuses it anyway.
+  if (id != null) {
+    const { error: de } = await c.from('quotation_lines').delete().eq('quote_id', saved.id);
+    if (de) return { ok: false, error: errMsg(de) };
+  }
+  if (lines.length) {
+    const { data: ld, error: le } = await c.from('quotation_lines')
+      .insert(lines.map((l, i) => quoteLineBody(l, saved.id, i + 1))).select('id');
+    if (le) return { ok: false, error: errMsg(le) };
+    if (!ld || ld.length !== lines.length) return { ok: false, error: `Only ${ld?.length ?? 0} of ${lines.length} lines were saved.` };
+  }
+  return { ok: true, data: saved };
+}
+export async function setQuotationStatus(id: number, status: string): Promise<Res<Quotation>> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { data, error } = await c.from('quotations').update({ status }).eq('id', id).select('*');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!data || !data.length) return { ok: false, error: 'Nothing was changed: your role may not write this quotation.' };
+  return { ok: true, data: data[0] as Quotation };
+}
+/** REVISE: a new Draft copying the header and the lines of a quotation, dated
+ *  today and naming the one it revises. The original is untouched. */
+export async function reviseQuotation(quoteNo: string): Promise<Res<Quotation>> {
+  const got = await getQuotation(quoteNo);
+  if (!got) return { ok: false, error: `Quotation ${quoteNo} was not found, or you cannot view it.` };
+  const h = got.head;
+  const head: Partial<Quotation> = {
+    quote_date: todayLocal(), valid_until: null,
+    party_name: h.party_name, party_address: h.party_address, party_city: h.party_city, party_state: h.party_state,
+    party_pincode: h.party_pincode, party_gstin: h.party_gstin, party_pan: h.party_pan,
+    contact_name: h.contact_name, contact_phone: h.contact_phone, contact_email: h.contact_email,
+    subject: h.subject, customer_ref: h.customer_ref, terms: h.terms, remarks: h.remarks,
+    revision_of: h.quote_no,
+  };
+  return saveQuotation(null, head, got.lines);
+}
+
+/** THE LAST CONTRACT RATE ON THIS MACHINE, shown BESIDE the rate box and
+ *  never in it -- the renewal's rule (2026-09-16). The latest contract line
+ *  by its end date for the serial (and model, where the line records one). */
+export interface LastContractRate { rate: number; mc_number: string; contract_end: string | null; contract_type: string }
+export async function lastContractRate(serial: string, product = ''): Promise<LastContractRate | null> {
+  const c = getSupabase(); if (!c || !serial.trim()) return null;
+  const q = c.from('contract_details').select('rate,mc_number,contract_end,contract_type,product_name')
+    .ilike('serial_number', serial.trim()).not('rate', 'is', null)
+    .order('contract_end', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(5);
+  const { data, error } = await q;
+  if (error) return null;      // context only: a read this role may not make leaves the box as it was
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const want = product.trim().toLowerCase();
+  const hit = rows.find((r) => !want || String(r.product_name ?? '').trim().toLowerCase() === want) ?? rows[0];
+  if (!hit) return null;
+  const rate = Number(hit.rate);
+  if (!Number.isFinite(rate)) return null;
+  return { rate, mc_number: String(hit.mc_number ?? ''), contract_end: (hit.contract_end as string | null) ?? null,
+    contract_type: String(hit.contract_type ?? '') };
+}
+/** The Part Master's HSN and purchase cost for a code, and what the part was
+ *  last quoted at -- context beside the price box, never a price written
+ *  into it. */
+export interface PartQuoteContext { hsn_code: string; purchase_cost: number | null; last_price: number | null; last_quote_no: string }
+export async function partQuoteContext(code: string): Promise<PartQuoteContext> {
+  const c = getSupabase();
+  const out: PartQuoteContext = { hsn_code: '', purchase_cost: null, last_price: null, last_quote_no: '' };
+  const k = code.trim();
+  if (!c || !k) return out;
+  const [{ data: p }, { data: l }] = await Promise.all([
+    c.from('parts').select('hsn_code,purchase_cost').ilike('code', k).order('active', { ascending: false }).limit(1).maybeSingle(),
+    c.from('quotation_lines').select('unit_price,quote_id,quotations(quote_no)').eq('part_code', k.toUpperCase())
+      .order('id', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (p) {
+    out.hsn_code = String((p as Record<string, unknown>).hsn_code ?? '');
+    const pc = Number((p as Record<string, unknown>).purchase_cost);
+    out.purchase_cost = Number.isFinite(pc) && (p as Record<string, unknown>).purchase_cost != null ? pc : null;
+  }
+  if (l) {
+    const row = l as Record<string, unknown>;
+    const up = Number(row.unit_price);
+    out.last_price = Number.isFinite(up) ? up : null;
+    const qn = row.quotations as { quote_no?: string } | { quote_no?: string }[] | null;
+    out.last_quote_no = Array.isArray(qn) ? String(qn[0]?.quote_no ?? '') : String(qn?.quote_no ?? '');
+  }
+  return out;
+}

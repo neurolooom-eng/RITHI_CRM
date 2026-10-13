@@ -3000,6 +3000,7 @@ console.log('\n-- every control a screen tests is on its own Roles & Permissions
     'Training.tsx': ['/training'], 'SlaRulesCard.tsx': ['/admin-config'],
     'CallRegistrationCard.tsx': ['/admin-config'], 'FrequentFailureCard.tsx': ['/admin-config'],
     'Lookup.tsx': ['/lookup'], 'SpareInsights.tsx': ['/spare-insights'],
+    'Quotations.tsx': ['/quotations'],
   };
   // Keys that are not one page's: they live under "Across the system".
   const ACROSS = new Set(TREE.flatMap((h) => h.pages).filter((pg) => pg.path === '').flatMap((pg) => pg.actions));

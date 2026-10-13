@@ -17,7 +17,7 @@ A requirement merely naming the screen was not counted as covering an action on 
 | Overview & Quality | 12 | 178 | 89 | 51 |
 | Service Calls & Feedback | 14 | 239 | 75 | 67 |
 | Spares & Hand Stock | 11 | 219 | 121 | 53 |
-| Masters, Cover & Knowledge | 14 | 206 | 80 | 71 |
+| Masters, Cover & Knowledge | 15 | 215 | 80 | 71 |
 | Reports, Administration & app-wide | 16 | 230 | 109 | 67 |
 
 Each group ends with its own gaps summary.
@@ -1665,6 +1665,22 @@ Purpose: Records a machine changing hands, and warranty/contract details recover
 | 16 | OT Number given by the database on save (next after the highest OTnnnn), shown read-only, reported after saving | 0391 ot_next_no, ownership_transfer_number; supabase.ts addOwnershipTransfer | ownership.transfer | FRS-266 | |
 | 17 | Invoice No. and Invoice Date on the transfer, carried to the machine on the Product Database | OwnershipTransfer.tsx saveMove; 0391 sync_product_machine | ownership.transfer | FRS-266 | |
 | 18 | Optional files uploaded to the Ownership Transfers Drive folder, kept as attachments, opened from the list in the document preview | OwnershipTransfer.tsx attachFile, DocPreview; sheets.ts uploadToDrive; drivefolders.ts transfer | ownership.transfer | FRS-266 | |
+
+
+### Quotations (`/quotations`) — `src/modules/Quotations.tsx` (+ `src/lib/quotes.ts`, `src/modules/QuotationPrint.tsx`)
+Purpose: Quotations to customers — a service contract on their machines (AMC / CMC per machine), spares from the Part Master, or both on one document; numbered, priced and frozen by the database; printed on the letterhead. Added 2026-10-13 (0425), written with its requirement rather than read back from code.
+
+| # | Capability | Where | Guard | Requirement | Note |
+|---|---|---|---|---|---|
+| 1 | Register of quotations (paged, newest first) with contents, total, status, validity; search and status filter; CSV | Quotations.tsx (listQuotations, quotation_register) | `mod:/quotations` (RLS) · `export.data` | URS-187, FRS-276.10, OQ-279 | |
+| 2 | + New quotation: party from the Party Master fills address / GSTIN / PAN; a prospect may be typed | Quotations.tsx pickParty | `quote.edit` | FRS-276.2 | |
+| 3 | + Machine on contract from the party's Product Database machines; AMC/CMC, period, start/end, rate; last contract rate shown beside the box | Quotations.tsx pickMachine, lastContractRate | `quote.edit` | FRS-276.3, FRS-276.5 | the rate is never prefilled |
+| 4 | + Spare from the Part Master; HSN filled; qty, unit price; last quoted price and purchase cost shown beside the box | Quotations.tsx pickPart, partQuoteContext | `quote.edit` | FRS-276.3, FRS-276.5 | |
+| 5 | Discount % and GST % per line; taxable, GST, total per line and document as you type | lib/quotes.ts lineAmounts, quoteTotals | none | FRS-276.4 | the database's generated columns are the record |
+| 6 | Save: QT/YY/NNNN and Prepared by stamped by the database; lines replaced; figures read back | saveQuotation; 0425 quotation_stamp | `quote.edit` (RLS) | FRS-276.6 | |
+| 7 | Mark Sent / Accepted / Declined / Cancelled; frozen once decided; no delete | setQuotationStatus; 0425 quotation_stamp, quotation_line_guard | `quote.edit`; DB trigger | FRS-276.7 | |
+| 8 | Revise into a new Draft naming the original | reviseQuotation | `quote.edit` | FRS-276.8 | |
+| 9 | Print / Save as PDF on the letterhead with both tables, totals, amount in words, terms, signature; status watermark | QuotationPrint.tsx | `mod:/quotations` or `quote.edit` | FRS-276.9 | |
 
 ### Field Solutions (`/knowledge-base`) — `src/modules/KnowledgeBase.tsx`
 Purpose: Team-written articles about field problems and fixes.

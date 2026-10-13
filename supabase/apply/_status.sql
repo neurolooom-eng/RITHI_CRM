@@ -2202,7 +2202,22 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce(has_table_privilege('authenticated', 'public.call_dates', 'select'), false)
      and to_regprocedure('public.call_first_spare_on(text)') is not null
      and not has_function_privilege('anon', 'public.call_first_spare_on(text)', 'execute')
-     and coalesce((select pg_get_viewdef(to_regclass('public.call_dates')) like '%Asia/Kolkata%'), false)))
+     and coalesce((select pg_get_viewdef(to_regclass('public.call_dates')) like '%Asia/Kolkata%'), false))),
+    (345, 'Quotations are numbered, stamped, priced and frozen by the database', 'quotations and quotation_lines (0425) with zz_quotation_stamp (QT/YY/NNNN on insert, Prepared by from the session, a frozen quotation refused) and zz_quotation_line_guard (a frozen quotation''s lines refused); taxable, GST and total GENERATED on every line; quotation_register security_invoker and granted to authenticated; quote_next_no() closed to the API roles; no DELETE on quotations for authenticated. NO means a quotation can be raised unnumbered, re-priced after acceptance, or deleted. Restore: quotations.sql (0425)',
+        (to_regclass('public.quotations') is not null
+     and to_regclass('public.quotation_lines') is not null
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.quotations') and tgname = 'zz_quotation_stamp')
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.quotation_lines') and tgname = 'zz_quotation_line_guard')
+     and (select count(*) = 3 from information_schema.columns
+           where table_schema = 'public' and table_name = 'quotation_lines'
+             and column_name in ('taxable_amount', 'tax_amount', 'total_amount') and is_generated = 'ALWAYS')
+     and to_regclass('public.quotation_register') is not null
+     and coalesce((select 'security_invoker=on' = any (c.reloptions) from pg_class c where c.oid = to_regclass('public.quotation_register')), false)
+     and coalesce(has_table_privilege('authenticated', 'public.quotation_register', 'select'), false)
+     and to_regprocedure('public.quote_next_no(timestamptz)') is not null
+     and not has_function_privilege('anon', 'public.quote_next_no(timestamptz)', 'execute')
+     and not has_function_privilege('authenticated', 'public.quote_next_no(timestamptz)', 'execute')
+     and not has_table_privilege('authenticated', 'public.quotations', 'delete')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
