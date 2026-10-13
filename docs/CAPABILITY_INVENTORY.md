@@ -1672,15 +1672,15 @@ Purpose: Quotations to customers — a service contract on their machines (AMC /
 
 | # | Capability | Where | Guard | Requirement | Note |
 |---|---|---|---|---|---|
-| 1 | Register of quotations (paged, newest first) with contents, total, status, validity; search and status filter; CSV | Quotations.tsx (listQuotations, quotation_register) | `mod:/quotations` (RLS) · `export.data` | URS-187, FRS-276.10, OQ-279 | |
-| 2 | + New quotation: party from the Party Master fills address / GSTIN / PAN; a prospect may be typed | Quotations.tsx pickParty | `quote.edit` | FRS-276.2 | |
-| 3 | + Machine on contract from the party's Product Database machines; AMC/CMC, period, start/end, rate; last contract rate shown beside the box | Quotations.tsx pickMachine, lastContractRate | `quote.edit` | FRS-276.3, FRS-276.5 | the rate is never prefilled |
-| 4 | + Spare from the Part Master; HSN filled; qty, unit price; last quoted price and purchase cost shown beside the box | Quotations.tsx pickPart, partQuoteContext | `quote.edit` | FRS-276.3, FRS-276.5 | |
-| 5 | Discount % and GST % per line; taxable, GST, total per line and document as you type | lib/quotes.ts lineAmounts, quoteTotals | none | FRS-276.4 | the database's generated columns are the record |
-| 6 | Save: QT/YY/NNNN and Prepared by stamped by the database; lines replaced; figures read back | saveQuotation; 0425 quotation_stamp | `quote.edit` (RLS) | FRS-276.6 | |
-| 7 | Mark Sent / Accepted / Declined / Cancelled; frozen once decided; no delete | setQuotationStatus; 0425 quotation_stamp, quotation_line_guard | `quote.edit`; DB trigger | FRS-276.7 | |
-| 8 | Revise into a new Draft naming the original | reviseQuotation | `quote.edit` | FRS-276.8 | |
-| 9 | Print / Save as PDF on the letterhead with both tables, totals, amount in words, terms, signature; status watermark | QuotationPrint.tsx | `mod:/quotations` or `quote.edit` | FRS-276.9 | |
+| 1 | Register of quotations (paged, newest first) with contents, total, status, validity; search and status filter; CSV | Quotations.tsx (listQuotations, quotation_register) | `mod:/quotations` (RLS) · `export.data` | URS-187, FRS-277.10, OQ-280 | |
+| 2 | + New quotation: party from the Party Master fills address / GSTIN / PAN; a prospect may be typed | Quotations.tsx pickParty | `quote.edit` | FRS-277.2 | |
+| 3 | + Machine on contract from the party's Product Database machines; AMC/CMC, period, start/end, rate; last contract rate shown beside the box | Quotations.tsx pickMachine, lastContractRate | `quote.edit` | FRS-277.3, FRS-277.5 | the rate is never prefilled |
+| 4 | + Spare from the Part Master; HSN filled; qty, unit price; last quoted price and purchase cost shown beside the box | Quotations.tsx pickPart, partQuoteContext | `quote.edit` | FRS-277.3, FRS-277.5 | |
+| 5 | Discount % and GST % per line; taxable, GST, total per line and document as you type | lib/quotes.ts lineAmounts, quoteTotals | none | FRS-277.4 | the database's generated columns are the record |
+| 6 | Save: QT/YY/NNNN and Prepared by stamped by the database; lines replaced; figures read back | saveQuotation; 0425 quotation_stamp | `quote.edit` (RLS) | FRS-277.6 | |
+| 7 | Mark Sent / Accepted / Declined / Cancelled; frozen once decided; no delete | setQuotationStatus; 0425 quotation_stamp, quotation_line_guard | `quote.edit`; DB trigger | FRS-277.7 | |
+| 8 | Revise into a new Draft naming the original | reviseQuotation | `quote.edit` | FRS-277.8 | |
+| 9 | Print / Save as PDF on the letterhead with both tables, totals, amount in words, terms, signature; status watermark | QuotationPrint.tsx | `mod:/quotations` or `quote.edit` | FRS-277.9 | |
 
 ### Field Solutions (`/knowledge-base`) — `src/modules/KnowledgeBase.tsx`
 Purpose: Team-written articles about field problems and fixes.

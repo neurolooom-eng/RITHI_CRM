@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.180',
+    version: '0.10.181',
     date: '2026-10-13',
     title: 'Quotations: a service contract on a customer\'s machines, spares, or both on one document',
     changes: [
@@ -23,6 +23,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'Print / Save as PDF on the Air Liquide letterhead: both tables, totals with the amount in words, terms and a signature block. A Draft prints marked DRAFT.',
       'Mark it Sent, Accepted, Declined or Cancelled. A quotation is never deleted; once Accepted, Declined or Cancelled it is frozen, and Revise copies it into a new Draft that names the one it revises.',
       'Who sees it: the page is given to Admin, Technical Support, NSM and Commercial; raising and editing (quote.edit) to Admin, NSM and Commercial. Grant the rest on Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.180',
+    date: '2026-10-13',
+    title: 'Hand Stock: inactive users hidden',
+    changes: [
+      'Hand Stock now leaves off people marked inactive on the User Master. The new 🚫 Inactive users hidden switch is on by default; click it (👥 Inactive users shown) to see them again. The choice is remembered.',
+      'Hiding them changes no balance: the counts, the engineer picker and the Export CSV simply follow the shorter list. A name that is not on the User Master at all, such as INDOOR SERVICE, is always shown.',
     ],
   },
   {

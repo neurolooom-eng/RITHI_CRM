@@ -415,6 +415,11 @@ against the call it was fitted to.
   question from the dispatch queue, and now grantable separately.
 - **Hand Stock** `/handstock` — what an engineer holds. **Worked out, never
   stored**: issued − consumed ± transfers − returns.
+  > **🚫 Inactive users hidden** (on by default, remembered): people marked
+  > inactive on the User Master are left off the Stock Level list — its counts,
+  > the engineer picker and the CSV. Click it (**👥 Inactive users shown**) to
+  > see them again; their balances are unchanged either way. A name that is not
+  > on the User Master at all (for example INDOOR SERVICE) is always shown.
   > **Hand stock counts from 09-Jun-2022, the WinMax opening.** Consumption,
   > stock outs, transfers and returns from before that day are already inside
   > the opening balance, so they are not counted again. They are not deleted:
