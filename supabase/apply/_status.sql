@@ -2221,7 +2221,15 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_constraint where conname = 'sla_rules_label_named' and conrelid = to_regclass('public.sla_rules'))),
     (348, 'Objective: the Total column is calculated', 'objective_total() and the trigger zx_quality_objectives_total (0428): a calculated objective''s Total is the sum of its months (FFR count) or the average of the months that carry a figure (every percentage), restated whenever a month changes; a typed objective keeps its typed Total. NO means the Total column still shows the figure typed in from the sheet. Restore: objective.sql (0428)',
         (to_regprocedure('public.objective_total(public.quality_objectives)') is not null
-     and exists (select 1 from pg_trigger where tgname = 'zx_quality_objectives_total' and tgrelid = to_regclass('public.quality_objectives'))))
+     and exists (select 1 from pg_trigger where tgname = 'zx_quality_objectives_total' and tgrelid = to_regclass('public.quality_objectives')))),
+    (349, 'Call History: the calls before RITHI, kept apart', 'call_history (0429): row-level security on, read like a call, written with bulk.upload, never deleted or read through the public key, keyed by UC No. + Call No., and carrying no trigger but the loader stamp -- so nothing is created from a historical call. NO means the Call History upload in Bulk Uploads cannot load. Restore: daily_review.sql (0429)',
+        (to_regclass('public.call_history') is not null
+     and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.call_history')), false)
+     and to_regclass('public.call_history_key') is not null
+     and not coalesce(has_table_privilege('authenticated', 'public.call_history', 'delete'), true)
+     and not coalesce(has_table_privilege('anon', 'public.call_history', 'select'), true)
+     and (select count(*) from pg_trigger where tgrelid = to_regclass('public.call_history') and not tgisinternal
+            and tgname not in ('call_history_stamp', 'zzz_sys_stamp') and tgname not like 'record_audit%') = 0))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.186',
+    date: '2026-10-13',
+    title: 'Call History: calls before RITHI, kept apart',
+    changes: [
+      'New in Bulk Uploads → Calls: Call History, for calls before RITHI (up to 2025). Old calls are stored exactly as the file has them, including the call status, solved date, item status and contract type. Every other column is kept too.',
+      'They are kept apart from everything. They do not appear in the Field, Installation or PM registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or the Objectives. Nothing is created from them: no visit, no review, no FFR, no notification, no change to the Product Database.',
+      'Each call is one row per UC No. and Call No., so a UC No. the old system used for two calls keeps both. Uploading the same file again corrects it rather than adding it twice.',
+      'Machine History shows a machine\'s old calls in their own Call history group.',
+      'Dates written as Excel\'s long date (e.g. "Thursday, March 31, 2016") are now read on every upload.',
+    ],
+  },
+  {
     version: '0.10.185',
     date: '2026-10-13',
     title: 'Objective: the Total column is calculated',

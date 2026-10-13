@@ -210,6 +210,16 @@ on Roles & Permissions does not reach another team's calls.
   > alone. Re-loading the file corrects the calls it filed.
   > **PM calls in the DCCR:** a PM call joins the Daily Complaint Review when
   > a part booked on it is a **Spare** in the Part Master (SPARE pre-set).
+  > **Call History — calls before RITHI (up to 2025)** (Calls) stores old calls
+  > **apart from everything else**. They are not in the Field, Installation or PM
+  > registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field
+  > Failure or the Objectives, and **nothing is created from them**: no visit, no
+  > review, no FFR, no notification, no Product Database change. The call
+  > status and solved date are the file's own, as written. One row per **UC No.
+  > + Call No.**, so a UC No. the old system used twice keeps both calls; load a
+  > file again and it corrects, never doubles. Every other column the file has
+  > is kept with the call. Read them on **Machine History** (group *Call
+  > history*).
   > **Field Failure Register (any year)** (Quality) loads old FFR logs, a
   > year's tab at a time.
   > **Installation Warranty Start (old installation calls)** loads past
@@ -1406,6 +1416,8 @@ typed into a form that reads it.
   models, so a serial on its own would show you a different hospital's machine.
   - **Where it is now** — whose it is, its status, where, which engineer, and the
     warranty and contract it is under.
+  - **Call history** — the machine's calls before RITHI (loaded as Call
+    History), as the old file has them; history only, never a live call.
   - **Everything recorded against it** — calls, visits, spares fitted, Field
     Failure Reports, customer feedback, sale/warranty, contracts, ownership
     transfers, additional entries and workshop jobs. Filter by register, or

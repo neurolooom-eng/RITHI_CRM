@@ -9,7 +9,8 @@ import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
-import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
+import { dayAfter, addPeriod, todayLocal, toIsoDate } from '../src/lib/dates';
+import { UPLOADS as ALL_UPLOADS } from '../src/lib/uploads';
 import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
@@ -657,6 +658,24 @@ console.log('\n-- files on stock transfers and material returns --');
   eq('a record saves whatever happens to its files',
     /addStockRecordFiles\('stock_transfer', res\.uid, files\)/.test(st) && /addStockRecordFiles\('material_return', res\.uid, files\)/.test(mr), true);
   eq('the screen is Stock Transfer (MTN)', /title="Stock Transfer \(MTN\)"/.test(st), true);
+}
+
+// CALL HISTORY IS KEPT APART (FRS-278, 0429): its own table, its own
+// register, no workflow; Excel's Long Date read for its warranty start.
+console.log('\n-- call history, kept apart --');
+{
+  eq('Excel Long Date reads, with or without the weekday',
+    [toIsoDate('Thursday, March 31, 2016'), toIsoDate('November 01, 2019'), toIsoDate('Someday, Foo 01, 2019')], ['2016-03-31', '2019-11-01', null]);
+  const def = ALL_UPLOADS.find((d) => d.key === 'call_history');
+  eq('the register writes call_history and nothing else, keyed by UC No. + Call No.',
+    [def?.table, def?.conflict, def?.group], ['call_history', 'ucn,call_no', 'Calls']);
+  const mig = readFileSync('supabase/migrations/0429_call_history.sql', 'utf8');
+  eq('the table has no trigger but the loader stamp',
+    (mig.match(/create trigger/g) ?? []).length === 1 && /create trigger call_history_stamp/.test(mig), true);
+  eq('...and touches no live call table',
+    /insert into public\.(field_calls|installation_calls|pm_calls|reports|call_reviews)/.test(mig), false);
+  eq('Machine History reads it as its own group, never as a live call',
+    /bySerial\('Call history', 'call_history'/.test(readFileSync('src/lib/machineHistory.ts', 'utf8')), true);
 }
 
 // HAND STOCK HIDES PEOPLE WHO HAVE LEFT, ON A SWITCH (FRS-276).
@@ -7848,8 +7867,13 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // not doing so is how "WARRANTY" and "WGP" became two slices of one pie.
   const up = readFileSync('src/lib/uploads.ts', 'utf8');
   eq('the bulk uploader normalises cover', /COVER\('item_status'/.test(up), true);
-  eq('...and no register still takes it as plain text',
-    /TEXT\('item_status'/.test(up), false);
+  // ONE EXCEPTION, NAMED: Call History (0429) keeps the old file's own words
+  // ("Under Contract") because it is history kept apart from every workflow --
+  // the user, 2026-10-13: "the Call Status, Visit, Report can take from the
+  // file directly". Every LIVE register still normalises.
+  eq('...and no register still takes it as plain text, Call History apart',
+    (up.match(/TEXT\('item_status'/g) ?? []).length === 1
+      && /key: 'call_history'[\s\S]{0,2500}TEXT\('item_status'/.test(up), true);
   eq('the PM importer normalises cover',
     /col === 'item_status' \? coverCode\(val\)/.test(readFileSync('src/lib/pmImport.ts', 'utf8')), true);
   eq('the AppSheet cover export normalises its own spelling of it',
