@@ -763,7 +763,10 @@ const MODULES = {
       '0254_spare_insights_ist_window.sql',
       // Spare Insights planned with its dates (D-166, 0417): plpgsql + EXECUTE,
       // 0254's query word for word; the generic plan timed out.
-      '0417_spare_insights_planned_with_dates.sql'],
+      '0417_spare_insights_planned_with_dates.sql',
+      // First Attended, Last Visit and Solved per call (0424): a view over
+      // `calls`, `reports` and `spare_requests`, so here, after all three exist.
+      '0424_call_dates.sql'],
   },
   audit: {
     title: 'Audit Log',

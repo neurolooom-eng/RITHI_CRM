@@ -44,8 +44,12 @@ function statusFor(dueAt: number, targetHours: number, now: number): { status: S
 export function evaluateCallSla(rules: SlaRule[], facts: CallFacts, now = Date.now()): SlaResult {
   const parts: SlaPart[] = [];
   const closed = /^solved/i.test(facts.openState) && !/report pending/i.test(facts.openState);
+  // A CANCELLED CALL HAS NO SLA (the user, 2026-10-13: "Remove Cancelled Calls
+  // from SLA"): nobody is going, so no visit or closure can be late. It used to
+  // fall through and read "Call closure · 273d over".
+  const cancelled = /^cancel/i.test(facts.openState.trim());
   const reg = facts.regAt ? new Date(facts.regAt).getTime() : NaN;
-  if (closed || isNaN(reg)) return { worst: 'na', parts };
+  if (closed || cancelled || isNaN(reg)) return { worst: 'na', parts };
 
   // First visit — only while nothing has been reported yet.
   const visited = !!facts.lastVisitAt || !/unattended/i.test(facts.openState);
