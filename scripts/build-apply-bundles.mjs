@@ -766,7 +766,10 @@ const MODULES = {
       '0417_spare_insights_planned_with_dates.sql',
       // First Attended, Last Visit and Solved per call (0424): a view over
       // `calls`, `reports` and `spare_requests`, so here, after all three exist.
-      '0424_call_dates.sql'],
+      '0424_call_dates.sql',
+      // The KPI export in India dates (D-169, 0425). AFTER 0390, whose view it
+      // restates, and after 0424, whose call_first_spare_on() it reads.
+      '0425_kpi_export_india_dates.sql'],
   },
   audit: {
     title: 'Audit Log',
@@ -1142,6 +1145,9 @@ const MODULES = {
             // A one-time data fix (0421): the voided KY550200 consumption on
             // 26G06F0006 deleted at the user's request; the row audit keeps it.
             '0421_delete_voided_ky550200_consumption.sql',
+            // Files kept with a transfer or a return (0426): a table of its
+            // own, reading stock_transfers and material_returns in its policies.
+            '0426_stock_record_files.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
@@ -1279,7 +1285,7 @@ const MODULES = {
     title: 'Quotations',
     blurb: ['A quotation to a customer -- a service contract on their machines (AMC',
             'or CMC, a period and a rate per machine), spares (a Part Master part,',
-            'HSN, quantity and unit price), or both on one document (0425).',
+            'HSN, quantity and unit price), or both on one document (0427).',
             'Numbered QT/YY/NNNN by the database; Prepared by stamped from the',
             'session; taxable, GST and total GENERATED on every line. Never deleted:',
             'Cancelled instead, and frozen once Accepted, Declined or Cancelled, so',
@@ -1289,7 +1295,7 @@ const MODULES = {
             'The bundle gives the page to admin, technical_support, nsm and',
             'commercial and quote.edit to admin, nsm and commercial.'],
     needs: ['profiles', 'rbac'],
-    files: ['0425_quotations.sql'],
+    files: ['0427_quotations.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

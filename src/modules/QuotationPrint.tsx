@@ -1,5 +1,5 @@
 // ===========================================================================
-// QUOTATION, PRINTABLE (0425) -- the document that goes to the customer, on
+// QUOTATION, PRINTABLE (0427) -- the document that goes to the customer, on
 // the company's letterhead (lib/brand: COMPANY_LOGO, never the app's mark).
 //
 // A4 portrait. The machines on contract and the spares print as two separate

@@ -299,6 +299,7 @@
 --   0419_delete_so16233_ky732930.sql
 --   0420_drop_or44271_ky550200.sql
 --   0421_delete_voided_ky550200_consumption.sql
+--   0426_stock_record_files.sql
 --   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
@@ -338,7 +339,7 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
---   0425_quotations.sql
+--   0427_quotations.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -418,6 +419,7 @@
 --   0254_spare_insights_ist_window.sql
 --   0417_spare_insights_planned_with_dates.sql
 --   0424_call_dates.sql
+--   0425_kpi_export_india_dates.sql
 --   0218_product_database_v2.sql
 --   0220_product_database_2_is_materialised.sql
 --   0221_product_database_2_needs_no_gate.sql
@@ -38513,6 +38515,113 @@ begin
 end $once$;
 
 -- ------------------------------------------------------------------------
+-- 0426_stock_record_files.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0426 -- FILES KEPT WITH A STOCK TRANSFER OR A MATERIAL RETURN (the user,
+-- 2026-10-13: "Add File Upload Option in Stock Transfer and Material Return").
+--
+-- Settled with the user the same day: any number of files per record
+-- (the signed MTN or MRN, a photo, a covering letter), each listed with who
+-- attached it and when; attached on the New Transfer / New MRN form AND
+-- afterwards on the saved record, because the signed copy usually comes back
+-- after the stock has moved; optional -- a record saves without one.
+--
+-- A TABLE OF ITS OWN, not a column on the record, for two reasons:
+--   * a material return is one ROW PER PART sharing a Reference (uid), so a
+--     file on the return is a file on the GROUP, which no row can carry once;
+--   * both records are fixed once written -- stock_transfer_header_fixed and
+--     material_returns_immutable refuse edits -- and those guards are right.
+--     A file attached later is a new fact about the record, not a change to
+--     it, so it is a new row here and neither guard is loosened.
+--
+-- APPEND-ONLY. No update or delete policy: a file somebody relied on stays
+-- listed. The file itself lives in Drive, uploaded through the bridge (the
+-- "Stock Transfers" / "Material Returns" folders, else the drive root).
+--
+-- WHO MAY SEE A FILE: whoever may see its record -- the read policy asks the
+-- record's own table, under the reader's own row-level security.
+-- WHO MAY ATTACH ONE: whoever may see the record AND may raise that kind of
+-- record -- stock.transfer for a transfer; for a return, stock.return on
+-- their own return, or stock.return.others / an administrator on anybody's
+-- (mr_insert's own audience, restated).
+-- WHO ATTACHED IT AND WHEN are stamped by the database; a caller's values are
+-- discarded (the 0113/0114 rule).
+-- ===========================================================================
+
+create table if not exists public.stock_record_files (
+  id               bigserial primary key,
+  kind             text not null check (kind in ('stock_transfer', 'material_return')),
+  ref              text not null check (btrim(ref) <> ''),
+  file_name        text not null check (btrim(file_name) <> ''),
+  url              text not null check (btrim(url) <> ''),
+  attached_by      uuid,
+  attached_by_name text not null default '',
+  attached_at      timestamptz not null default now(),
+  created_at       timestamptz not null default now()
+);
+create index if not exists stock_record_files_ref_idx on public.stock_record_files (kind, ref);
+
+comment on table public.stock_record_files is
+  'Files kept with a stock transfer (ref = stock_transfers.uid) or a material return (ref = material_returns.uid), any number each, append-only (0426).';
+
+alter table public.stock_record_files enable row level security;
+
+create or replace function public.stock_record_files_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.attached_by      := auth.uid();
+  new.attached_by_name := coalesce((select nullif(btrim(full_name), '') from public.profiles where id = auth.uid()),
+                                   auth.email(), '');
+  new.attached_at      := now();
+  new.created_at       := now();
+  return new;
+end $$;
+revoke execute on function public.stock_record_files_stamp() from public, anon, authenticated;
+
+drop trigger if exists stock_record_files_stamp on public.stock_record_files;
+create trigger stock_record_files_stamp before insert on public.stock_record_files
+  for each row execute function public.stock_record_files_stamp();
+
+drop policy if exists srf_read on public.stock_record_files;
+create policy srf_read on public.stock_record_files for select using (
+  (kind = 'stock_transfer'  and exists (select 1 from public.stock_transfers  t where t.uid = stock_record_files.ref))
+  or (kind = 'material_return' and exists (select 1 from public.material_returns m where m.uid = stock_record_files.ref))
+);
+
+drop policy if exists srf_insert on public.stock_record_files;
+create policy srf_insert on public.stock_record_files for insert with check (
+  (kind = 'stock_transfer'
+     and (select public.has_perm('stock.transfer'))
+     and exists (select 1 from public.stock_transfers t where t.uid = stock_record_files.ref))
+  or (kind = 'material_return'
+     and (select public.has_perm('stock.return'))
+     and exists (select 1 from public.material_returns m
+                  where m.uid = stock_record_files.ref
+                    and ((select public.is_admin())
+                         or (select public.has_perm('stock.return.others'))
+                         or lower(coalesce(m.engineer_email, '')) = lower(coalesce((select auth.email()), '')))))
+);
+
+-- SAID, NOT LEFT TO DEFAULTS. Supabase's default privileges hand every new
+-- table to anon and authenticated in full; with no policy an UPDATE or DELETE
+-- would merely match nothing and report success. Revoked, they are refused.
+revoke all on public.stock_record_files from anon, authenticated;
+grant select, insert on public.stock_record_files to authenticated;
+revoke all on sequence public.stock_record_files_id_seq from anon;
+grant usage on sequence public.stock_record_files_id_seq to authenticated;
+
+-- The five system columns every table carries (0244), attached now so the
+-- live project need not wait for sys_columns.sql to be re-run.
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.stock_record_files'::regclass);
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0384_handstock_balance_all.sql
 -- ------------------------------------------------------------------------
 
@@ -44545,11 +44654,11 @@ revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0425_quotations.sql
+-- 0427_quotations.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0425  QUOTATIONS -- for a service contract on a customer's machines, for
+-- 0427  QUOTATIONS -- for a service contract on a customer's machines, for
 -- spares, or both on the one document (the user, 2026-10-13: "Quote
 -- Generation for Both Product Contract + Spares").
 --
@@ -44620,7 +44729,7 @@ create table if not exists public.quotations (
 );
 
 comment on table public.quotations is
-  'A quotation to a customer (0425): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).';
+  'A quotation to a customer (0427): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).';
 comment on column public.quotations.revision_of is
   'The quote_no this quotation revises, where it was raised by Revise on a frozen one; blank otherwise.';
 
@@ -44669,7 +44778,7 @@ create table if not exists public.quotation_lines (
 );
 
 comment on table public.quotation_lines is
-  'The lines of a quotation (0425): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.';
+  'The lines of a quotation (0427): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.';
 
 create index if not exists quotation_lines_quote on public.quotation_lines (quote_id, row_no, id);
 create index if not exists quotation_lines_part on public.quotation_lines (part_code) where part_code <> '';
@@ -44876,7 +44985,7 @@ begin
      and ar.role in ('admin', 'nsm', 'commercial')
      and not (ar.permissions ? 'quote.edit');
   get diagnostics m = row_count;
-  raise notice '0425: Quotations page key given to admin, technical_support, nsm, commercial (% rows); quote.edit to admin, nsm, commercial (% rows) -- grant the rest on Roles & Permissions', n, m;
+  raise notice '0427: Quotations page key given to admin, technical_support, nsm, commercial (% rows); quote.edit to admin, nsm, commercial (% rows) -- grant the rest on Roles & Permissions', n, m;
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -57803,6 +57912,167 @@ grant select on public.call_dates to authenticated;
 
 comment on view public.call_dates is
   'Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424). security_invoker: one row per call the reader may see.';
+
+-- ------------------------------------------------------------------------
+-- 0425_kpi_export_india_dates.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0425  KPI EXPORT (Field_INST): INDIA DATES (D-169; the user, 2026-10-13:
+-- "fix the KPI export dates too").
+--
+-- kpi_field_inst took Call Attended On, Call Solved Date, the day the count
+-- starts from and the Failure Month straight off a timestamptz, which uses the
+-- session's zone -- UTC on the live project. 29,970 of 31,262 visits are
+-- stored at 00:00 IST, so nearly every Attended and Solved date in the export
+-- read a day early, and disagreed with the First Attended and Solved Dates the
+-- registers show since 0424. Each date is now taken in India time, the same
+-- fix 0423 made to the objectives (D-168).
+--
+-- The first spare request is read through call_first_spare_on() (0424), so the
+-- export and the register agree for every reader -- see the note in the view.
+-- That function is created in this module by 0424, which runs before this.
+--
+-- RESTATED FROM 0390 WORD FOR WORD apart from those dates and that function:
+-- `create or replace` keeps the column list identical; security_invoker is
+-- re-asserted because create-or-replace drops it (0040, 0050, 0057).
+-- ===========================================================================
+
+create or replace view public.kpi_field_inst as
+with c as (
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.field_calls where cancelled_at is null
+  union all
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.installation_calls where cancelled_at is null
+  union all
+  -- PM CALLS TOO (0390, the user 2026-10-06: "In KPI Export - KPI workbook --
+  -- Field_INST; Add PM Calls also"). The same columns and the same rules;
+  -- cancelled PM calls are left out like every other cancelled call.
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.pm_calls where cancelled_at is null
+),
+r as (
+  select
+    c.*,
+    l.call_status, l.pending_reason, l.engineer,
+    -- INDIA DATES (0425, D-169): a date taken straight off a timestamptz is
+    -- the session's day, UTC on the live project, and a visit stored at
+    -- 00:00 IST is the day before there.
+    (s.visit_at at time zone 'Asia/Kolkata')::date  as solved_on,
+    least((fv.at at time zone 'Asia/Kolkata')::date,
+          public.call_first_spare_on(c.ucn))      as attended_on,
+    -- The count runs from the LATER of complaint and registration: MIN of the
+    -- two differences is the same thing said the workbook's way.
+    greatest(c.complaint_date, coalesce((c.reg_at at time zone 'Asia/Kolkata')::date, c.reg_date))
+                                                  as counts_from,
+    coalesce(nullif(btrim(l.call_status), ''), 'Unattended') as status_now
+    from c
+    -- THE LATEST ENTRY, per call. Not the latest VISIT: a report written up
+    -- late is still the latest thing the register was told (0032).
+    left join lateral (
+      select rl.call_status, rl.pending_reason, rl.engineer
+        from public.reports rl
+       where rl.ucn = c.ucn
+       order by rl.updated_at desc, rl.id desc
+       limit 1
+    ) l on true
+    left join lateral (
+      select rs.visit_at
+        from public.reports rs
+       where rs.ucn = c.ucn
+         and rs.call_status ilike 'solved%report%complet%'
+       order by rs.updated_at desc, rs.id desc
+       limit 1
+    ) s on true
+    left join lateral (
+      select min(rf.visit_at) as at
+        from public.reports rf
+       where rf.ucn = c.ucn and rf.visit_at is not null
+    ) fv on true
+    -- THE FIRST SPARE REQUEST comes from call_first_spare_on() (0424), the
+    -- one the call registers use: it counts a request whoever raised it, for
+    -- any reader who may see the call. Read here through spare_requests'
+    -- own per-engineer policy, an engineer's export dated a re-allotted call
+    -- later than their manager's, and later than their own register. The
+    -- function keeps the blank-ucn guard and India's day.
+)
+select
+  r.ucn                                          as "UC Number",
+  r.call_number                                  as "Call Number",
+  coalesce(r.reg_at, r.reg_date::timestamptz)    as "Call Registeration Date",
+  r.complaint_date                               as "Complaint Date",
+  r.party_name                                   as "Party Name",
+  r.city                                         as "City",
+  r.state                                        as "State",
+  r.product_name                                 as "Product Name",
+  r.serial                                       as "Product Serial Number",
+  r.item_status                                  as "Item Status",
+  r.warranty_number                              as "Warranty Number",
+  r.warranty_start                               as "Warranty Start Date",
+  r.warranty_end                                 as "Warranty End Date",
+  r.contract_number                              as "Contract Number",
+  r.contract_start                               as "Contract Start Date",
+  r.contract_end                                 as "Contract End Date",
+  r.contract_type                                as "Contract Type",
+  r.call_type                                    as "Call Type",
+  r.standard_complaint                           as "Standard Complaint",
+  r.complaint_reported                           as "Complaint Reported",
+  r.allocated_to                                 as "Call Allocated To",
+  r.breakdown_date                               as "Breakdown Date",
+  -- DECISION 3: any Solved... status is Close, report-pending included.
+  case when r.status_now ilike 'solved%' then 'Close' else 'Open' end
+                                                 as "Open/Close",
+  r.status_now                                   as "Call Status",
+  coalesce(r.pending_reason, '')                 as "CALL PENDING REASON",
+  coalesce(r.engineer, '')                       as "Visiting Service Engineer",
+  r.attended_on                                  as "Call Attended On",
+  r.solved_on                                    as "Call Solved Date & Time",
+  -- AC / AD. NULL when the thing being measured has not happened, rather than
+  -- the sheet's 0 — see decision 1.
+  --
+  -- THE GUARD IS NOT DECORATION. `greatest()` IGNORES NULLs in Postgres, so
+  -- `greatest(null - date, 0)` is 0, not null — and an unattended call would
+  -- read "attended in 0 days, 00-03D", which is precisely the sheet behaviour
+  -- this decision exists to undo. Caught by test 10, which was written for it.
+  -- (It is the same property `least()` has, and there it is what we want: see
+  -- Call Attended On in 0128.)
+  case when r.attended_on is null or r.counts_from is null then null
+       else greatest((r.attended_on - r.counts_from)::int, 0) end as "Attended in Days",
+  case when r.solved_on is null or r.counts_from is null then null
+       else greatest((r.solved_on - r.counts_from)::int, 0) end   as "Solved in Days",
+  public.kpi_days_band(
+    case when r.attended_on is null or r.counts_from is null then null
+         else greatest((r.attended_on - r.counts_from)::int, 0) end)      as "TTA ( R )",
+  public.kpi_days_band(
+    case when r.solved_on is null or r.counts_from is null then null
+         else greatest((r.solved_on - r.counts_from)::int, 0) end)        as "TTS ( R )",
+  to_char(coalesce(r.reg_at at time zone 'Asia/Kolkata', r.reg_date::timestamp), 'YYYY Mon') as "Failure Month",
+  -- The column the workbook does not have. How long an OPEN call has been
+  -- waiting, today — the question the sheet answered with a 0 that read as
+  -- "attended and solved the same day".
+  case when r.status_now ilike 'solved%' or r.counts_from is null then null
+       else greatest(((now() at time zone 'Asia/Kolkata')::date - r.counts_from)::int, 0)
+  end                                            as "Pending Days"
+  from r;
+
+-- RE-ASSERTED, because create-or-replace drops it. Without this the export
+-- reads as the view's OWNER and every signed-in user gets every call —
+-- silently, with no error. Three times in this project (0040, 0050, 0057).
+alter view public.kpi_field_inst set (security_invoker = on);
+grant select on public.kpi_field_inst to authenticated;
+
+comment on view public.kpi_field_inst is
+  'The KPI workbook''s Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425). The per-call lookups into reports and spare_requests are LATERAL so the caller''s date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).';
 
 -- ------------------------------------------------------------------------
 -- 0218_product_database_v2.sql

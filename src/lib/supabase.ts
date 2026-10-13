@@ -2607,6 +2607,39 @@ export async function callDatesFor(ucns: string[]): Promise<Map<string, CallDate
   return out;
 }
 
+// FILES KEPT WITH A STOCK TRANSFER OR A MATERIAL RETURN (0426, the user,
+// 2026-10-13). Any number per record, append-only; `ref` is the transfer's
+// Transfer No or the return's Reference (both `uid`). Who attached a file and
+// when are stamped by the database. Read for the records on screen, 150 refs a
+// request; a failed read leaves the column empty rather than the screen.
+export type StockFileKind = 'stock_transfer' | 'material_return';
+export interface StockRecordFile { id: number; ref: string; file_name: string; url: string; attached_by_name: string; attached_at: string }
+export async function listStockRecordFiles(kind: StockFileKind, refs: string[]): Promise<Map<string, StockRecordFile[]>> {
+  const out = new Map<string, StockRecordFile[]>();
+  const c = getSupabase(); if (!c) return out;
+  const list = [...new Set(refs.map((r) => String(r ?? '').trim()).filter(Boolean))];
+  for (const part of chunked(list)) {
+    const { data, error } = await c.from('stock_record_files')
+      .select('id, ref, file_name, url, attached_by_name, attached_at')
+      .eq('kind', kind).in('ref', part).order('attached_at').order('id');
+    if (error) { console.warn(`stock_record_files: ${errMsg(error)}`); return out; }
+    for (const r of (data ?? []) as StockRecordFile[]) out.set(r.ref, [...(out.get(r.ref) ?? []), r]);
+  }
+  return out;
+}
+// Counted, not assumed: row-level security refuses an insert it does not allow
+// with an error here (WITH CHECK), but a short count is still a refusal.
+export async function addStockRecordFiles(
+  kind: StockFileKind, ref: string, files: { name: string; url: string }[],
+): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  if (!files.length) return { ok: true };
+  const { data, error } = await c.from('stock_record_files')
+    .insert(files.map((f) => ({ kind, ref, file_name: f.name, url: f.url }))).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length === files.length ? { ok: true } : { ok: false, error: 'Not saved — your role may not attach files to this record.' };
+}
+
 // Pending (not solved) calls, optionally for one call type — the Pending Calls
 // register. Rows come back in the app's call shape plus `state`.
 export async function listPendingCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
@@ -7390,7 +7423,7 @@ export async function dccrFailureCalls(objectiveId: number, asof?: string): Prom
     .order('reg_date', { ascending: false }).order('ucn').range(a, b));
 }
 
-// ---- quotations (0425) ------------------------------------------------------
+// ---- quotations (0427) ------------------------------------------------------
 // A quotation is a header and its lines, read and written as one. The number,
 // the Prepared by and the money on a line are the DATABASE'S: the header is
 // read back after a write so the screen shows what was recorded, never what

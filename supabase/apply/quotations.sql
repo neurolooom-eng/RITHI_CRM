@@ -3,7 +3,7 @@
 --
 -- A quotation to a customer -- a service contract on their machines (AMC
 -- or CMC, a period and a rate per machine), spares (a Part Master part,
--- HSN, quantity and unit price), or both on one document (0425).
+-- HSN, quantity and unit price), or both on one document (0427).
 -- Numbered QT/YY/NNNN by the database; Prepared by stamped from the
 -- session; taxable, GST and total GENERATED on every line. Never deleted:
 -- Cancelled instead, and frozen once Accepted, Declined or Cancelled, so
@@ -17,7 +17,7 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0425_quotations.sql
+--   0427_quotations.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -42,11 +42,11 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0425_quotations.sql
+-- 0427_quotations.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0425  QUOTATIONS -- for a service contract on a customer's machines, for
+-- 0427  QUOTATIONS -- for a service contract on a customer's machines, for
 -- spares, or both on the one document (the user, 2026-10-13: "Quote
 -- Generation for Both Product Contract + Spares").
 --
@@ -117,7 +117,7 @@ create table if not exists public.quotations (
 );
 
 comment on table public.quotations is
-  'A quotation to a customer (0425): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).';
+  'A quotation to a customer (0427): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).';
 comment on column public.quotations.revision_of is
   'The quote_no this quotation revises, where it was raised by Revise on a frozen one; blank otherwise.';
 
@@ -166,7 +166,7 @@ create table if not exists public.quotation_lines (
 );
 
 comment on table public.quotation_lines is
-  'The lines of a quotation (0425): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.';
+  'The lines of a quotation (0427): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.';
 
 create index if not exists quotation_lines_quote on public.quotation_lines (quote_id, row_no, id);
 create index if not exists quotation_lines_part on public.quotation_lines (part_code) where part_code <> '';
@@ -373,7 +373,7 @@ begin
      and ar.role in ('admin', 'nsm', 'commercial')
      and not (ar.permissions ? 'quote.edit');
   get diagnostics m = row_count;
-  raise notice '0425: Quotations page key given to admin, technical_support, nsm, commercial (% rows); quote.edit to admin, nsm, commercial (% rows) -- grant the rest on Roles & Permissions', n, m;
+  raise notice '0427: Quotations page key given to admin, technical_support, nsm, commercial (% rows); quote.edit to admin, nsm, commercial (% rows) -- grant the rest on Roles & Permissions', n, m;
 end $$;
 
 commit;

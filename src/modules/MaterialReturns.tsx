@@ -17,6 +17,9 @@ import { useAccessScope, previewScoped } from '../lib/access';
 import { engineerKey, num, partDescription, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
+import { DocPreview } from '../components/doc/DocPreview';
+import { PendingFiles, SavedFiles, useStockFiles, type PickedFile } from './stockFiles';
+import { addStockRecordFiles, type StockRecordFile } from '../lib/supabase';
 
 // ===========================================================================
 // MRN — MATERIAL RETURN NOTE. The engineer sends a spare back to Stores.
@@ -147,6 +150,24 @@ export function MaterialReturns() {
 
   const detailRows = useMemo(() => rows.filter((r) => g(r, 'uid') === detail), [rows, detail]);
 
+  // FILES KEPT WITH EACH RETURN (0426), keyed by its Reference: shown on every
+  // line of the return and in the MRN, attachable by whoever may record it.
+  const { files: returnFiles, reload: reloadFiles } = useStockFiles('material_return', rows.map((r) => g(r, 'uid')));
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  // mr_insert's audience, which 0426's attach policy restates.
+  const mayAttach = (r: Record<string, unknown>) => can('stock.return')
+    && (can('stock.return.others') || g(r, 'engineer_email').toLowerCase() === String(user?.email ?? '').toLowerCase());
+  const columns = useMemo<Column<Row>[]>(() => [
+    ...COLUMNS,
+    { key: '_files', header: 'Files', width: 190, wrap: false, sortable: false, render: (r) => (g(r, 'uid') ? (
+      <SavedFiles compact kind="material_return" refNo={g(r, 'uid')} label={`MRN ${g(r, 'mrn_no')} - ${g(r, 'engineer')}`}
+        files={returnFiles.get(g(r, 'uid')) ?? []} canAttach={mayAttach(r)}
+        onOpen={(f) => setPreview({ url: f.url, title: `MRN ${g(r, 'mrn_no')} — ${f.file_name}` })}
+        onAttached={(text, ok) => { setMsg({ tone: ok ? 'ok' : 'error', text }); if (ok) reloadFiles(); }} />
+    ) : null) },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [returnFiles, user]);
+
   return (
     <div>
       <PageHeader
@@ -168,7 +189,7 @@ export function MaterialReturns() {
 
 
       <DataTable<Row>
-        columns={COLUMNS}
+        columns={columns}
         rows={visible}
         getRowId={(r) => r.id}
         onRowClick={(r) => setDetail(g(r, 'uid'))}
@@ -196,12 +217,22 @@ export function MaterialReturns() {
         open={drawer}
         defaultEngineer={user?.fullName ?? ''}
         onClose={() => setDrawer(false)}
-        onSaved={(uid) => { setMsg({ tone: 'ok', text: `Material return recorded${uid ? ` — ${uid}` : ''}.` }); void load(); }}
+        onSaved={(uid, fileError) => {
+          setMsg(fileError
+            ? { tone: 'error', text: `Material return recorded${uid ? ` — ${uid}` : ''}, but its files were not attached: ${fileError} Attach them from the Files column.` }
+            : { tone: 'ok', text: `Material return recorded${uid ? ` — ${uid}` : ''}.` });
+          void load(); reloadFiles();
+        }}
       />
 
       <Drawer open={!!detail && detailRows.length > 0} onClose={() => setDetail('')} title={`MRN — ${g(detailRows[0] ?? {}, 'mrn_no') || detail}`} width={720}>
-        {detailRows.length > 0 && <MrnDetail rows={detailRows} />}
+        {detailRows.length > 0 && (
+          <MrnDetail rows={detailRows} files={returnFiles.get(detail) ?? []} canAttach={mayAttach(detailRows[0])}
+            onOpen={(f) => setPreview({ url: f.url, title: `MRN ${g(detailRows[0], 'mrn_no')} — ${f.file_name}` })}
+            onAttached={(text, ok) => { setMsg({ tone: ok ? 'ok' : 'error', text }); if (ok) reloadFiles(); }} />
+        )}
       </Drawer>
+      {preview && <DocPreview url={preview.url} title={preview.title} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -209,7 +240,10 @@ export function MaterialReturns() {
 // ---------------------------------------------------------------------------
 // One MRN, with every item on it.
 // ---------------------------------------------------------------------------
-function MrnDetail({ rows }: { rows: Row[] }) {
+function MrnDetail({ rows, files, canAttach, onOpen, onAttached }: {
+  rows: Row[]; files: StockRecordFile[]; canAttach: boolean;
+  onOpen: (f: StockRecordFile) => void; onAttached: (msg: string, ok: boolean) => void;
+}) {
   const head = rows[0];
   const navigate = useNavigate();
   const field = (label: string, value: unknown) => (
@@ -237,6 +271,13 @@ function MrnDetail({ rows }: { rows: Row[] }) {
         <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
           Every item below has come off {g(head, 'engineer') || 'the engineer'}&rsquo;s hand stock.
         </p>
+      </section>
+
+      <section className="rep-sec">
+        <div className="rep-sec-title">Files <span className="muted">({files.length})</span></div>
+        <SavedFiles kind="material_return" refNo={g(head, 'uid')} label={`MRN ${g(head, 'mrn_no')} - ${g(head, 'engineer')}`}
+          files={files} canAttach={canAttach} onOpen={onOpen} onAttached={onAttached} />
+        {!files.length && <div className="muted" style={{ fontSize: 12.5 }}>No file kept with this return yet.</div>}
       </section>
 
       <section className="rep-sec">
@@ -270,7 +311,7 @@ function MrnDrawer({
   open: boolean;
   defaultEngineer: string;
   onClose: () => void;
-  onSaved: (uid: string) => void;
+  onSaved: (uid: string, fileError?: string) => void;
 }) {
   const { user, can } = useAuth();
   // Engineers return their own stock; anyone who acts for others (admin,
@@ -288,11 +329,14 @@ function MrnDrawer({
   const [picks, setPicks] = useState<Pick[]>([{ part: '', good_qty: 1, defective_qty: 0 }]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // FILES (0426), optional: uploaded to Drive as each is chosen, saved with
+  // the return once it has its Reference.
+  const [files, setFiles] = useState<PickedFile[]>([]);
 
   useEffect(() => {
     if (!open) return;
     setEngineer(defaultEngineer); setMrnNo(''); setMrnDate(todayISO()); setRemarks('');
-    setPicks([{ part: '', good_qty: 1, defective_qty: 0 }]); setErr('');
+    setPicks([{ part: '', good_qty: 1, defective_qty: 0 }]); setErr(''); setFiles([]);
   }, [open, defaultEngineer]);
 
   // Directory names, for a return recorded on someone else's behalf.
@@ -383,7 +427,16 @@ function MrnDrawer({
       logAudit({ action: 'material.return', target: mrnNo.trim() || res.uid || '',
                  status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
                  meta: { engineer: engineer.trim(), lines: lines.length, uid: res.uid ?? '' } });
-      if (res.ok) { onSaved(res.uid ?? ''); onClose(); }
+      if (res.ok) {
+        // The return is recorded whatever happens to the files; a file that
+        // did not attach is said so, and can be attached from the list.
+        let fileError: string | undefined;
+        if (files.length && res.uid) {
+          const fr = await addStockRecordFiles('material_return', res.uid, files);
+          if (!fr.ok) fileError = fr.error;
+        }
+        onSaved(res.uid ?? '', fileError); onClose();
+      }
       else setErr(res.error ?? 'Could not record the return.');
     } catch (e) {
       setErr(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -467,6 +520,9 @@ function MrnDrawer({
             <button className="btn btn-sm" onClick={addRow}>＋ Add spare</button>
           )}
         </section>
+
+        <PendingFiles kind="material_return" label={`MRN ${mrnNo} - ${engineer}`} files={files} onChange={setFiles} disabled={busy}
+          hint="The signed MRN, a photo of the parts, anything to keep with this return. Saved to the Material Returns folder in Drive; more can be attached later." />
 
         <section className="rep-sec">
           <div className="rep-sec-title">Remarks</div>

@@ -1,6 +1,6 @@
 // ===========================================================================
 // QUOTATIONS -- the rules behind the Quotations screen and the printed
-// quotation (0425; the user, 2026-10-13: "Quote Generation for Both Product
+// quotation (0427; the user, 2026-10-13: "Quote Generation for Both Product
 // Contract + Spares").
 //
 // A quotation is a header and its lines; a line is a CONTRACT line (one

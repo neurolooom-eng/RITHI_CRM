@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.181',
+    version: '0.10.183',
     date: '2026-10-13',
     title: 'Quotations: a service contract on a customer\'s machines, spares, or both on one document',
     changes: [
@@ -23,6 +23,28 @@ export const CHANGELOG: ChangeEntry[] = [
       'Print / Save as PDF on the Air Liquide letterhead: both tables, totals with the amount in words, terms and a signature block. A Draft prints marked DRAFT.',
       'Mark it Sent, Accepted, Declined or Cancelled. A quotation is never deleted; once Accepted, Declined or Cancelled it is frozen, and Revise copies it into a new Draft that names the one it revises.',
       'Who sees it: the page is given to Admin, Technical Support, NSM and Commercial; raising and editing (quote.edit) to Admin, NSM and Commercial. Grant the rest on Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.182',
+    date: '2026-10-13',
+    title: 'Files on Stock Transfers and Material Returns; Stock Transfer (MTN)',
+    changes: [
+      'Stock Transfer and Material Returns can now keep files with each record, such as the signed MTN or MRN, or a photo. Attach as many as you like with ⤴ Attach a file on the New Transfer / New MRN form, or later from the Files column. On Material Returns you can also attach from the opened MRN.',
+      'Each file opens in RITHI. Hover over it to see who attached it and when. A saved file cannot be changed or removed, and files are optional.',
+      'Files go to the Stock Transfers and Material Returns folders in Drive, or to the drive root until those folders are set up.',
+      'Stock Transfer is now called Stock Transfer (MTN) in the menu, on the page, and on Roles & Permissions. Only the name changed; nobody\'s rights did.',
+    ],
+  },
+  {
+    version: '0.10.181',
+    date: '2026-10-13',
+    title: 'KPI Export: India dates',
+    changes: [
+      'FIXED: the KPI Export took Call Attended On and Call Solved Date in UTC. A visit loaded from a file is recorded at midnight India time, so almost every one read a day early, and Attended in Days and Solved in Days were a day short. They now use the India date, as the call registers do.',
+      'Failure Month and the day the counts start from are India dates too, so a call registered just after midnight on the 1st belongs to that month.',
+      'Call Attended On now counts a spare request whoever raised it, so an engineer\'s export shows the same dates as their call register and their manager\'s export.',
+      'Nothing to re-calculate: the next download has the corrected dates.',
     ],
   },
   {

@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**114 tables · 45 views · 3329 columns · 235 policies · 70 foreign keys.**
+**115 tables · 45 views · 3343 columns · 237 policies · 70 foreign keys.**
 
 ## How to read this
 
@@ -133,6 +133,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [spare_request_engineer_log](#spare-request-engineer-log)
 - [spare_request_lines](#spare-request-lines)
 - [spare_requests](#spare-requests)
+- [stock_record_files](#stock-record-files)
 - [stock_transfer_counters](#stock-transfer-counters)
 - [stock_transfer_lines](#stock-transfer-lines)
 - [stock_transfers](#stock-transfers)
@@ -2701,12 +2702,12 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
+- `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
+- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
+- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
 - `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
 - `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
-- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
-- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
 - `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
-- `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
 
 **Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3310,7 +3311,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ## quotation_lines
 
-> The lines of a quotation (0425): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.
+> The lines of a quotation (0427): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.
 
 **Primary key:** `id` · **Row-level security:** **on**
 
@@ -3352,14 +3353,14 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `quotation_lines_period` — `CHECK (((period_end IS NULL) OR (period_start IS NULL) OR (period_end >= period_start)))`
-- `quotation_lines_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `quotation_lines_description_check` — `CHECK ((btrim(description) <> ''::text))`
 - `quotation_lines_period_months_check` — `CHECK (((period_months IS NULL) OR (period_months > 0)))`
+- `quotation_lines_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `quotation_lines_unit_price_check` — `CHECK ((unit_price >= (0)::numeric))`
 - `quotation_lines_discount_pct_check` — `CHECK (((discount_pct >= (0)::numeric) AND (discount_pct <= (100)::numeric)))`
 - `quotation_lines_gst_pct_check` — `CHECK (((gst_pct >= (0)::numeric) AND (gst_pct <= (100)::numeric)))`
 - `quotation_lines_spare_shape` — `CHECK (((line_type <> 'Spare'::text) OR (btrim(part_code) <> ''::text)))`
+- `quotation_lines_period` — `CHECK (((period_end IS NULL) OR (period_start IS NULL) OR (period_end >= period_start)))`
 
 **Triggers:** `zz_quotation_line_guard` → `quotation_line_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3374,7 +3375,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ## quotations
 
-> A quotation to a customer (0425): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).
+> A quotation to a customer (0427): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).
 
 **Primary key:** `id` · **Row-level security:** **on**
 
@@ -3419,8 +3420,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `quotations_valid_until_after_date` — `CHECK (((valid_until IS NULL) OR (valid_until >= quote_date)))`
 - `quotations_party_name_check` — `CHECK ((btrim(party_name) <> ''::text))`
+- `quotations_valid_until_after_date` — `CHECK (((valid_until IS NULL) OR (valid_until >= quote_date)))`
 
 **Triggers:** `zz_quotation_stamp` → `quotation_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3537,8 +3538,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 - `recycle_issues_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 
 **Triggers:** `recycle_issues_guard` → `recycle_issues_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3718,8 +3719,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 - `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4522,6 +4523,48 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## stock_record_files
+
+> Files kept with a stock transfer (ref = stock_transfers.uid) or a material return (ref = material_returns.uid), any number each, append-only (0426).
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('stock_record_files_id_seq'::regclass)` |  |
+| 2 | `kind` | text | **no** |  | stock_transfer · material_return |
+| 3 | `ref` | text | **no** |  |  |
+| 4 | `file_name` | text | **no** |  |  |
+| 5 | `url` | text | **no** |  |  |
+| 6 | `attached_by` | uuid | yes |  |  |
+| 7 | `attached_by_name` | text | **no** | `''::text` |  |
+| 8 | `attached_at` | timestamp with time zone | **no** | `now()` |  |
+| 9 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 11 | `sys_created_by` | uuid | yes |  |  |
+| 12 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 13 | `sys_updated_by` | uuid | yes |  |  |
+| 14 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(stock_record_files_sys_id_key)_
+
+**Constraints:**
+
+- `stock_record_files_ref_check` — `CHECK ((btrim(ref) <> ''::text))`
+- `stock_record_files_file_name_check` — `CHECK ((btrim(file_name) <> ''::text))`
+- `stock_record_files_url_check` — `CHECK ((btrim(url) <> ''::text))`
+
+**Triggers:** `stock_record_files_stamp` → `stock_record_files_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `srf_insert` | — | `(((kind = 'stock_transfer'::text) AND ( SELECT has_perm('stock.transfer'::text) AS has_perm) AND (EXISTS ( SELECT 1    FROM stock_transfers t   WHERE (t.uid = stock_record_files.re…` |
+| SELECT | `srf_read` | `(((kind = 'stock_transfer'::text) AND (EXISTS ( SELECT 1    FROM stock_transfers t   WHERE (t.uid = stock_record_files.ref)))) OR ((kind = 'material_return'::text) AND (EXISTS ( SE…` | — |
+
+---
+
 ## stock_transfer_counters
 
 **Primary key:** `period` · **Row-level security:** **on**
@@ -5080,7 +5123,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 
 **`feedback_without_report`** — Customer feedback with no "Solved - Report Completed" visit behind it. The feedback is the evidence that a visit happened; the report is the record of it, and a call carrying one without the other is a visit that was never written up. `missing` names which of the four findings applies. Administrators only, by the module key rather than by a rule of its own (0229).
 
-**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390). The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
+**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425). The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
 
 **`product_database`** — The install base as it stands NOW: the party from the later of the latest sale and the latest ownership transfer (0238), and the contract and installation call that name that machine AND that party. Item Status is warranty-first over the matching contract; the engineer is always the Party Master's. The stored values are kept beside them as *_keyed.
 

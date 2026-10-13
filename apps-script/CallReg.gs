@@ -512,7 +512,9 @@ var DRIVE_FOLDERS = {
   kyc:          'KYC',                    // Call Request -> KYC
   additional:   'Additional Reports',     // Call Request -> Installation Report
   indoor:       'INDOOR Service Reports', // an Indoor Service job's signed service report (2026-10-03)
-  transfer:     'Ownership Transfers'     // papers kept with an ownership transfer (2026-10-06)
+  transfer:     'Ownership Transfers',    // papers kept with an ownership transfer (2026-10-06)
+  stocktransfer: 'Stock Transfers',       // files kept with a stock transfer (2026-10-13)
+  materialreturn: 'Material Returns'      // files kept with a material return (2026-10-13)
 };
 
 // The flat folder everything went to before today. STILL READ, NEVER WRITTEN:

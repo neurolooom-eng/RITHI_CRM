@@ -643,12 +643,14 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Pick parts the engineer holds and give good and defective quantities',
       'Open an MRN to see its lines; export to CSV',
       'Print an MRN as the Material Return Note R/SER/STR/002',
+      'Keep files with an MRN — the signed MRN, a photo — on the New MRN form or later from the list or the opened MRN',
     ],
-    records: ['material_returns', 'engineer_stock', 'handstock_balance', 'user_directory', 'audit_log'],
+    records: ['material_returns', 'stock_record_files', 'engineer_stock', 'handstock_balance', 'user_directory', 'audit_log'],
     rules: [
       'Only parts the engineer holds are offered, and good + defective together cannot exceed what they hold',
       'The MRN number is typed, not generated',
       'The printed MRN shows what the return holds and nothing more: Store Dept. Use, Authorized By and Received By are left for Stores to fill by hand',
+      'A file kept with a return cannot be changed or removed once saved; files are optional',
     ],
   },
   {
@@ -658,13 +660,15 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Record a transfer: from, to, date, parts and quantities, a common remark and, if wanted, a reason for each part',
       'Search past transfers; export to CSV',
       'Print a transfer as the Material Transfer Note (MTN) R/SER/STR/003',
+      'Keep files with a transfer — the signed MTN, a photo — on the New Transfer form or later from the Files column',
     ],
-    records: ['stock_transfers', 'stock_transfer_lines', 'engineer_stock', 'user_directory', 'audit_log'],
+    records: ['stock_transfers', 'stock_transfer_lines', 'stock_record_files', 'engineer_stock', 'user_directory', 'audit_log'],
     rules: [
       'A transfer to the same person is refused',
       'Only parts the From engineer holds are offered, up to what they hold',
       'On the MTN a part prints its own reason where it has one, and the common remark otherwise',
       'The MTN leaves Received By blank: a transfer records no receipt',
+      'A file kept with a transfer cannot be changed or removed once saved; files are optional',
     ],
   },
 

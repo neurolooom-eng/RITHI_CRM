@@ -609,7 +609,7 @@ that guessed would be read as a census.
   - `stock.return.others` — Return stock in another engineer’s name
 - **Buttons** “＋ New MRN”, “⭳ Export CSV”, “＋ Add spare”, “Cancel”
 
-### Stock Transfer `/stock-transfer`
+### Stock Transfer (MTN) `/stock-transfer`
 
 - **Opened by** `mod:/stock-transfer`
 - **Source** `src/modules/StockTransfer.tsx`
