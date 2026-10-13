@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**112 tables · 43 views · 3243 columns · 230 policies · 69 foreign keys.**
+**112 tables · 44 views · 3247 columns · 230 policies · 69 foreign keys.**
 
 ## How to read this
 
@@ -4895,6 +4895,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | View | security_invoker | Columns |
 | --- | --- | --- |
 | `app_user_names` | _not set_ | 2 |
+| `call_dates` | **on** | 4 |
 | `call_report` | **on** | 51 |
 | `call_state` | **on** | 6 |
 | `calls` | **on** | 54 |
@@ -4937,6 +4938,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `training_status` | **on** | 19 |
 | `unused_spare_report` | **on** | 25 |
 | `warranty_sale_details` | **on** | 46 |
+
+**`call_dates`** — Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424). security_invoker: one row per call the reader may see.
 
 **`call_report`** — One row per CALL — never per visit — with its latest visit and what was fitted. security_invoker, so it shows a reader exactly the calls they may see and no more.
 

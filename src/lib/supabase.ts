@@ -2583,6 +2583,30 @@ const chunked = <T,>(xs: T[], n = CHUNK): T[][] => {
   return out;
 };
 
+// FIRST ATTENDED, LAST VISIT AND SOLVED, per call (0424, the user,
+// 2026-10-13). Read from `call_dates` for the calls a register has loaded --
+// one request per 150 UCNs -- and keyed by UCN. India dates, YYYY-MM-DD.
+// A call the reader may not see has no row; a failure leaves the three
+// columns blank rather than taking the register down with it.
+export interface CallDates { firstAttendedOn: string; lastVisitOn: string; solvedOn: string }
+export async function callDatesFor(ucns: string[]): Promise<Map<string, CallDates>> {
+  const out = new Map<string, CallDates>();
+  const c = getSupabase(); if (!c) return out;
+  const list = [...new Set(ucns.map((u) => String(u ?? '').trim()).filter(Boolean))];
+  for (const part of chunked(list)) {
+    const { data, error } = await c.from('call_dates').select('ucn, first_attended_on, last_visit_on, solved_on').in('ucn', part);
+    if (error) { console.warn(`call_dates: ${errMsg(error)}`); return out; }
+    for (const r of data ?? []) {
+      out.set(String(r.ucn), {
+        firstAttendedOn: String(r.first_attended_on ?? ''),
+        lastVisitOn: String(r.last_visit_on ?? ''),
+        solvedOn: String(r.solved_on ?? ''),
+      });
+    }
+  }
+  return out;
+}
+
 // Pending (not solved) calls, optionally for one call type — the Pending Calls
 // register. Rows come back in the app's call shape plus `state`.
 export async function listPendingCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {

@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.179',
+    date: '2026-10-13',
+    title: 'Call registers: First Attended, Last Visit and Solved dates; cancelled calls off the SLA list',
+    changes: [
+      'The Field Call Register, Installation Calls and Preventive (PM) now show three dates for every call: First Attended Date, Last Visit Date and Solved Date. They sort, and the CSV carries them.',
+      'First Attended is the earlier of the first visit and the first spare request on the call. Last Visit is the latest visit date. Solved is the visit date of the report that set "Solved - Report Completed". These are the KPI Export\'s definitions, and every date is the India date.',
+      'A call moved to a new engineer shows them the same First Attended Date their manager sees, even when somebody else raised the spare request.',
+      'FIXED: a Cancelled call no longer appears on the Dashboard\'s SLA Breached count or the "SLA — needs attention" list.',
+    ],
+  },
+  {
     version: '0.10.178',
     date: '2026-10-12',
     title: 'Supporting documents: only the Latest Technical Notes',

@@ -67,6 +67,8 @@ different totals. An empty register usually means access, not emptiness.
 ## Overview & search
 
 - **Dashboard** `/` — what is open, what is overdue, what needs you.
+  > **SLA Breached** and **SLA — needs attention** count only calls still being
+  > worked: a **Solved** or **Cancelled** call is never on them.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
@@ -136,6 +138,14 @@ different totals. An empty register usually means access, not emptiness.
   > later — or **Invoice Date**, which keeps the start on the PO / Warranty Sale
   > Entry. Nothing is pre-selected; the engineer must choose.
 - **Preventive (PM)** `/pm-calls` — planned maintenance.
+  > **First Attended Date, Last Visit Date and Solved Date** (all three
+  > registers): **First Attended** is the earlier of the first visit and the
+  > first spare request on the call; **Last Visit** is the latest visit date;
+  > **Solved** is the visit date of the report that set *Solved - Report
+  > Completed* (the latest one, if it was solved more than once) — it stays
+  > filled if the call was solved and later re-opened. The same definitions as
+  > the KPI Export's *Call Attended On* and *Call Solved Date*. India dates;
+  > they sort, and they are in the CSV.
   > **Listed newest Call Registration Date first** — not in the order a PM
   > month was uploaded, so a back-dated call sits where its date puts it.
   > Click a column heading to sort by something else.

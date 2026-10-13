@@ -2195,7 +2195,14 @@ with checks(sort_order, bundle, provides, present) as (
         (coalesce((select p.prosrc not like '%r.visit_at::date%' and p.prosrc like '%r.visit_at at time zone%'
                      from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
      and coalesce((select p.prosrc not like '%r.visit_at::date%' and p.prosrc like '%r.visit_at at time zone%'
-                     from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
+                     from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))),
+    (344, 'Call registers show First Attended, Last Visit and Solved dates', 'call_dates (0424): a security_invoker view over calls giving each call its First Attended (earlier of first visit and first spare request), Last Visit and Solved dates as India dates, granted to authenticated; call_first_spare_on() reads the spare requests for a call the caller may see and is closed to the public key. NO means the three columns on the Field, Installation and PM registers read blank. Restore: performance.sql (0424)',
+        (to_regclass('public.call_dates') is not null
+     and coalesce((select 'security_invoker=on' = any (c.reloptions) from pg_class c where c.oid = to_regclass('public.call_dates')), false)
+     and coalesce(has_table_privilege('authenticated', 'public.call_dates', 'select'), false)
+     and to_regprocedure('public.call_first_spare_on(text)') is not null
+     and not has_function_privilege('anon', 'public.call_first_spare_on(text)', 'execute')
+     and coalesce((select pg_get_viewdef(to_regclass('public.call_dates')) like '%Asia/Kolkata%'), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

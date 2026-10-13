@@ -30,7 +30,7 @@ import {
   updateFieldCall,
 } from '../lib/sheets';
 import { formatDay } from '../lib/dates';
-import { supabaseConfigured, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
+import { supabaseConfigured, callDatesFor, type CallDates, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
 import { useAuditMode } from '../lib/auditMode';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge, Ucn } from '../lib/callstate';
@@ -59,6 +59,10 @@ const CALL_ALL_FIELDS = [
     ? { key: h.key, header: h.header, render: (r: Rec) => (h.key === 'regDate' ? fmtLongSmart(r[h.key]) : fmtLongDate(r[h.key])) }
     : { key: h.key, header: h.header }
   )),
+  // Read from `call_dates` (0424), not stored on the call.
+  { key: 'firstAttendedOn', header: 'First Attended Date', render: (r: Rec) => fmtLongDate(r.firstAttendedOn) },
+  { key: 'lastVisitOn', header: 'Last Visit Date', render: (r: Rec) => fmtLongDate(r.lastVisitOn) },
+  { key: 'solvedOn', header: 'Solved Date', render: (r: Rec) => fmtLongDate(r.solvedOn) },
   // Not sheet columns — the database's own stamp of who registered the call:
   // the Hotline desk it belongs to, and the person who actually typed it in.
   { key: 'createdBy', header: 'Created By (Hotline Desk)' },
@@ -255,6 +259,14 @@ const COLUMNS: Column<Rec>[] = [
         </span>
       );
     } },
+  // FIRST ATTENDED, LAST VISIT AND SOLVED (0424, the user, 2026-10-13), read
+  // from `call_dates` after the register loads. First Attended is the earlier
+  // of the first visit and the first spare request; Solved is the visit date of
+  // the standing "Solved - Report Completed" entry -- the KPI Field_INST tab's
+  // definitions, so the register and the export agree.
+  { key: 'firstAttendedOn', header: 'First Attended Date', width: 160, render: (r) => fmtLongDate(r.firstAttendedOn) },
+  { key: 'lastVisitOn', header: 'Last Visit Date', width: 150, render: (r) => fmtLongDate(r.lastVisitOn) },
+  { key: 'solvedOn', header: 'Solved Date', width: 140, render: (r) => fmtLongDate(r.solvedOn) },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
   { key: 'city', header: 'City', width: 110 },
@@ -1098,12 +1110,29 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     void refresh();
   };
 
+  // The three visit dates (0424) for the calls on screen, re-read whenever the
+  // set of calls changes or the register syncs, so a visit just filed shows.
+  const [callDates, setCallDates] = useState<Map<string, CallDates>>(new Map());
+  const datesKey = useMemo(() => visibleRows.map((r) => String(r.ucn ?? '')).filter(Boolean).join('|'), [visibleRows]);
+  useEffect(() => {
+    if (!onDb || !datesKey) return;
+    let alive = true;
+    void callDatesFor(datesKey.split('|')).then((m) => { if (alive) setCallDates(m); });
+    return () => { alive = false; };
+  }, [onDb, datesKey, lastSync]);
+
   const rowsWithRegion = useMemo(
-    () => visibleRows.map((r) => ({
-      ...r,
-      _region: regionOf.get(String(r.allocatedTo ?? '').trim().toLowerCase()) ?? '',
-    })),
-    [visibleRows, regionOf],
+    () => visibleRows.map((r) => {
+      const d = callDates.get(String(r.ucn ?? ''));
+      return {
+        ...r,
+        _region: regionOf.get(String(r.allocatedTo ?? '').trim().toLowerCase()) ?? '',
+        firstAttendedOn: d?.firstAttendedOn ?? '',
+        lastVisitOn: d?.lastVisitOn ?? '',
+        solvedOn: d?.solvedOn ?? '',
+      };
+    }),
+    [visibleRows, regionOf, callDates],
   );
 
 
@@ -1427,7 +1456,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <button
               className="btn btn-sm"
               onClick={() =>
-                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[], searching ? searchScope(searchCapped) : partial(moreAvailable))
+                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), rowsWithRegion as unknown as Record<string, unknown>[], searching ? searchScope(searchCapped) : partial(moreAvailable))
               }
             >
               ⭳ Export CSV

@@ -27,6 +27,7 @@ import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags, noteMatchesCall, docMatchesCall } from '../src/lib/docmatch';
+import { evaluateCallSla, DEFAULT_SLA_RULES } from '../src/lib/sla';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callreview';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
@@ -577,6 +578,19 @@ console.log('\n-- which manuals belong on a call --');
     manualMatchesCall(cpxManual, { product: 'EXTEND-XT', complaint: 'AIR SUPPLY FAILURE', reported: 'no air' }), false);
   // Tags below the floor cannot match everything.
   eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
+}
+
+// A CANCELLED CALL IS NOT ON THE SLA LIST (the user, 2026-10-13). A call
+// cancelled long ago read "SLA breached · Call closure · 273d over".
+console.log('\n-- a cancelled call has no SLA --');
+{
+  const old = '2026-01-08T10:00:00+05:30';
+  eq('an Unsolved call registered in January is breached',
+    evaluateCallSla(DEFAULT_SLA_RULES, { regAt: old, openState: 'Unsolved' }).worst, 'breach');
+  eq('the same call Cancelled is not assessed',
+    evaluateCallSla(DEFAULT_SLA_RULES, { regAt: old, openState: 'Cancelled' }).worst, 'na');
+  eq('a Solved call is still not assessed',
+    evaluateCallSla(DEFAULT_SLA_RULES, { regAt: old, openState: 'Solved' }).worst, 'na');
 }
 
 // ONLY A TECHNICAL NOTE TAGGED LATEST IS OFFERED ON A CALL (the user,
