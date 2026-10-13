@@ -122,6 +122,17 @@ const DOCS = [
     title: 'How quality works — the review, the Field Failure Report, and the figures built on them',
   },
   {
+    // THE SYSTEMS OF RECORD BEFORE THIS ONE (the user, 2026-10-13: "add this
+    // info in the Evolution of Service Tools"): e-service, WinMax, RITHI v1.0
+    // (AppSheet, the yearly sheets with Old Calls) and RITHI v2.0 -- and how
+    // each one's calls are kept here as Call History.
+    id: 'evolution',
+    label: 'Evolution of Service Tools',
+    file: 'evolution-of-service-tools.html',
+    blurb: 'e-service, WinMax, RITHI v1.0 (AppSheet and the yearly sheets) and RITHI v2.0: the years each covered, how its calls were numbered, and how its data is kept here as Call History.',
+    title: 'Evolution of Service Tools — every system of record, and how its history is kept here',
+  },
+  {
     // THE SCHEMA, and it is a different KIND of document from the three above.
     // Those answer "how does this work"; this one answers "what is in the
     // table, must I fill it in, and what happens to the value next" — the

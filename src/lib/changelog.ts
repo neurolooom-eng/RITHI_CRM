@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.188',
+    date: '2026-10-13',
+    title: 'Call History from every system; Evolution of Service Tools',
+    changes: [
+      'Bulk Uploads → Call History now asks which system the file came from (e-service, WinMax, Yearly sheet, DCCR register or Other) and, for a yearly sheet, its year. Every row is recorded with them.',
+      'When the same UC No. and Call No. arrives from another system or year, such as an Old Call in the next year\'s sheet, the latest year\'s record is shown. The other record is kept with it and the call is flagged Duplicate; nothing else is done about it. Loading the same file twice keeps one copy.',
+      'Machine History shows each old call\'s source and year, and its Duplicate flag.',
+      'New page under How RITHI Functions: Evolution of Service Tools. It covers e-service, WinMax (2017/2018 to 09-Jun-2022), RITHI v1.0 (AppSheet, the yearly sheets with Old Calls, from 10-Jun-2022) and RITHI v2.0, and how each one\'s calls are kept here.',
+    ],
+  },
+  {
     version: '0.10.187',
     date: '2026-10-13',
     title: 'The 2025 DCCR-history calls moved to Call History',

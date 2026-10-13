@@ -220,7 +220,13 @@ on Roles & Permissions does not reach another team's calls.
   > + Call No.**, so a UC No. the old system used twice keeps both calls; load a
   > file again and it corrects, never doubles. Every other column the file has
   > is kept with the call. Read them on **Machine History** (group *Call
-  > history*).
+  > history*). **Choose the Source** (e-service, WinMax, Yearly sheet, DCCR
+  > register, Other) **and, for a yearly sheet, its Year** before uploading.
+  > When the same UC No. + Call No. comes from another source or year — an Old
+  > Call in the next year's sheet, a call in two systems — the **latest year's
+  > record is shown**, the other is kept with it and the call is flagged
+  > **Duplicate**; nothing else is done about it. *How RITHI Functions →
+  > Evolution of Service Tools* explains the systems behind the history.
   > **Field Failure Register (any year)** (Quality) loads old FFR logs, a
   > year's tab at a time.
   > **Installation Warranty Start (old installation calls)** loads past

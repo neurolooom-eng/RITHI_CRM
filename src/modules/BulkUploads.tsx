@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
 import { uploadRows, prepareUpload, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
-import { UPLOADS, masterUpload, shapeUpload, uploadGroups, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { UPLOADS, masterUpload, shapeUpload, uploadGroups, askedFields, missingAsk, type UploadDef, type ShapeResult } from '../lib/uploads';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -27,6 +28,9 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [open, setOpen] = useState(false);
+  // What the file cannot say, asked here and written on every row (UploadAsk).
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const missing = missingAsk(def.asks, answers);
 
   const pick = async (f: File | null) => {
     setMsg(null); setPending(null);
@@ -75,13 +79,18 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
         return;
       }
     }
-    const n = pending.shaped.rows.length;
+    if (missing) { setMsg({ tone: 'error', text: `Choose the ${missing} before uploading.` }); return; }
+    const asked = askedFields(def.asks, answers);
+    const rows = Object.keys(asked).length ? pending.shaped.rows.map((r) => ({ ...r, ...asked })) : pending.shaped.rows;
+    const n = rows.length;
+    const askedNote = Object.keys(asked).length
+      ? `Every row is recorded with ${(def.asks ?? []).filter((a) => asked[a.to] !== undefined).map((a) => `${a.label}: ${String(asked[a.to])}`).join(', ')}.\n\n` : '';
     const warn = def.conflict
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
       : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${note ? `${note}\n\n` : ''}${warn}`)) return;
+    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${askedNote}${note ? `${note}\n\n` : ''}${warn}`)) return;
     setBusy(`Writing 0 / ${n}…`);
-    const res = await uploadRows(def.table, pending.shaped.rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
+    const res = await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
     setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}` });
@@ -109,7 +118,8 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
                 ? ` · ${s.unmatched.length} ${def.extraInto ? 'kept on the row' : 'ignored'}`
                 : ''}
             </button>
-            <button className="btn btn-primary btn-sm" disabled={!!busy || !s.rows.length} onClick={() => void write()}>
+            <button className="btn btn-primary btn-sm" disabled={!!busy || !s.rows.length || !!missing}
+              title={missing ? `Choose the ${missing} first` : undefined} onClick={() => void write()}>
               ⤵ Upload {s.rows.length}
             </button>
           </>
@@ -117,6 +127,27 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
         {busy && <span className="muted">{busy}</span>}
       </div>
 
+      {def.asks && (
+        <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 6 }}>
+          {def.asks.map((a) => (
+            <label key={a.to} className="rep-field" style={{ minWidth: 180 }} title={a.hint}>
+              <span className="field-label">{a.label}{(typeof a.required === 'function' ? a.required(answers) : a.required) ? ' *' : ''}</span>
+              {a.type === 'select' ? (
+                <SelectPicker value={answers[a.to] ?? ''} disabled={!!busy} placeholder="— choose —"
+                  options={a.options ?? []} onChange={(v) => setAnswers((x) => ({ ...x, [a.to]: v }))} />
+              ) : (
+                <input className="input" inputMode="numeric" maxLength={4} placeholder="e.g. 2023" value={answers[a.to] ?? ''} disabled={!!busy}
+                  onChange={(e) => setAnswers((x) => ({ ...x, [a.to]: e.target.value.replace(/\D/g, '') }))} />
+              )}
+            </label>
+          ))}
+          {def.asks.some((a) => a.hint) && (
+            <span className="muted" style={{ fontSize: 12, flex: 1, minWidth: 240 }}>
+              {def.asks.filter((a) => a.hint).map((a) => `${a.label}: ${a.hint}`).join(' ')}
+            </span>
+          )}
+        </div>
+      )}
       {def.note && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{def.note}</div>}
       {def.requires && <div className="muted" style={{ fontSize: 12 }}>Load <b>{def.requires}</b> first — these rows point at it.</div>}
       {!def.conflict && (

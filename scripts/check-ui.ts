@@ -10,7 +10,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod, todayLocal, toIsoDate } from '../src/lib/dates';
-import { UPLOADS as ALL_UPLOADS } from '../src/lib/uploads';
+import { UPLOADS as ALL_UPLOADS, askedFields, missingAsk } from '../src/lib/uploads';
 import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
@@ -674,6 +674,12 @@ console.log('\n-- call history, kept apart --');
     (mig.match(/create trigger/g) ?? []).length === 1 && /create trigger call_history_stamp/.test(mig), true);
   eq('...and touches no live call table',
     /insert into public\.(field_calls|installation_calls|pm_calls|reports|call_reviews)/.test(mig), false);
+  const asks = def?.asks ?? [];
+  eq('the upload asks the Source always, and the Year for a yearly sheet',
+    [missingAsk(asks, {}), missingAsk(asks, { source: 'Yearly sheet' }), missingAsk(asks, { source: 'WinMax' }), missingAsk(asks, { source: 'Yearly sheet', record_year: '23' })],
+    ['Source', 'Year', '', 'Year (a four-digit year)']);
+  eq('...and writes them on every row, the year as a number',
+    askedFields(asks, { source: 'Yearly sheet', record_year: '2023' }), { source: 'Yearly sheet', record_year: 2023 });
   eq('Machine History reads it as its own group, never as a live call',
     /bySerial\('Call history', 'call_history'/.test(readFileSync('src/lib/machineHistory.ts', 'utf8')), true);
 }
@@ -7873,7 +7879,7 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // file directly". Every LIVE register still normalises.
   eq('...and no register still takes it as plain text, Call History apart',
     (up.match(/TEXT\('item_status'/g) ?? []).length === 1
-      && /key: 'call_history'[\s\S]{0,2500}TEXT\('item_status'/.test(up), true);
+      && /key: 'call_history'[\s\S]{0,5000}TEXT\('item_status'/.test(up), true);
   eq('the PM importer normalises cover',
     /col === 'item_status' \? coverCode\(val\)/.test(readFileSync('src/lib/pmImport.ts', 'utf8')), true);
   eq('the AppSheet cover export normalises its own spelling of it',

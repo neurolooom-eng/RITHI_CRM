@@ -531,6 +531,9 @@ const MODULES = {
             // The 2025 DCCR-history calls move into Call History, and the import
             // files there from now on (0430). AFTER 0429, which creates it.
             '0430_dccr_history_into_call_history.sql',
+            // Call History from several systems: source, year, duplicates
+            // flagged and the latest year shown (0432).
+            '0432_call_history_sources.sql',
             // A PM call whose consumption is a Spare joins the DCCR review
             // (2026-10-06). Restates 0353's / 0344's two review views, so after
             // both; and the DCCR rows whose UC Number was an Excel date, removed.
