@@ -141,7 +141,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/spare-consumption', label: 'Spare Consumption' },
   { path: '/handstock', label: 'Hand Stock' },
   { path: '/mrn', label: 'Material Returns (MRN)' },
-  { path: '/stock-transfer', label: 'Stock Transfer' },
+  { path: '/stock-transfer', label: 'Stock Transfer (MTN)' },
   { path: '/feedback', label: 'Customer Feedback' },
   { path: '/failure-report', label: 'Field Failure Register' },
   { path: '/kpi', label: 'KPI & Failure Analysis' },
@@ -765,7 +765,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
     { path: '/handstock', label: 'Hand Stock', actions: ['consumption.reconcile', 'stock.transfer'] },
     { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return', 'stock.return.others'] },
-    { path: '/stock-transfer', label: 'Stock Transfer', actions: ['stock.transfer'] },
+    { path: '/stock-transfer', label: 'Stock Transfer (MTN)', actions: ['stock.transfer'] },
   ] },
   // A HEADER OF ITS OWN, because the MENU has one (2026-09-08). The matrix is
   // read next to the menu — "what can this role open?" is asked with the menu

@@ -1145,6 +1145,9 @@ const MODULES = {
             // A one-time data fix (0421): the voided KY550200 consumption on
             // 26G06F0006 deleted at the user's request; the row audit keeps it.
             '0421_delete_voided_ky550200_consumption.sql',
+            // Files kept with a transfer or a return (0426): a table of its
+            // own, reading stock_transfers and material_returns in its policies.
+            '0426_stock_record_files.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

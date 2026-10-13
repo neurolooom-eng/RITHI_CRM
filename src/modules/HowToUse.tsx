@@ -208,7 +208,7 @@ const SECTIONS: Sec[] = [
       <>Moving: open <b>Spares → Stock Transfer</b>, name the engineer it leaves and the one it reaches.<Hint>A transfer to the same person is held back and named.</Hint></>,
       <>To see what Stores has issued, open <b>Spares → Stock Out</b> — a flat list, separate from the dispatch queue.</>,
     ],
-    go: [{ to: '/mrn', label: 'Material Returns' }, { to: '/stock-transfer', label: 'Stock Transfer' }, { to: '/stock-out', label: 'Stock Out' }],
+    go: [{ to: '/mrn', label: 'Material Returns' }, { to: '/stock-transfer', label: 'Stock Transfer (MTN)' }, { to: '/stock-out', label: 'Stock Out' }],
   },
   {
     id: 'dccr', group: 'Quality', n: '14', title: 'Complete the Daily Complaint Review Register', who: 'Hotline, NSM, RM, Commercial',

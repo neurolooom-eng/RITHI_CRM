@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**112 tables · 44 views · 3247 columns · 230 policies · 69 foreign keys.**
+**113 tables · 44 views · 3261 columns · 232 policies · 69 foreign keys.**
 
 ## How to read this
 
@@ -131,6 +131,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [spare_request_engineer_log](#spare-request-engineer-log)
 - [spare_request_lines](#spare-request-lines)
 - [spare_requests](#spare-requests)
+- [stock_record_files](#stock-record-files)
 - [stock_transfer_counters](#stock-transfer-counters)
 - [stock_transfer_lines](#stock-transfer-lines)
 - [stock_transfers](#stock-transfers)
@@ -1302,8 +1303,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 - `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
+- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2699,12 +2700,12 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
+- `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
+- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
+- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
 - `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
 - `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
-- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
-- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
 - `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
-- `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
 
 **Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4391,6 +4392,48 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `sr_insert` | — | `has_perm('spare.request'::text)` |
 | SELECT | `sr_read` | `(( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (lower(engineer_email) = lower(( SELECT auth.email() AS email))) OR (lower(bt…` | — |
 | UPDATE | `sr_update` | `(can_approve_spares() OR is_spare_requester(spare_requests.*))` | `(can_approve_spares() OR is_spare_requester(spare_requests.*))` |
+
+---
+
+## stock_record_files
+
+> Files kept with a stock transfer (ref = stock_transfers.uid) or a material return (ref = material_returns.uid), any number each, append-only (0426).
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('stock_record_files_id_seq'::regclass)` |  |
+| 2 | `kind` | text | **no** |  | stock_transfer · material_return |
+| 3 | `ref` | text | **no** |  |  |
+| 4 | `file_name` | text | **no** |  |  |
+| 5 | `url` | text | **no** |  |  |
+| 6 | `attached_by` | uuid | yes |  |  |
+| 7 | `attached_by_name` | text | **no** | `''::text` |  |
+| 8 | `attached_at` | timestamp with time zone | **no** | `now()` |  |
+| 9 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 11 | `sys_created_by` | uuid | yes |  |  |
+| 12 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 13 | `sys_updated_by` | uuid | yes |  |  |
+| 14 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(stock_record_files_sys_id_key)_
+
+**Constraints:**
+
+- `stock_record_files_url_check` — `CHECK ((btrim(url) <> ''::text))`
+- `stock_record_files_ref_check` — `CHECK ((btrim(ref) <> ''::text))`
+- `stock_record_files_file_name_check` — `CHECK ((btrim(file_name) <> ''::text))`
+
+**Triggers:** `stock_record_files_stamp` → `stock_record_files_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `srf_insert` | — | `(((kind = 'stock_transfer'::text) AND ( SELECT has_perm('stock.transfer'::text) AS has_perm) AND (EXISTS ( SELECT 1    FROM stock_transfers t   WHERE (t.uid = stock_record_files.re…` |
+| SELECT | `srf_read` | `(((kind = 'stock_transfer'::text) AND (EXISTS ( SELECT 1    FROM stock_transfers t   WHERE (t.uid = stock_record_files.ref)))) OR ((kind = 'material_return'::text) AND (EXISTS ( SE…` | — |
 
 ---
 
