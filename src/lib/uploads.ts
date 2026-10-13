@@ -66,6 +66,41 @@ export interface Col {
   clean?: (v: string) => string;
 }
 
+/** A value the person uploading is ASKED for, because the file cannot say it
+ *  (Call History's Source and Year, the user 2026-10-13: "Pick them on the
+ *  upload screen"). Written on every row of that upload. */
+export interface UploadAsk {
+  to: string;
+  label: string;
+  type: 'select' | 'year';
+  options?: string[];
+  /** Required always, or only given the other answers. */
+  required?: boolean | ((answers: Record<string, string>) => boolean);
+  hint?: string;
+}
+
+/** The asked values as row fields: a year becomes a number, a blank is left off. */
+export function askedFields(asks: UploadAsk[] | undefined, answers: Record<string, string>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const a of asks ?? []) {
+    const v = String(answers[a.to] ?? '').trim();
+    if (!v) continue;
+    out[a.to] = a.type === 'year' ? Number(v) : v;
+  }
+  return out;
+}
+
+/** The first asked value still missing, or '' when every required one is there. */
+export function missingAsk(asks: UploadAsk[] | undefined, answers: Record<string, string>): string {
+  for (const a of asks ?? []) {
+    const need = typeof a.required === 'function' ? a.required(answers) : !!a.required;
+    const v = String(answers[a.to] ?? '').trim();
+    if (need && !v) return a.label;
+    if (v && a.type === 'year' && !/^(19|20)\d{2}$/.test(v)) return `${a.label} (a four-digit year)`;
+  }
+  return '';
+}
+
 export interface UploadDef {
   key: string;
   label: string;
@@ -74,6 +109,8 @@ export interface UploadDef {
   cols: Col[];
   /** Constants written on every row — the list name, the call type, and so on. */
   stamp?: Record<string, unknown>;
+  /** Values ASKED on the upload screen and written on every row (UploadAsk). */
+  asks?: UploadAsk[];
   /** Upsert key, where the table has one. Without it a re-run DUPLICATES. */
   conflict?: string;
   /** The conflict target is COMPUTED by the database (generated columns) from
@@ -1254,9 +1291,20 @@ export const UPLOADS: UploadDef[] = [
   // own status and solved date, as written; nothing follows from a row.
   { key: 'call_history', label: 'Call History — calls before RITHI (up to 2025)', group: 'Calls',
     table: 'call_history', conflict: 'ucn,call_no', extraInto: 'extra',
+    // WHERE AND WHICH YEAR, asked on the screen (0432): the same call can come
+    // from two systems, or from two yearly sheets as an Old Call, and the
+    // latest year's record is the one shown -- the other kept and flagged.
+    asks: [
+      { to: 'source', label: 'Source', type: 'select', required: true,
+        options: ['e-service', 'WinMax', 'Yearly sheet', 'DCCR register', 'Other'],
+        hint: 'The system this file came from.' },
+      { to: 'record_year', label: 'Year', type: 'year',
+        required: (a) => a.source === 'Yearly sheet',
+        hint: 'For a yearly sheet, the sheet\u2019s year (an Old Call carried into it is recorded with this year). Left blank, each call takes the year of its own call date.' },
+    ],
     // Copies of other columns in the old export: kept once, not twice.
     ignore: ['product details', 'party2', 'state2', 'city2'],
-    note: 'HISTORY ONLY — for calls up to 2025. Each row is stored as it is in the file, apart from the live calls: it does not appear in the Field, Installation or PM registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or the Objectives, and nothing is created from it — no visit, no review, no FFR, no notification, no Product Database change. The call status and solved date are the file\u2019s own. One row per UC No. + Call No., so a UC No. used for two calls keeps both, and loading a file again corrects it rather than adding it twice. Every other column the file carries is kept with the call. Read on Machine History.',
+    note: 'HISTORY ONLY — for calls up to 2025. Each row is stored as it is in the file, apart from the live calls: it does not appear in the Field, Installation or PM registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or the Objectives, and nothing is created from it — no visit, no review, no FFR, no notification, no Product Database change. The call status and solved date are the file\u2019s own. One row per UC No. + Call No., so a UC No. used for two calls keeps both, and loading the same file again corrects it rather than adding it twice. Pick the Source (and, for a yearly sheet, its Year) before uploading: when the same UC No. + Call No. comes from another source or year, the LATEST YEAR\u2019s record is shown and the other is kept with it, flagged Duplicate \u2014 nothing else is done about it. Every other column the file carries is kept with the call. Read on Machine History.',
     cols: [
       { to: 'ucn', from: ['uc no.', 'uc no', 'uc number', 'ucn'], required: true },
       TEXT('call_no', 'call no.', 'call no', 'call number'),

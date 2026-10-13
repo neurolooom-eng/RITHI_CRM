@@ -72,4 +72,34 @@ set role anon;
 select count(*) from public.call_history;
 reset role;
 
+\echo '--- 4. the same call from another source or year: the latest year shows, the other is kept, flagged (0432) ---'
+insert into public.call_history (ucn, call_no, call_at, source, call_status)
+values ('CHX-OLD', '7', timestamptz '2023-03-01 10:00+05:30', 'Yearly sheet', 'Unsolved');
+select 'a row with no year takes the year of its call' as t, record_year = 2023 and not duplicate as ok
+  from public.call_history where ucn = 'CHX-OLD';
+insert into public.call_history (ucn, call_no, call_at, source, record_year, call_status)
+values ('CHX-OLD', '7', timestamptz '2023-03-01 10:00+05:30', 'Yearly sheet', 2024, 'Solved')
+on conflict (ucn, call_no) do update set source = excluded.source, record_year = excluded.record_year, call_status = excluded.call_status;
+select 'an Old Call carried into the 2024 sheet: 2024 shows, 2023 kept with its year, flagged' as t,
+  call_status = 'Solved' and record_year = 2024 and duplicate
+  and jsonb_array_length(duplicates) = 1 and duplicates->0->>'record_year' = '2023' and duplicates->0->>'call_status' = 'Unsolved' as ok
+  from public.call_history where ucn = 'CHX-OLD';
+insert into public.call_history (ucn, call_no, call_at, source, record_year, call_status)
+values ('CHX-OLD', '7', timestamptz '2023-03-01 10:00+05:30', 'WinMax', 2022, 'Unsolved')
+on conflict (ucn, call_no) do update set source = excluded.source, record_year = excluded.record_year, call_status = excluded.call_status;
+select 'an EARLIER year arriving later does not replace the latest; it is kept beside it' as t,
+  call_status = 'Solved' and record_year = 2024 and source = 'Yearly sheet' and jsonb_array_length(duplicates) = 2 as ok
+  from public.call_history where ucn = 'CHX-OLD';
+insert into public.call_history (ucn, call_no, call_at, source, record_year, call_status)
+values ('CHX-OLD', '7', timestamptz '2023-03-01 10:00+05:30', 'WinMax', 2022, 'Unsolved')
+on conflict (ucn, call_no) do update set source = excluded.source, record_year = excluded.record_year, call_status = excluded.call_status;
+select 'loading the same file twice keeps one copy of each record' as t, jsonb_array_length(duplicates) = 2 as ok
+  from public.call_history where ucn = 'CHX-OLD';
+insert into public.call_history (ucn, call_no, call_at, source, record_year, call_status)
+values ('CHX-OLD', '7', timestamptz '2023-03-01 10:00+05:30', 'Yearly sheet', 2024, 'Solved - Report Completed')
+on conflict (ucn, call_no) do update set source = excluded.source, record_year = excluded.record_year, call_status = excluded.call_status;
+select 'the same source and year again is a correction, not another duplicate' as t,
+  call_status = 'Solved - Report Completed' and jsonb_array_length(duplicates) = 2 as ok
+  from public.call_history where ucn = 'CHX-OLD';
+
 delete from public.call_history where ucn like 'CHX%';

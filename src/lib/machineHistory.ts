@@ -242,7 +242,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
     bySerial('Ownership', 'ownership_transfers', 'id,reference_no,item_name,serial_number,from_party,to_party,transfer_date,reason,remarks', 'serial_number', 'id'),
     bySerial('Additional entry', 'product_additional_entries', 'id,item_name,serial_number,party_name,warranty_number,contract_number,source_note,remarks,created_at', 'serial_number', 'id'),
     bySerial('Workshop', 'indoor_jobs', 'id,job_no,ucn,product_name,serial,party_name,received_at,status,activity,work_done,disposition', 'serial', 'id'),
-    bySerial('Call history', 'call_history', 'id,ucn,call_no,call_at,call_type,party_name,item_name,serial,standard_complaint,complaint_reported,engineer,call_status,solved_at', 'serial', 'id'),
+    bySerial('Call history', 'call_history', 'id,ucn,call_no,call_at,call_type,party_name,item_name,serial,standard_complaint,complaint_reported,engineer,call_status,solved_at,source,record_year,duplicate,duplicates', 'serial', 'id'),
   ]);
 
   for (const r of sameMachineRows(master, 'item_name', product, ser)) out.push({
@@ -332,7 +332,13 @@ export async function machineHistory(product: string, serial: string): Promise<M
     ref: [s(r.ucn), s(r.call_no) && `call ${s(r.call_no)}`].filter(Boolean).join(' · '), ucn: '', party: s(r.party_name),
     detail: [s(r.call_status), s(r.solved_at) && `solved ${localIsoDate(r.solved_at) ?? ''}`,
              s(r.standard_complaint) || s(r.complaint_reported),
-             s(r.engineer) && `engineer ${s(r.engineer)}`, 'history — not a live call'].filter(Boolean).join(' · '),
+             s(r.engineer) && `engineer ${s(r.engineer)}`,
+             // WHERE IT CAME FROM (0432), and the DUPLICATE flag with the other
+             // records it is kept beside -- shown, never acted on.
+             [s(r.source), s(r.record_year)].filter(Boolean).join(' '),
+             r.duplicate === true && `DUPLICATE — also in ${(Array.isArray(r.duplicates) ? r.duplicates : [])
+               .map((d) => [s((d as Record<string, unknown>).source), s((d as Record<string, unknown>).record_year)].filter(Boolean).join(' ')).join(', ') || 'another record'}`,
+             'history — not a live call'].filter(Boolean).join(' · '),
   });
 
   // NEWEST FIRST, and a row with no date sorts LAST rather than first: an

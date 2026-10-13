@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evolution of Service Tools</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+  /* One hue per era, kept apart in lightness as well as hue. */
+  --era-1:#7a5c2e;   /* e-service */
+  --era-2:#1f5f8b;   /* WinMax */
+  --era-3:#6b3fa0;   /* RITHI v1.0 */
+  --era-4:#1d7a4d;   /* RITHI v2.0 */
+  --flag:#b25000;
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --era-1:#d6ae6f; --era-2:#6fb3e3; --era-3:#b993e6; --era-4:#6fcf9b; --flag:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --era-1:#d6ae6f; --era-2:#6fb3e3; --era-3:#b993e6; --era-4:#6fcf9b; --flag:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+.wrap{max-width:1040px; margin:0 auto; padding:0 16px 88px}
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{margin:0 0 8px; font-size:12px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+h1{margin:0 0 12px; font-size:34px; line-height:1.15; letter-spacing:-.01em; text-wrap:balance}
+.standfirst{margin:0; max-width:66ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* THE TIMELINE -- a rail with one stop per system of record, oldest first:
+   the order IS the information here, which is why the stops are numbered. */
+.timeline{margin:30px 0 0; padding:0; list-style:none; position:relative}
+.timeline::before{content:""; position:absolute; left:15px; top:8px; bottom:8px; width:2px; background:var(--rail)}
+.era{position:relative; padding:0 0 26px 52px}
+.era:last-child{padding-bottom:0}
+.era::before{
+  content:attr(data-n); position:absolute; left:0; top:2px; width:32px; height:32px; border-radius:50%;
+  background:var(--surface); border:2px solid var(--k); color:var(--k);
+  font:600 14px/28px 'IBM Plex Mono', ui-monospace, monospace; text-align:center;
+}
+.era .card{background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--k);
+  border-radius:10px; padding:18px 20px; box-shadow:var(--shadow)}
+.era h2{margin:0; font-size:21px; line-height:1.25}
+.era .when{margin:2px 0 12px; font:500 13.5px/1.4 'IBM Plex Mono', ui-monospace, monospace; color:var(--k)}
+.era p{margin:0 0 10px; color:var(--ink-2); max-width:70ch}
+.era p:last-child{margin-bottom:0}
+.facts{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin:12px 0 0}
+.fact{border:1px solid var(--line-soft); border-radius:8px; padding:10px 12px}
+.fact .k{display:block; font-size:11.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:2px}
+.fact .v{font-size:14.5px; color:var(--ink)}
+
+section.keep{margin-top:40px; padding-top:26px; border-top:1px solid var(--line)}
+section.keep h2{margin:0 0 6px; font-size:24px}
+section.keep > p{margin:0 0 16px; color:var(--ink-2); max-width:70ch}
+.rules{display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:12px}
+@media (max-width:760px){ .rules{grid-template-columns:1fr} }
+.rule{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px 18px}
+.rule h3{margin:0 0 6px; font-size:16px}
+.rule p{margin:0; color:var(--ink-2); font-size:14.5px}
+.rule.flag{border-left:4px solid var(--flag)}
+.ucn{display:inline-flex; gap:2px; font:600 15px 'IBM Plex Mono', ui-monospace, monospace}
+.ucn span{padding:1px 5px; border-radius:4px; background:var(--line-soft)}
+.legend{margin:8px 0 0; font-size:13px; color:var(--muted)}
+.todo{margin-top:26px; font-size:14px; color:var(--muted)}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Service history · reference</p>
+  <h1>Evolution of Service Tools</h1>
+  <p class="standfirst">
+    <b>Four systems have held the service record.</b> The history of a machine is spread across all of
+    them. This page says what each one was, the years it covered, how its calls were numbered, and how its
+    data is kept in RITHI v2.0 — as <b>Call History</b>, apart from the live calls, so the whole history of a
+    product can be read in one place.
+  </p>
+</header>
+
+<ol class="timeline">
+  <li class="era" data-n="1" style="--k:var(--era-1)">
+    <div class="card">
+      <h2>e-service</h2>
+      <p class="when">Before WinMax</p>
+      <p>The earliest system of record. Its calls were numbered with <b>plain numbers</b> — the UC Number
+        format did not exist yet.</p>
+      <div class="facts">
+        <div class="fact"><span class="k">Call numbers</span><span class="v">Simple numeric</span></div>
+        <div class="fact"><span class="k">In RITHI</span><span class="v">Call History, Source <b>e-service</b> — to be loaded</span></div>
+      </div>
+    </div>
+  </li>
+
+  <li class="era" data-n="2" style="--k:var(--era-2)">
+    <div class="card">
+      <h2>WinMax</h2>
+      <p class="when">2017 / 2018 → 09-Jun-2022</p>
+      <p>The system of record for these years, and where <b>today's UC Number format began</b>. Its export
+        is the source of the calls of 2018 to 08-Jun-2022, and its stock position on 09-Jun-2022 is the
+        <b>WinMax opening</b> that hand stock counts from.</p>
+      <div class="facts">
+        <div class="fact"><span class="k">UC Number</span><span class="v">
+          <span class="ucn"><span>22</span><span>F</span><span>08</span><span>017</span></span>
+          <div class="legend">year · month (A = Jan … L = Dec) · day · a running number of three or four digits — 22F08017 is a call of 08-Jun-2022</div></span></div>
+        <div class="fact"><span class="k">In RITHI</span><span class="v">Call History, Source <b>WinMax</b> — 65,407 calls of 01-Jan-2018 → 08-Jun-2022 in the first file</span></div>
+        <div class="fact"><span class="k">Hand stock</span><span class="v">Counts from the WinMax opening, 09-Jun-2022</span></div>
+      </div>
+    </div>
+  </li>
+
+  <li class="era" data-n="3" style="--k:var(--era-3)">
+    <div class="card">
+      <h2>RITHI v1.0 — AppSheet, with the yearly sheets</h2>
+      <p class="when">10-Jun-2022 → the move to RITHI v2.0</p>
+      <p>Calls and visits were kept in <b>one sheet per year</b>. Every January the pending calls of the
+        previous years were identified, listed and marked <b>Old Calls</b>; the year started fresh with the
+        Old Calls carried in, and engineers closed both. For the record, the visit entries of the Old Calls
+        were copied into the year sheet in which they happened.</p>
+      <p>So <b>one call can appear in two or more year sheets</b> — registered in one year, closed in a
+        later one. The 2025 DCCR register (the daily complaint review of that year) was also loaded, with
+        its calls.</p>
+      <div class="facts">
+        <div class="fact"><span class="k">UC Number</span><span class="v">The WinMax format, unchanged</span></div>
+        <div class="fact"><span class="k">In RITHI</span><span class="v">Call History, Source <b>Yearly sheet</b> with the sheet's Year — 2023, 2024, 2025 to be loaded</span></div>
+        <div class="fact"><span class="k">2025 DCCR register</span><span class="v">Call History, Source <b>DCCR register</b> — 6,065 calls; their reviews still count in the Recent Failure Rate</span></div>
+      </div>
+    </div>
+  </li>
+
+  <li class="era" data-n="4" style="--k:var(--era-4)">
+    <div class="card">
+      <h2>RITHI v2.0</h2>
+      <p class="when">The current system</p>
+      <p>This application. Every live call, visit, spare and review is recorded here, and the workflows —
+        DCCR, Field Failure, SLA, Objectives, hand stock — run on these records only. The calls of the
+        earlier systems are kept beside them as history and take part in none of it.</p>
+    </div>
+  </li>
+</ol>
+
+<section class="keep">
+  <h2>How the earlier systems' data is kept here</h2>
+  <p>Everything up to 2025 is history. It is loaded through <b>Bulk Uploads → Calls → Call History</b>,
+    picking the Source (and, for a yearly sheet, its Year), and read on <b>Machine History</b>.</p>
+  <div class="rules">
+    <div class="rule">
+      <h3>Apart from every workflow</h3>
+      <p>Not in the call registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or
+        the Objectives. Nothing is created from a historical call — no visit, review, FFR, notification or
+        Product Database change.</p>
+    </div>
+    <div class="rule">
+      <h3>As the file has it</h3>
+      <p>Call status, solved date, item status and contract type exactly as written; every other column of
+        the file kept with the call.</p>
+    </div>
+    <div class="rule">
+      <h3>One call = UC No. + Call No.</h3>
+      <p>The key is the pair, so a UC Number the old system used for two calls keeps both. Loading the same
+        file again corrects it rather than adding it twice.</p>
+    </div>
+    <div class="rule flag">
+      <h3>The same call twice: latest year shown, flagged</h3>
+      <p>When a UC No. + Call No. arrives from another source or year — an Old Call in the next year's sheet,
+        a call in two systems — the <b>latest year's record is shown</b>, the other is kept with it, and the
+        call is flagged <b>Duplicate</b>. Nothing more is done about it until it is decided.</p>
+    </div>
+  </div>
+  <p class="todo">Still to come: the e-service calls and the 2023–2025 yearly sheets, and the visit entries of
+    the yearly sheets kept as a visit history beside their calls.</p>
+</section>
+
+</div>
+<script>
+// Both the shared page and the in-app page: follow the host's theme (?theme=)
+// and say how tall the page is, so the frame never scrolls inside itself.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**114 tables · 44 views · 3288 columns · 235 policies · 69 foreign keys.**
+**114 tables · 44 views · 3292 columns · 235 policies · 69 foreign keys.**
 
 ## How to read this
 
@@ -372,6 +372,10 @@ Views are listed [after the tables](#views).
 | 25 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 26 | `sys_updated_by` | uuid | yes |  |  |
 | 27 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 28 | `source` | text | **no** | `''::text` | The system of record the row came from: e-service, WinMax, Yearly sheet, DCCR register ... (0432). |
+| 29 | `record_year` | integer | yes |  | The year of the record: a yearly sheet's year, else the year of the call (0432). |
+| 30 | `duplicate` | boolean | **no** | `false` | Flagged when the same UC No. + Call No. arrived from another source or year; the latest year's record is shown, the others are kept in `duplicates`. A flag only -- nothing is acted on (0432). |
+| 31 | `duplicates` | jsonb | **no** | `'[]'::jsonb` | The other records of the same UC No. + Call No., each whole with its source and year (0432). |
 
 **Unique:** `ucn, call_no` _(call_history_key)_ · `sys_id` _(call_history_sys_id_key)_
 
@@ -379,7 +383,7 @@ Views are listed [after the tables](#views).
 
 - `call_history_ucn_check` — `CHECK ((btrim(ucn) <> ''::text))`
 
-**Triggers:** `call_history_stamp` → `call_history_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_history_stamp` → `call_history_stamp()` · `call_history_year_default` → `call_history_year_default()` · `call_history_zz_keep_latest` → `call_history_keep_latest()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
