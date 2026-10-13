@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.180',
+    date: '2026-10-13',
+    title: 'Hand Stock: inactive users hidden',
+    changes: [
+      'Hand Stock now leaves off people marked inactive on the User Master. The new 🚫 Inactive users hidden switch is on by default; click it (👥 Inactive users shown) to see them again. The choice is remembered.',
+      'Hiding them changes no balance: the counts, the engineer picker and the Export CSV simply follow the shorter list. A name that is not on the User Master at all, such as INDOOR SERVICE, is always shown.',
+    ],
+  },
+  {
     version: '0.10.179',
     date: '2026-10-13',
     title: 'Call registers: First Attended, Last Visit and Solved dates; cancelled calls off the SLA list',
