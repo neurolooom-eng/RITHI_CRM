@@ -1,5 +1,5 @@
 // ===========================================================================
-// QUOTATIONS (0427; the user, 2026-10-13: "Quote Generation for Both Product
+// QUOTATIONS (0428; the user, 2026-10-13: "Quote Generation for Both Product
 // Contract + Spares").
 //
 // One register, two kinds of line. A quotation goes to a customer for a
@@ -92,7 +92,7 @@ export function Quotations() {
     try { setRows(await listQuotations()); setSyncedAt(Date.now()); }
     catch (e) {
       setErr(loadFailure(e, { tables: ['quotation_register', 'quotations'],
-        hint: 'The quotations tables are not in this database yet — apply quotations.sql (migration 0427).' }));
+        hint: 'The quotations tables are not in this database yet — apply quotations.sql (migration 0428).' }));
     } finally { setBusy(false); }
   };
   useEffect(() => { if (live) void load(); }, [live]);

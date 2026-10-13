@@ -103,10 +103,10 @@ export const MODULES: ModuleDef[] = [
   { path: '/training', label: 'Training', admin: true },
   { path: '/warranties', label: 'Warranty Register' },
   { path: '/contracts', label: 'Contract Register' },
-  // QUOTATIONS (0427, the user, 2026-10-13: "Quote Generation for Both Product
+  // QUOTATIONS (0428, the user, 2026-10-13: "Quote Generation for Both Product
   // Contract + Spares"): a service contract on a customer's machines, spares,
   // or both on one document. Beside the Contract Register because that is
-  // what an accepted contract quotation becomes. 0427 gives the page to admin,
+  // what an accepted contract quotation becomes. 0428 gives the page to admin,
   // technical_support, nsm and commercial; on a project in use a code default
   // reaches nobody, so the rest is ticked on Roles & Permissions.
   { path: '/quotations', label: 'Quotations' },
@@ -421,7 +421,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Masters', key: 'contract.edit.delete', label: ' Delete a whole contract entry with its machines' },
   { group: 'Masters', key: 'pd2.rebuild', label: 'Rebuild Product Database 2.0' },
   { group: 'Masters', key: 'ownership.transfer', label: 'Transfer a machine between customers' },
-  // QUOTATIONS (0427): raise, edit, revise and move the status of a quotation.
+  // QUOTATIONS (0428): raise, edit, revise and move the status of a quotation.
   // One key: a quotation is not a quality record and has no approval chain;
   // whoever may price one may send it. Reading needs only the page key.
   { group: 'Masters', key: 'quote.edit', label: 'Raise, edit, revise and send quotations (contract and spares)' },

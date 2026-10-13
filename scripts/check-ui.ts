@@ -27,7 +27,8 @@ import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags, noteMatchesCall, docMatchesCall } from '../src/lib/docmatch';
-import { evaluateCallSla, DEFAULT_SLA_RULES } from '../src/lib/sla';
+import { evaluateCallSla, slaByRule, DEFAULT_SLA_RULES } from '../src/lib/sla';
+import { applyDashPicks, dashTally, dashTrend, dashPeriodKey } from '../src/lib/dashinsights';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callreview';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
@@ -578,6 +579,68 @@ console.log('\n-- which manuals belong on a call --');
     manualMatchesCall(cpxManual, { product: 'EXTEND-XT', complaint: 'AIR SUPPLY FAILURE', reported: 'no air' }), false);
   // Tags below the floor cannot match everything.
   eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
+}
+
+// THE DASHBOARD READ THE FAILURE INSIGHTS WAY (FRS-116.15-.18): a click
+// narrows every figure, each chart counting the OTHER picks; the trend by
+// year / quarter / month with its numbers; downloads only with export.data.
+console.log('\n-- the Dashboard, the Failure Insights way --');
+{
+  const calls = [
+    { productName: 'VEGA', allocatedTo: 'A', itemStatus: 'WGP', regDate: '2026-01-15' },
+    { productName: 'VEGA', allocatedTo: 'B', itemStatus: 'AMC', regDate: '2026-02-03' },
+    { productName: 'MT60', allocatedTo: 'A', itemStatus: '',    regDate: '2026-04-20' },
+    { productName: 'MT60', allocatedTo: 'A', itemStatus: 'WGP', regDate: '' },
+  ];
+  eq('a period is a month, a quarter or a year', [dashPeriodKey(new Date(2026, 3, 20), 'month'), dashPeriodKey(new Date(2026, 3, 20), 'quarter'), dashPeriodKey(new Date(2026, 3, 20), 'year')], ['2026-04', '2026-Q2', '2026']);
+  eq('a pick narrows the calls', applyDashPicks(calls, { allocatedTo: 'A' }, 'month').length, 3);
+  eq('...but a chart ignores its OWN pick (the cross-filter)', applyDashPicks(calls, { allocatedTo: 'A', productName: 'VEGA' }, 'month', 'productName').length, 3);
+  eq('a blank is counted as (not stated), never dropped', dashTally(calls, 'itemStatus').map((d) => [d.label, d.value]), [['WGP', 2], ['(not stated)', 1], ['AMC', 1]]);
+  const t = dashTrend(calls, 'quarter');
+  eq('the trend: oldest first, change on the one before (none for the first), running total',
+    t.rows.map((r) => [r.label, r.value, r.change, r.running]), [['2026-Q1', 2, null, 2], ['2026-Q2', 1, -1, 3]]);
+  eq('...and an undated call is in no period, and counted as such', [t.total, t.undated], [3, 1]);
+  eq('a period pick selects the bucket the chart shows', applyDashPicks(calls, { period: '2026-Q1' }, 'quarter').length, 2);
+  const dash = readFileSync('src/modules/Dashboard.tsx', 'utf8');
+  eq('the download buttons exist only for a role holding export.data',
+    /const mayDownload = can\('export\.data'\)/.test(dash) && /const dl = \(fn: \(\) => void\) => \(mayDownload \? fn : undefined\)/.test(dash), true);
+  eq('...and the download itself refuses without it', /const download = [^\n]*\n\s*if \(!can\('export\.data'\)\) return;/.test(dash), true);
+  eq('every block offers its download through that gate', (dash.match(/onDownload=\{dl\(/g) ?? []).length >= 6, true);
+}
+
+// A SIGN-IN LANDS ON THE DASHBOARD (FRS-116.14, the user, 2026-10-13).
+console.log('\n-- a sign-in lands on the Dashboard --');
+{
+  const login = readFileSync('src/modules/Login.tsx', 'utf8');
+  const app = readFileSync('src/App.tsx', 'utf8');
+  eq('a successful sign-in goes to #/', /if \(!res\.ok\) \{[^}]*return; \}\s*(\/\/[^\n]*\n\s*)*window\.location\.hash = '#\/';/.test(login), true);
+  eq('...and / is the Dashboard', /<Route path="\/" element=\{<Dashboard \/>\} \/>/.test(app), true);
+}
+
+// ONE TILE AND ONE LIST PER SLA, UNDER ITS NAME (FRS-116.13, the user,
+// 2026-10-13: "Segregate the SLA Breach ... Every SLA should display a List
+// separately").
+console.log('\n-- one list per SLA, under its name --');
+{
+  const rules = DEFAULT_SLA_RULES.map((r) => (r.key === 'first_visit' ? { ...r, label: 'Reach the customer' } : r));
+  const now = Date.parse('2026-10-13T12:00:00+05:30');
+  const judge = (ucn: string, regAt: string, openState: string) =>
+    ({ item: ucn, sla: evaluateCallSla(rules, { regAt, openState }, now) });
+  const lists = slaByRule(rules, [
+    judge('LATE-BOTH', '2026-09-01T10:00:00+05:30', 'Unattended'),   // late for first visit AND closure
+    judge('LATE-CLOSE', '2026-09-01T10:00:00+05:30', 'Unsolved'),    // visited, late for closure only
+    judge('FRESH', '2026-10-13T10:00:00+05:30', 'Unattended'),       // on track for both
+    judge('GONE', '2026-09-01T10:00:00+05:30', 'Cancelled'),         // no SLA at all
+  ]);
+  eq('a list per rule that has late calls, in the rules\' order', lists.map((l) => l.rule.key), ['first_visit', 'closure']);
+  eq('each list carries the name given to the SLA', lists[0].rule.label, 'Reach the customer');
+  eq('a call late for two rules is on both lists',
+    [lists[0].items.map((x) => x.item), lists[1].items.map((x) => x.item).sort()], [['LATE-BOTH'], ['LATE-BOTH', 'LATE-CLOSE']]);
+  eq('counts are per list', lists.map((l) => [l.breached, l.due]), [[1, 0], [2, 0]]);
+  const dash = readFileSync('src/modules/Dashboard.tsx', 'utf8');
+  eq('the Dashboard titles each list and tile with the rule\'s name',
+    /slaLists\.map\(\(l\) =>/.test(dash) && /\$\{l\.rule\.label\}/.test(dash) && /\$\{t\.rule\.label\}/.test(dash), true);
+  eq('SLA Targets lets the name be edited', /aria-label="SLA name"/.test(readFileSync('src/modules/SlaRulesCard.tsx', 'utf8')), true);
 }
 
 // FILES KEPT WITH A TRANSFER AND A RETURN (FRS-277): both screens offer them

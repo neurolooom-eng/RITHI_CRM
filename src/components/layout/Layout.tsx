@@ -119,7 +119,7 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/warranties', label: 'Warranty Register', icon: '🛡️' },
       { to: '/contracts', label: 'Contract Register', icon: '📋' },
-      // QUOTATIONS (0427): beside the Contract Register, which is what an
+      // QUOTATIONS (0428): beside the Contract Register, which is what an
       // accepted contract quotation becomes.
       { to: '/quotations', label: 'Quotations', icon: '🧾' },
       { to: '/ownership-transfer', label: 'Ownership Transfer', icon: '🔁' },

@@ -339,8 +339,9 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
---   0427_quotations.sql
+--   0428_quotations.sql
 --   0044_sla_rules.sql
+--   0427_sla_rule_named.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
 --   0301_knowledge_base_needs_a_profile.sql
@@ -44654,11 +44655,11 @@ revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0427_quotations.sql
+-- 0428_quotations.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0427  QUOTATIONS -- for a service contract on a customer's machines, for
+-- 0428  QUOTATIONS -- for a service contract on a customer's machines, for
 -- spares, or both on the one document (the user, 2026-10-13: "Quote
 -- Generation for Both Product Contract + Spares").
 --
@@ -44729,7 +44730,7 @@ create table if not exists public.quotations (
 );
 
 comment on table public.quotations is
-  'A quotation to a customer (0427): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).';
+  'A quotation to a customer (0428): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).';
 comment on column public.quotations.revision_of is
   'The quote_no this quotation revises, where it was raised by Revise on a frozen one; blank otherwise.';
 
@@ -44778,7 +44779,7 @@ create table if not exists public.quotation_lines (
 );
 
 comment on table public.quotation_lines is
-  'The lines of a quotation (0427): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.';
+  'The lines of a quotation (0428): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.';
 
 create index if not exists quotation_lines_quote on public.quotation_lines (quote_id, row_no, id);
 create index if not exists quotation_lines_part on public.quotation_lines (part_code) where part_code <> '';
@@ -44985,7 +44986,7 @@ begin
      and ar.role in ('admin', 'nsm', 'commercial')
      and not (ar.permissions ? 'quote.edit');
   get diagnostics m = row_count;
-  raise notice '0427: Quotations page key given to admin, technical_support, nsm, commercial (% rows); quote.edit to admin, nsm, commercial (% rows) -- grant the rest on Roles & Permissions', n, m;
+  raise notice '0428: Quotations page key given to admin, technical_support, nsm, commercial (% rows); quote.edit to admin, nsm, commercial (% rows) -- grant the rest on Roles & Permissions', n, m;
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -45035,6 +45036,30 @@ drop policy if exists sla_write on public.sla_rules;
 create policy sla_write on public.sla_rules for all
   using (public.is_admin() or public.has_perm('config.manage'))
   with check (public.is_admin() or public.has_perm('config.manage'));
+
+-- ------------------------------------------------------------------------
+-- 0427_sla_rule_named.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0427 -- EVERY SLA HAS A NAME (the user, 2026-10-13: "Segregate the SLA
+-- Breach. Name it. Add Provision to Name the SLA. And use that name to
+-- Display. Every SLA should display a List separately").
+--
+-- sla_rules.label was always there and always editable by whoever holds
+-- Admin config (sla_write, 0044); the SLA Targets card now offers it, and the
+-- Dashboard shows one tile and one list per SLA under that name. A blank name
+-- would be a tile and a list with no heading, so it is refused here as well as
+-- on the form. The existing names are all filled, so the check validates at
+-- once.
+-- ===========================================================================
+do $$
+begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.sla_rules'::regclass and conname = 'sla_rules_label_named') then
+    alter table public.sla_rules add constraint sla_rules_label_named check (btrim(label) <> '');
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0042_knowledge_base.sql

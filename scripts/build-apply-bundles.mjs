@@ -396,7 +396,9 @@ const MODULES = {
             'first visit, closure, closure-with-spare and stores dispatch. Read by',
             'everyone; edited by admins / config.manage. Highlights open calls.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0044_sla_rules.sql'],
+    files: ['0044_sla_rules.sql',
+            // Every SLA has a name (0427): the Dashboard lists each under it.
+            '0427_sla_rule_named.sql'],
   },
   knowledge_base: {
     title: 'Knowledge Base',
@@ -1285,7 +1287,7 @@ const MODULES = {
     title: 'Quotations',
     blurb: ['A quotation to a customer -- a service contract on their machines (AMC',
             'or CMC, a period and a rate per machine), spares (a Part Master part,',
-            'HSN, quantity and unit price), or both on one document (0427).',
+            'HSN, quantity and unit price), or both on one document (0428).',
             'Numbered QT/YY/NNNN by the database; Prepared by stamped from the',
             'session; taxable, GST and total GENERATED on every line. Never deleted:',
             'Cancelled instead, and frozen once Accepted, Declined or Cancelled, so',
@@ -1295,7 +1297,7 @@ const MODULES = {
             'The bundle gives the page to admin, technical_support, nsm and',
             'commercial and quote.edit to admin, nsm and commercial.'],
     needs: ['profiles', 'rbac'],
-    files: ['0427_quotations.sql'],
+    files: ['0428_quotations.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

@@ -30,6 +30,8 @@ that guessed would be read as a census.
 - **Opened by** `mod:/`
 - **Source** `src/modules/Dashboard.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Also tested in the screen** (not offered under this page in the matrix): `export.data`
+- **Buttons** “Clear all”
 
 ### My Workload `/workload`
 

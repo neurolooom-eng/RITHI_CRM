@@ -159,7 +159,7 @@ const VO = Object.fromEntries(viewOpts.map((r) => [r[0], r[1]]));
 // THE LIST IS TAKEN ONLY WHERE IT IS THIS COLUMN'S. A CHECK that names several
 // columns -- `line_type <> 'Contract' OR (serial_number <> '' AND cover_type =
 // ANY (ARRAY['AMC', 'CMC']))` -- used to hand the one ARRAY in it to EVERY
-// column it mentioned, so `serial_number` read as "AMC · CMC" (0427's
+// column it mentioned, so `serial_number` read as "AMC · CMC" (0428's
 // quotation_lines, 2026-10-13). The list is matched to the column it is
 // compared with, and a column the constraint only mentions gets nothing from
 // it; its own single-column CHECK, where it has one, still speaks for it.

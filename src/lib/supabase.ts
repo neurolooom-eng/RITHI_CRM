@@ -5963,7 +5963,7 @@ export async function listSlaRules(): Promise<SlaRuleRow[]> {
   if (error) throw new Error(errMsg(error));
   return (data ?? []) as SlaRuleRow[];
 }
-export async function saveSlaRule(key: string, patch: { target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
+export async function saveSlaRule(key: string, patch: { label?: string; target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
   // COUNT THE ROWS (finding 58, as finding 48 did for calls): row-level security
   // refuses an UPDATE by matching nothing, which is not an error -- so a refused
   // save used to read "saved" while nothing changed.
@@ -7423,7 +7423,7 @@ export async function dccrFailureCalls(objectiveId: number, asof?: string): Prom
     .order('reg_date', { ascending: false }).order('ucn').range(a, b));
 }
 
-// ---- quotations (0427) ------------------------------------------------------
+// ---- quotations (0428) ------------------------------------------------------
 // A quotation is a header and its lines, read and written as one. The number,
 // the Prepared by and the money on a line are the DATABASE'S: the header is
 // read back after a write so the screen shows what was recorded, never what

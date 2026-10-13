@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.183',
+    version: '0.10.185',
     date: '2026-10-13',
     title: 'Quotations: a service contract on a customer\'s machines, spares, or both on one document',
     changes: [
@@ -23,6 +23,27 @@ export const CHANGELOG: ChangeEntry[] = [
       'Print / Save as PDF on the Air Liquide letterhead: both tables, totals with the amount in words, terms and a signature block. A Draft prints marked DRAFT.',
       'Mark it Sent, Accepted, Declined or Cancelled. A quotation is never deleted; once Accepted, Declined or Cancelled it is frozen, and Revise copies it into a new Draft that names the one it revises.',
       'Who sees it: the page is given to Admin, Technical Support, NSM and Commercial; raising and editing (quote.edit) to Admin, NSM and Commercial. Grant the rest on Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.184',
+    date: '2026-10-13',
+    title: 'Dashboard: click to narrow, trend by period, figures beside each chart, downloads',
+    changes: [
+      'The Dashboard now works like Failure Insights. Click any bar, slice, period or table row, and every figure on the page narrows to it: the tiles, the SLA tiles and lists, the charts and Recent Calls. A chip shows what is picked; click it, or the same mark again, to clear.',
+      'The calls trend can be read Monthly, Quarterly or Yearly. Beside it are the calls, the change on the period before, the share and the running total. It now covers every period, not only the last six months.',
+      'Item status, top products and calls by engineer each have their figures in a small table beside the chart. The charts show the top 12.',
+      '⬳ Download on each block saves it as Excel, with a sheet saying what it was narrowed to. The button only appears for roles that have Export / download CSV ticked on Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.183',
+    date: '2026-10-13',
+    title: 'One SLA list per SLA, named; sign-in opens the Dashboard',
+    changes: [
+      'The Dashboard now shows each SLA separately: one tile and one list per SLA, under its own name. The tile shows how many calls are breached and how many are due soon. The list puts breached calls first, then the nearest deadline. A call late for both its first visit and its closure appears on both lists.',
+      'SLA / Objective Configuration → SLA Targets lets you name each SLA; the Dashboard uses that name. A blank name is refused.',
+      'Signing in now always opens the Dashboard, instead of whatever page was last open. Reloading a page while signed in still keeps you on it.',
     ],
   },
   {

@@ -1305,8 +1305,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 - `handstock_adjustments_reason` — `CHECK ((btrim(reason) <> ''::text))`
+- `handstock_adjustments_qty_nonzero` — `CHECK ((qty <> (0)::numeric))`
 
 **Triggers:** `handstock_adjustments_bi` → `handstock_adjustments_bi()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -1832,8 +1832,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
+- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
 **Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `indoor_report_keeps_its_number` → `indoor_report_keeps_its_number()` · `zy_indoor_jobs_call_status` → `indoor_jobs_call_status()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2703,11 +2703,11 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 **Constraints:**
 
 - `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
-- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
-- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
 - `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
-- `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
+- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
+- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
 - `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
+- `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
 
 **Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3311,7 +3311,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ## quotation_lines
 
-> The lines of a quotation (0427): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.
+> The lines of a quotation (0428): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.
 
 **Primary key:** `id` · **Row-level security:** **on**
 
@@ -3354,13 +3354,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 **Constraints:**
 
 - `quotation_lines_description_check` — `CHECK ((btrim(description) <> ''::text))`
+- `quotation_lines_spare_shape` — `CHECK (((line_type <> 'Spare'::text) OR (btrim(part_code) <> ''::text)))`
+- `quotation_lines_period` — `CHECK (((period_end IS NULL) OR (period_start IS NULL) OR (period_end >= period_start)))`
 - `quotation_lines_period_months_check` — `CHECK (((period_months IS NULL) OR (period_months > 0)))`
 - `quotation_lines_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `quotation_lines_unit_price_check` — `CHECK ((unit_price >= (0)::numeric))`
 - `quotation_lines_discount_pct_check` — `CHECK (((discount_pct >= (0)::numeric) AND (discount_pct <= (100)::numeric)))`
 - `quotation_lines_gst_pct_check` — `CHECK (((gst_pct >= (0)::numeric) AND (gst_pct <= (100)::numeric)))`
-- `quotation_lines_spare_shape` — `CHECK (((line_type <> 'Spare'::text) OR (btrim(part_code) <> ''::text)))`
-- `quotation_lines_period` — `CHECK (((period_end IS NULL) OR (period_start IS NULL) OR (period_end >= period_start)))`
 
 **Triggers:** `zz_quotation_line_guard` → `quotation_line_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3375,7 +3375,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ## quotations
 
-> A quotation to a customer (0427): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).
+> A quotation to a customer (0428): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).
 
 **Primary key:** `id` · **Row-level security:** **on**
 
@@ -3719,8 +3719,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
+- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4064,6 +4064,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
 **Unique:** `sys_id` _(sla_rules_sys_id_key)_
+
+**Constraints:**
+
+- `sla_rules_label_named` — `CHECK ((btrim(label) <> ''::text))`
 
 **Triggers:** `sla_rules_touch` → `sla_rules_touch()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4550,9 +4554,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `stock_record_files_ref_check` — `CHECK ((btrim(ref) <> ''::text))`
 - `stock_record_files_file_name_check` — `CHECK ((btrim(file_name) <> ''::text))`
 - `stock_record_files_url_check` — `CHECK ((btrim(url) <> ''::text))`
+- `stock_record_files_ref_check` — `CHECK ((btrim(ref) <> ''::text))`
 
 **Triggers:** `stock_record_files_stamp` → `stock_record_files_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
