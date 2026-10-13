@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**113 tables · 44 views · 3261 columns · 232 policies · 69 foreign keys.**
+**114 tables · 44 views · 3288 columns · 235 policies · 69 foreign keys.**
 
 ## How to read this
 
@@ -38,6 +38,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [audit_log](#audit-log)
 - [audit_mode_changes](#audit-mode-changes)
 - [auto_review_changes](#auto-review-changes)
+- [call_history](#call-history)
 - [call_number_seq](#call-number-seq)
 - [call_report_reviews](#call-report-reviews)
 - [call_requests](#call-requests)
@@ -333,6 +334,60 @@ Views are listed [after the tables](#views).
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | SELECT | `arc_read` | `true` | — |
+
+---
+
+## call_history
+
+> Calls before RITHI (up to 2025), kept apart from every workflow (0429): one row per UC Number + Call No, as the historical file has them. No visit, review, FFR, notification or Product Database change follows from a row; status and solved date are the file's.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('call_history_id_seq'::regclass)` |  |
+| 2 | `ucn` | text | **no** |  |  |
+| 3 | `call_no` | text | **no** | `''::text` |  |
+| 4 | `call_at` | timestamp with time zone | yes |  |  |
+| 5 | `call_type` | text | **no** | `''::text` |  |
+| 6 | `party_name` | text | **no** | `''::text` |  |
+| 7 | `state` | text | **no** | `''::text` |  |
+| 8 | `city` | text | **no** | `''::text` |  |
+| 9 | `engineer` | text | **no** | `''::text` |  |
+| 10 | `item_code` | text | **no** | `''::text` |  |
+| 11 | `item_name` | text | **no** | `''::text` |  |
+| 12 | `serial` | text | **no** | `''::text` |  |
+| 13 | `standard_complaint` | text | **no** | `''::text` |  |
+| 14 | `complaint_reported` | text | **no** | `''::text` |  |
+| 15 | `item_status` | text | **no** | `''::text` |  |
+| 16 | `warranty_start` | date | yes |  |  |
+| 17 | `contract_type` | text | **no** | `''::text` |  |
+| 18 | `call_status` | text | **no** | `''::text` |  |
+| 19 | `solved_at` | timestamp with time zone | yes |  |  |
+| 20 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 21 | `loaded_at` | timestamp with time zone | **no** | `now()` |  |
+| 22 | `loaded_by` | uuid | yes |  |  |
+| 23 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 24 | `sys_created_by` | uuid | yes |  |  |
+| 25 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 26 | `sys_updated_by` | uuid | yes |  |  |
+| 27 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `ucn, call_no` _(call_history_key)_ · `sys_id` _(call_history_sys_id_key)_
+
+**Constraints:**
+
+- `call_history_ucn_check` — `CHECK ((btrim(ucn) <> ''::text))`
+
+**Triggers:** `call_history_stamp` → `call_history_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `ch_insert` | — | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
+| SELECT | `ch_read` | `(( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (btrim(engineer) = ''::text) OR (lower(btrim(engineer)) IN ( SELECT…` | — |
+| UPDATE | `ch_update` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
 
 ---
 
@@ -2701,11 +2756,11 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 **Constraints:**
 
 - `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
-- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
 - `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
-- `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
-- `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
+- `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
 - `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
+- `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
+- `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
 
 **Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 

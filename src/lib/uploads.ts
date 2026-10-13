@@ -1248,6 +1248,36 @@ export const UPLOADS: UploadDef[] = [
   // provision to Upload old DCCR and Calls - Historical data"). The file is the
   // register export as it stands; the database files each row's call, review
   // and one visit (dccr_history_apply) and sends no notification.
+  // CALLS BEFORE RITHI, KEPT APART (0429; the user, 2026-10-13: "Anything till
+  // 2025 is Historical Data. For Calls, Never load them into the Regular
+  // Workflow. Store it separately ... no upstream or Down stream"). The file's
+  // own status and solved date, as written; nothing follows from a row.
+  { key: 'call_history', label: 'Call History — calls before RITHI (up to 2025)', group: 'Calls',
+    table: 'call_history', conflict: 'ucn,call_no', extraInto: 'extra',
+    // Copies of other columns in the old export: kept once, not twice.
+    ignore: ['product details', 'party2', 'state2', 'city2'],
+    note: 'HISTORY ONLY — for calls up to 2025. Each row is stored as it is in the file, apart from the live calls: it does not appear in the Field, Installation or PM registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or the Objectives, and nothing is created from it — no visit, no review, no FFR, no notification, no Product Database change. The call status and solved date are the file\u2019s own. One row per UC No. + Call No., so a UC No. used for two calls keeps both, and loading a file again corrects it rather than adding it twice. Every other column the file carries is kept with the call. Read on Machine History.',
+    cols: [
+      { to: 'ucn', from: ['uc no.', 'uc no', 'uc number', 'ucn'], required: true },
+      TEXT('call_no', 'call no.', 'call no', 'call number'),
+      TS('call_at', 'call date & time', 'call date and time', 'call date', 'call registration date', 'date'),
+      TEXT('call_type', 'call type'),
+      TEXT('party_name', 'party', 'party name', 'customer name'),
+      TEXT('state', 'state'),
+      TEXT('city', 'city', 'place'),
+      TEXT('engineer', 'call allocated to', 'engineer', 'allocated to'),
+      TEXT('item_code', 'item code'),
+      TEXT('item_name', 'item name', 'product', 'product name'),
+      TEXT('serial', 'item serial no.', 'item serial no', 'serial no.', 'serial no', 'serial number', 'serial'),
+      TEXT('standard_complaint', 'standard complaint'),
+      TEXT('complaint_reported', 'complaint reported', 'nature of complaint'),
+      // As the file writes it -- "Under Warranty", "Under Contract" -- not WGP / CMC.
+      TEXT('item_status', 'item status', 'equip. status'),
+      DATE('warranty_start', 'warranty start date', 'warranty start'),
+      TEXT('contract_type', 'contract type'),
+      TEXT('call_status', 'call status', 'current call status'),
+      TS('solved_at', 'call solved date & time', 'call solved date and time', 'call solved date'),
+    ] },
   { key: 'dccr_history', label: 'DCCR Register — historical, with its calls', group: 'Quality',
     table: 'dccr_history_import', conflict: 'ucn', extraInto: 'extra',
     note: 'For a year whose calls are NOT in RITHI (2025 and before). Each row files THE CALL (Field, or PM for a P M VISIT row), dated by its CALL DATE, with the customer, place, product, serial, cover, complaint, engineer and Review 1 answers; THE REVIEW, marked imported (the file\u2019s reviewers and dates kept, no Field Failure Report raised); and ONE VISIT carrying the CURRENT CALL STATUS (else CALL STATUS) and the Call Solved Date & Time, so a solved call reads Solved. A Canceled call is filed cancelled. NOBODY IS NOTIFIED. A call already in RITHI is never overwritten (only its missing review is added). Re-loading the file corrects the calls it filed — that needs the right to edit calls as well (an administrator has it). Each UC Number\u2019s outcome is recorded on the import row.',

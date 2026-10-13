@@ -526,6 +526,8 @@ const MODULES = {
             // The old DCCR register WITH its calls (2026-10-06): a staging
             // register whose trigger files the call, the review and one visit.
             '0395_dccr_history_import.sql',
+            // Calls before RITHI, kept apart from every workflow (0429).
+            '0429_call_history.sql',
             // A PM call whose consumption is a Spare joins the DCCR review
             // (2026-10-06). Restates 0353's / 0344's two review views, so after
             // both; and the DCCR rows whose UC Number was an Excel date, removed.
