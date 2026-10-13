@@ -2207,7 +2207,16 @@ with checks(sort_order, bundle, provides, present) as (
         coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%call_first_spare_on%'
                      and pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%Asia/Kolkata%'
                      and pg_get_viewdef(to_regclass('public.kpi_field_inst')) not like '%(s.visit_at)::date%'
-                   where to_regclass('public.kpi_field_inst') is not null), false))
+                   where to_regclass('public.kpi_field_inst') is not null), false)),
+    (346, 'Files can be kept with a stock transfer and a material return', 'stock_record_files (0426): row-level security on, read and attach policies that follow the transfer / return, select and insert granted to authenticated and nothing else, nothing to the public key, and the stamp trigger that writes who attached a file and when. NO means the Files column and the attach buttons on Stock Transfer (MTN) and Material Returns fail. Restore: HandStock_X.sql (0426)',
+        (to_regclass('public.stock_record_files') is not null
+     and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.stock_record_files')), false)
+     and (select count(*) from pg_policies where schemaname = 'public' and tablename = 'stock_record_files' and policyname in ('srf_read', 'srf_insert')) = 2
+     and coalesce(has_table_privilege('authenticated', 'public.stock_record_files', 'insert'), false)
+     and not coalesce(has_table_privilege('authenticated', 'public.stock_record_files', 'update'), true)
+     and not coalesce(has_table_privilege('authenticated', 'public.stock_record_files', 'delete'), true)
+     and not coalesce(has_table_privilege('anon', 'public.stock_record_files', 'select'), true)
+     and exists (select 1 from pg_trigger where tgname = 'stock_record_files_stamp' and tgrelid = to_regclass('public.stock_record_files'))))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

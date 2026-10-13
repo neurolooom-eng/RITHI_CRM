@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.182',
+    date: '2026-10-13',
+    title: 'Files on Stock Transfers and Material Returns; Stock Transfer (MTN)',
+    changes: [
+      'Stock Transfer and Material Returns can now keep files with each record, such as the signed MTN or MRN, or a photo. Attach as many as you like with ⤴ Attach a file on the New Transfer / New MRN form, or later from the Files column. On Material Returns you can also attach from the opened MRN.',
+      'Each file opens in RITHI. Hover over it to see who attached it and when. A saved file cannot be changed or removed, and files are optional.',
+      'Files go to the Stock Transfers and Material Returns folders in Drive, or to the drive root until those folders are set up.',
+      'Stock Transfer is now called Stock Transfer (MTN) in the menu, on the page, and on Roles & Permissions. Only the name changed; nobody\'s rights did.',
+    ],
+  },
+  {
     version: '0.10.181',
     date: '2026-10-13',
     title: 'KPI Export: India dates',

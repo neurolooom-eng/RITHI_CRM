@@ -464,7 +464,11 @@ against the call it was fitted to.
   Stores to write; **Entered By** is whoever keyed the return.
   > **A return is your own stock.** Returning for another engineer needs *Return
   > stock for another engineer* (Stores and the approvers hold it).
-- **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
+  > **Files** (optional, as many as you like — the signed MRN, a photo): **⤴ Attach
+  > a file** on the New MRN form, or later in the **Files** column or the opened
+  > MRN. Each shows who attached it and when on hover. A saved file cannot be
+  > changed or removed. They go to the **Material Returns** folder in Drive.
+- **Stock Transfer (MTN)** `/stock-transfer` — hand stock between engineers. A transfer
   to the same person is held back and named. Each part can carry a **reason of
   its own** besides the common Remarks. **🖨 MTN** on a transfer prints the
   **Material Transfer Note R/SER/STR/003**: issuer and receiver with their
@@ -474,6 +478,10 @@ against the call it was fitted to.
   record the receipt of a transfer — and Authorised By is signed by hand.
   > **A recorded transfer is not re-pointed.** Its engineers and date cannot be
   > changed afterwards; if it went to the wrong person, record a transfer back.
+  > **Files** (optional, as many as you like — the signed MTN, a photo): **⤴ Attach
+  > a file** on the New Transfer form, or later with **⤴** in the **Files**
+  > column. Each shows who attached it and when on hover. A saved file cannot be
+  > changed or removed. They go to the **Stock Transfers** folder in Drive.
 
 ## Quality
 

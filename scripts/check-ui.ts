@@ -580,6 +580,22 @@ console.log('\n-- which manuals belong on a call --');
   eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
 }
 
+// FILES KEPT WITH A TRANSFER AND A RETURN (FRS-277): both screens offer them
+// on the New form and on the saved record, through the one shared component.
+console.log('\n-- files on stock transfers and material returns --');
+{
+  const st = readFileSync('src/modules/StockTransfer.tsx', 'utf8');
+  const mr = readFileSync('src/modules/MaterialReturns.tsx', 'utf8');
+  eq('Stock Transfer offers files on the form and on the list',
+    /<PendingFiles kind="stock_transfer"/.test(st) && /<SavedFiles compact kind="stock_transfer"/.test(st), true);
+  eq('Material Returns offers files on the form, the list and the opened MRN',
+    /<PendingFiles kind="material_return"/.test(mr) && /<SavedFiles compact kind="material_return"/.test(mr)
+      && /<SavedFiles kind="material_return"/.test(mr), true);
+  eq('a record saves whatever happens to its files',
+    /addStockRecordFiles\('stock_transfer', res\.uid, files\)/.test(st) && /addStockRecordFiles\('material_return', res\.uid, files\)/.test(mr), true);
+  eq('the screen is Stock Transfer (MTN)', /title="Stock Transfer \(MTN\)"/.test(st), true);
+}
+
 // HAND STOCK HIDES PEOPLE WHO HAVE LEFT, ON A SWITCH (FRS-276).
 console.log('\n-- Hand Stock hides inactive users --');
 {

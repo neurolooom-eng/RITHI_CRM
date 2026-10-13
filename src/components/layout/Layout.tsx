@@ -201,7 +201,7 @@ export const NAV: NavGroup[] = [
       { to: '/spare-consumption', label: 'Spare Consumption', icon: '🧾' },
       { to: '/handstock', label: 'Hand Stock', icon: '🎒' },
       { to: '/mrn', label: 'Material Returns', icon: '↩️' },
-      { to: '/stock-transfer', label: 'Stock Transfer', icon: '🔄' },
+      { to: '/stock-transfer', label: 'Stock Transfer (MTN)', icon: '🔄' },
     ],
   },
   {
