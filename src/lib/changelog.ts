@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.184',
+    date: '2026-10-13',
+    title: 'Dashboard: click to narrow, trend by period, figures beside each chart, downloads',
+    changes: [
+      'The Dashboard now works like Failure Insights. Click any bar, slice, period or table row, and every figure on the page narrows to it: the tiles, the SLA tiles and lists, the charts and Recent Calls. A chip shows what is picked; click it, or the same mark again, to clear.',
+      'The calls trend can be read Monthly, Quarterly or Yearly. Beside it are the calls, the change on the period before, the share and the running total. It now covers every period, not only the last six months.',
+      'Item status, top products and calls by engineer each have their figures in a small table beside the chart. The charts show the top 12.',
+      '⬳ Download on each block saves it as Excel, with a sheet saying what it was narrowed to. The button only appears for roles that have Export / download CSV ticked on Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.10.183',
     date: '2026-10-13',
     title: 'One SLA list per SLA, named; sign-in opens the Dashboard',

@@ -73,6 +73,14 @@ different totals. An empty register usually means access, not emptiness.
   > are on them: a **Solved** or **Cancelled** call never is.
   > **Signing in always opens the Dashboard.** Reloading a page while signed in
   > stays on that page.
+  > **Click to narrow, as on Failure Insights.** Click any bar, slice, period
+  > or table row and every figure on the page — tiles, SLA lists, charts,
+  > Recent Calls — narrows to it; the chip above says what is picked (click it,
+  > or the same mark again, to clear). The **calls trend** reads **Monthly,
+  > Quarterly or Yearly**, with calls, change, share and running total beside
+  > it; item status, products and engineers each have their figures beside the
+  > chart. **⬳ Download** on each block gives that block as Excel — shown only to
+  > a role with **Export / download CSV** ticked on Roles & Permissions.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
