@@ -528,6 +528,9 @@ const MODULES = {
             '0395_dccr_history_import.sql',
             // Calls before RITHI, kept apart from every workflow (0429).
             '0429_call_history.sql',
+            // The 2025 DCCR-history calls move into Call History, and the import
+            // files there from now on (0430). AFTER 0429, which creates it.
+            '0430_dccr_history_into_call_history.sql',
             // A PM call whose consumption is a Spare joins the DCCR review
             // (2026-10-06). Restates 0353's / 0344's two review views, so after
             // both; and the DCCR rows whose UC Number was an Excel date, removed.
@@ -635,7 +638,10 @@ const MODULES = {
             // Restates objective_value and objective_evidence.
             '0423_objective_dates_in_india_time.sql',
             // The Total column calculated the sheet's way (0428).
-            '0428_objective_total_calculated.sql'],
+            '0428_objective_total_calculated.sql',
+            // The Recent Failure Rate reads the 2025 DCCR history through its
+            // reviews, now that its calls are in Call History (0431).
+            '0431_failure_rate_reads_dccr_history.sql'],
   },
   validation: {
     title: 'Software Validation',

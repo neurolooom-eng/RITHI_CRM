@@ -1,11 +1,12 @@
 -- ===========================================================================
--- THE OLD DCCR REGISTER, WITH ITS CALLS (0394, 0395).
+-- THE OLD DCCR REGISTER (0395), KEPT AS HISTORY SINCE 0430.
 --
---   A row files its call (dated by CALL DATE), its review (imported) and one
---   visit from CURRENT CALL STATUS -- none for Unattended, none for a cancelled
---   call; a P M VISIT row goes to the PM register; a call already in RITHI is
---   left alone; nobody is notified; a re-load corrects; and only a holder of
---   bulk.upload may load.
+--   A row keeps its call in CALL HISTORY (never a live register) with the
+--   file's status and solved date, keyed by UC Number + Call Number, and files
+--   its review (imported, no FFR); it files NO VISIT. A UC Number that is a
+--   live call is left alone, its missing review added. Nobody is notified; a
+--   re-load corrects; only a holder of bulk.upload may load. The Recent Failure
+--   Rate still counts a history call's failure through its review (0431).
 --
 -- Run ONCE after _stub.sql + every migration. Every error printed is labelled
 -- `expect ERROR` -- anything else is a failure.
@@ -54,47 +55,55 @@ values
   '', 'Solved - Report Completed', '2025-05-03T00:00:00Z', 'SPARE', '', '', '', null, null, '', '', '');
 commit;
 
-select 'HX-1: a Field call dated 02-Jan-2025, party / place / cover from the file, the month-only warranty start kept as text' as t,
-       reg_date = '2025-01-02' and party_name = 'PARTY A' and city = 'CHENNAI' and item_status = 'CMC'
-   and call_type = 'FIELD' and extra->>'warranty_start_in_file' = 'Nov-2015' and warranty_start is null as ok
-  from public.field_calls where ucn = 'HX-1';
-select 'HX-1: its review is imported, and the call reads Solved from the one visit' as t,
+select 'HX-1: kept in Call History as the file has it -- date, party, place, cover, status, solved date -- and in no live register' as t,
+       (select (call_at at time zone 'Asia/Kolkata')::date = '2025-01-02' and party_name = 'PARTY A' and city = 'CHENNAI'
+               and item_status = 'CMC' and call_type = 'FIELD' and call_status = 'Solved - Report Completed'
+               and solved_at = timestamptz '2025-01-05T00:00:00Z' and extra->>'warranty_start_in_file' = 'Nov-2015'
+          from public.call_history where ucn = 'HX-1' and call_no = 'C-1')
+   and not exists (select 1 from public.calls where ucn = 'HX-1') as ok;
+select 'HX-1: its review is imported, and NO visit is filed' as t,
        (select imported and spare_category = 'SPARE' and review2_at = '2025-01-10' from public.call_reviews where ucn = 'HX-1')
-   and (select count(*) = 1 from public.reports where ucn = 'HX-1')
-   and (select open_state from public.calls where ucn = 'HX-1') = 'Solved' as ok;
-select 'HX-2: Unattended files NO visit, so the call reads Unattended' as t,
-       (select count(*) = 0 from public.reports where ucn = 'HX-2')
-   and (select open_state from public.calls where ucn = 'HX-2') = 'Unattended' as ok;
-select 'HX-3: a P M VISIT row goes to the PM register' as t,
-       exists (select 1 from public.pm_calls where ucn = 'HX-3')
-   and not exists (select 1 from public.field_calls where ucn = 'HX-3') as ok;
-select 'HX-4: Canceled is filed cancelled, with no visit' as t,
-       (select cancelled_at is not null from public.field_calls where ucn = 'HX-4')
+   and (select count(*) = 0 from public.reports where ucn = 'HX-1') as ok;
+select 'HX-2: Unattended is kept as the file says, with no visit' as t,
+       (select call_status = 'Unattended' from public.call_history where ucn = 'HX-2')
+   and (select count(*) = 0 from public.reports where ucn = 'HX-2') as ok;
+select 'HX-3: a P M VISIT row is kept too, as history, not in the PM register' as t,
+       exists (select 1 from public.call_history where ucn = 'HX-3' and call_type = 'P M VISIT')
+   and not exists (select 1 from public.pm_calls where ucn = 'HX-3') as ok;
+select 'HX-4: Canceled is kept as Canceled, with no visit' as t,
+       (select call_status = 'Canceled' from public.call_history where ucn = 'HX-4')
    and (select count(*) = 0 from public.reports where ucn = 'HX-4') as ok;
-select 'HX-LIVE: a call already in RITHI keeps its party, date and review; no visit added' as t,
+select 'HX-LIVE: a call already in RITHI keeps its party, date and review; nothing kept in history; no visit added' as t,
        (select party_name = 'LIVE PARTY' and reg_date = '2026-02-01' from public.field_calls where ucn = 'HX-LIVE')
    and (select spare_category = 'CORRECTION' and not coalesce(imported, false) from public.call_reviews where ucn = 'HX-LIVE')
+   and not exists (select 1 from public.call_history where ucn = 'HX-LIVE')
    and (select count(*) = 0 from public.reports where ucn = 'HX-LIVE')
    and (select result from public.dccr_history_import where ucn = 'HX-LIVE') like 'call already in the register%' as ok;
 select 'nobody was notified, though every call names an engineer with a login' as t,
        (select count(*) from public.notifications) = (select n from n0) as ok;
 select 'no Field Failure Report was raised' as t, not exists (select 1 from public.field_failure_reports where ucn like 'HX-%') as ok;
 
-\echo '--- 2. A RE-LOAD CORRECTS -- and correcting a call needs the right to edit it ---'
-\echo 'expect ERROR: correcting the customer needs "Edit customer & product"'
+\echo '--- 2. A RE-LOAD CORRECTS, and adds nothing ---'
 begin; set local role authenticated;
 update public.dccr_history_import set party_name = 'PARTY A CORRECTED' where ucn = 'HX-1';
 commit;
-call public.be('hist_no@x.com');
-update public.profiles set extra_permissions = '["bulk.upload","calls.view","calls.edit"]' where email = 'hist_up@x.com';
+select 'the re-load corrected the history row, and added no second row, call or visit' as t,
+       (select party_name from public.call_history where ucn = 'HX-1') = 'PARTY A CORRECTED'
+   and (select count(*) from public.call_history where ucn = 'HX-1') = 1
+   and not exists (select 1 from public.calls where ucn = 'HX-1')
+   and (select count(*) from public.reports where ucn = 'HX-1') = 0 as ok;
+
+\echo '--- 2b. THE RECENT FAILURE RATE STILL COUNTS IT, through its review (0431) ---'
+reset role;
+alter table public.products disable trigger user;
+insert into public.products (item_name, serial_number, party_name, warranty_start) values ('MONNAL T75', '4694', 'PARTY A', date '2024-12-01');
+alter table public.products enable trigger user;
+select 'HX-1, a SPARE failure 32 days after installation, is a failure of its MONNAL T75' as t,
+       exists (select 1 from public._dccr_failure_calls('MONNAL T75', '%', date '2026-09-30') f
+                where f.ucn = 'HX-1' and f.reg_date = '2025-01-02' and f.days_to_failure = 32) as ok;
+select 'a history call with NO review is not a failure' as t,
+       not exists (select 1 from public._dccr_failure_calls('VEGA', '%', date '2026-09-30') f where f.ucn in ('HX-2', 'HX-3', 'HX-4')) as ok;
 call public.be('hist_up@x.com');
-begin; set local role authenticated;
-update public.dccr_history_import set party_name = 'PARTY A CORRECTED' where ucn = 'HX-1';
-commit;
-select 'the re-load corrected the call it filed, and added no second call or visit' as t,
-       (select party_name from public.field_calls where ucn = 'HX-1') = 'PARTY A CORRECTED'
-   and (select count(*) from public.field_calls where ucn = 'HX-1') = 1
-   and (select count(*) from public.reports where ucn = 'HX-1') = 1 as ok;
 
 \echo '--- 3. ONLY bulk.upload LOADS ---'
 call public.be('hist_no@x.com');

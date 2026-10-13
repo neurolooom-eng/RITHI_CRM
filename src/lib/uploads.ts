@@ -1278,9 +1278,9 @@ export const UPLOADS: UploadDef[] = [
       TEXT('call_status', 'call status', 'current call status'),
       TS('solved_at', 'call solved date & time', 'call solved date and time', 'call solved date'),
     ] },
-  { key: 'dccr_history', label: 'DCCR Register — historical, with its calls', group: 'Quality',
+  { key: 'dccr_history', label: 'DCCR Register — historical (calls kept in Call History)', group: 'Quality',
     table: 'dccr_history_import', conflict: 'ucn', extraInto: 'extra',
-    note: 'For a year whose calls are NOT in RITHI (2025 and before). Each row files THE CALL (Field, or PM for a P M VISIT row), dated by its CALL DATE, with the customer, place, product, serial, cover, complaint, engineer and Review 1 answers; THE REVIEW, marked imported (the file\u2019s reviewers and dates kept, no Field Failure Report raised); and ONE VISIT carrying the CURRENT CALL STATUS (else CALL STATUS) and the Call Solved Date & Time, so a solved call reads Solved. A Canceled call is filed cancelled. NOBODY IS NOTIFIED. A call already in RITHI is never overwritten (only its missing review is added). Re-loading the file corrects the calls it filed — that needs the right to edit calls as well (an administrator has it). Each UC Number\u2019s outcome is recorded on the import row.',
+    note: 'For a year whose calls are NOT in RITHI (2025 and before). Each row keeps THE CALL in Call History (never a live register) as the file has it — dated by its CALL DATE, with the customer, place, product, serial, cover, complaint and engineer, and the CURRENT CALL STATUS (else CALL STATUS) and Call Solved Date & Time as its status — and files THE REVIEW, marked imported (the file\u2019s reviewers and dates kept, no Field Failure Report raised), which the Recent Failure Rate counts. NO VISIT is filed and NOBODY IS NOTIFIED. A UC Number that is a live call in RITHI is never overwritten (only its missing review is added). Re-loading the file corrects the history it kept. Each UC Number\u2019s outcome is recorded on the import row.',
     cols: [
       { to: 'ucn', from: ['uc number', 'ucn', 'uc no'], required: true },
       DATE('call_date', 'call date', 'call registration date'),

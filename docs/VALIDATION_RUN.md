@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-13T15:45:14.914Z
-- **Took** 197s
-- **Commit** `8e8c51b0` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.186
+- **Run at** 2026-10-13T16:57:31.212Z
+- **Took** 200s
+- **Commit** `f05cb849` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.187
 
 ## Result
 
@@ -15,7 +15,7 @@ defect register in `src/lib/validation.ts` is what accumulates.
 | --- | --- | --- |
 | Database suites | 183 | 183 |
 | Automated checks | 22 | 22 |
-| Labelled `expect ERROR` outcomes matched | 424 | 424 |
+| Labelled `expect ERROR` outcomes matched | 423 | 423 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
 built from every migration, because run against one shared database they
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `434 migrations applied to a fresh database` | ✅ pass |  |
+| `436 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
@@ -52,7 +52,7 @@ stopped working produces a suite that runs clean.
 | `check:reports` | ✅ pass | all passed |
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 360 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 347 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ✅ pass | every one of the 348 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
