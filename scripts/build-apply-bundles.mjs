@@ -766,7 +766,10 @@ const MODULES = {
       '0417_spare_insights_planned_with_dates.sql',
       // First Attended, Last Visit and Solved per call (0424): a view over
       // `calls`, `reports` and `spare_requests`, so here, after all three exist.
-      '0424_call_dates.sql'],
+      '0424_call_dates.sql',
+      // The KPI export in India dates (D-169, 0425). AFTER 0390, whose view it
+      // restates, and after 0424, whose call_first_spare_on() it reads.
+      '0425_kpi_export_india_dates.sql'],
   },
   audit: {
     title: 'Audit Log',

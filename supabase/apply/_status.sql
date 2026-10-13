@@ -2202,7 +2202,12 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce(has_table_privilege('authenticated', 'public.call_dates', 'select'), false)
      and to_regprocedure('public.call_first_spare_on(text)') is not null
      and not has_function_privilege('anon', 'public.call_first_spare_on(text)', 'execute')
-     and coalesce((select pg_get_viewdef(to_regclass('public.call_dates')) like '%Asia/Kolkata%'), false)))
+     and coalesce((select pg_get_viewdef(to_regclass('public.call_dates')) like '%Asia/Kolkata%'), false))),
+    (345, 'KPI export dates every call in India time', 'kpi_field_inst (0425): Call Attended On, Call Solved Date & Time, the registration day the day counts start from, and Failure Month are India dates, and the first spare request is read by call_first_spare_on() so the export agrees with the call registers. NO means nearly every Attended and Solved date in the export reads a day early. Restore: performance.sql (0425)',
+        coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%call_first_spare_on%'
+                     and pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%Asia/Kolkata%'
+                     and pg_get_viewdef(to_regclass('public.kpi_field_inst')) not like '%(s.visit_at)::date%'
+                   where to_regclass('public.kpi_field_inst') is not null), false))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

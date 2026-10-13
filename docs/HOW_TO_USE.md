@@ -1503,7 +1503,10 @@ typed into a form that reads it.
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST_PM tab in its
   own column order — Field, Installation and PM calls; cancelled calls excluded
-  entirely.
+  entirely. **Every date in it is the India date** — Call Attended On, Call
+  Solved Date, the days counted and Failure Month — and Call Attended On and
+  Call Solved Date match the First Attended and Solved Dates on the call
+  registers.
 - **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;
   every other role is a tick on Roles & Permissions, and that tick gives the
   role the menu entry as well as the page. One line per engineer and part:
