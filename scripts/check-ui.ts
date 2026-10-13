@@ -7403,7 +7403,8 @@ console.log('\n-- a facet row can be put away, and never hides a live filter --'
   // the attribute measured the wrong thing and the check failed on a file that
   // was correct.
   const FACETS: [string, number, string[]][] = [
-    ['src/modules/FieldCalls.tsx', 1, ['engineer']],
+    // Engineer, and the Call Pending Reason and Cancellation Reason (0433).
+    ['src/modules/FieldCalls.tsx', 3, ['engineer', 'pendingReason', 'cancelReason']],
     ['src/modules/PendingCalls.tsx', 1, ['pending.engineer']],
     ['src/modules/SpareRequests.tsx', 1, ['spares.engineer']],
     ['src/modules/IndoorService.tsx', 3, ['indoor.status', 'indoor.activity', 'indoor.kind']],

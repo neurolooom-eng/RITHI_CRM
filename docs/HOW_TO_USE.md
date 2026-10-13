@@ -158,6 +158,13 @@ different totals. An empty register usually means access, not emptiness.
   > filled if the call was solved and later re-opened. The same definitions as
   > the KPI Export's *Call Attended On* and *Call Solved Date*. India dates;
   > they sort, and they are in the CSV.
+  > **Call Pending Reason and Cancellation Reason** (all three registers, also
+  > in the opened call and the CSV): **Call Pending Reason** is the reason on
+  > the call's latest visit entry — the entry its status comes from — and shows
+  > only while the call is open, so a Solved or Cancelled call reads blank.
+  > **Cancellation Reason** is what was typed when the call was cancelled, shown
+  > while it is cancelled (turn *Open only* off to see cancelled calls). A chip
+  > row for each counts the calls per reason; click one to see only those.
   > **Listed newest Call Registration Date first** — not in the order a PM
   > month was uploaded, so a back-dated call sits where its date puts it.
   > Click a column heading to sort by something else.

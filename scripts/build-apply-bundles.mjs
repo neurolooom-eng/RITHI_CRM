@@ -784,7 +784,10 @@ const MODULES = {
       '0424_call_dates.sql',
       // The KPI export in India dates (D-169, 0425). AFTER 0390, whose view it
       // restates, and after 0424, whose call_first_spare_on() it reads.
-      '0425_kpi_export_india_dates.sql'],
+      '0425_kpi_export_india_dates.sql',
+      // The Call Pending Reason of each open call (0433): appended to 0424's
+      // call_dates, so after it.
+      '0433_call_pending_reason.sql'],
   },
   audit: {
     title: 'Audit Log',
