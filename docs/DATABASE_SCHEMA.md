@@ -743,7 +743,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ## dccr_history_import
 
-> The old DCCR register as loaded (0395), one row per UC Number. Loading a row files its call, its review and one visit from the file; `result` says what was filed. Calls already in the register are never overwritten.
+> The old DCCR register as loaded (0395), one row per UC Number. Since 0430 a row keeps its call in Call History (call_history) with the file's status, and its review; no visit, nothing in a live register. `result` says what was kept. A UC Number that is a live call is never overwritten.
 
 **Primary key:** `ucn` · **Row-level security:** **on**
 

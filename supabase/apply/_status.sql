@@ -2229,7 +2229,12 @@ with checks(sort_order, bundle, provides, present) as (
      and not coalesce(has_table_privilege('authenticated', 'public.call_history', 'delete'), true)
      and not coalesce(has_table_privilege('anon', 'public.call_history', 'select'), true)
      and (select count(*) from pg_trigger where tgrelid = to_regclass('public.call_history') and not tgisinternal
-            and tgname not in ('call_history_stamp', 'zzz_sys_stamp') and tgname not like 'record_audit%') = 0))
+            and tgname not in ('call_history_stamp', 'zzz_sys_stamp') and tgname not like 'record_audit%') = 0)),
+    (350, 'The old DCCR register keeps its calls as history', 'dccr_history_apply (0430) keeps each call in call_history and files no visit, and _dccr_failure_calls (0431) counts a Call History row with an imported review as a failure, so the 2025 DCCR history left the live tables without moving a Recent Failure Rate. NO means a DCCR-history load still files calls into the live registers, or the failure rates lost 2025. Restore: daily_review.sql (0430), objective.sql (0431)',
+        (coalesce((select p.prosrc like '%insert into public.call_history%' and p.prosrc not like '%insert into public.reports%'
+                     from pg_proc p where p.oid = to_regprocedure('public.dccr_history_apply()')), false)
+     and coalesce((select p.prosrc like '%public.call_history h%'
+                     from pg_proc p where p.oid = to_regprocedure('public._dccr_failure_calls(text,text,date)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

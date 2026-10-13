@@ -199,15 +199,16 @@ on Roles & Permissions does not reach another team's calls.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
-  > **DCCR Register — historical, with its calls** (Quality) loads an old DCCR
-  > register export as it is — for a year whose calls are not in RITHI (2025
-  > and before). Each row files **the call** (dated by CALL DATE, with the
-  > customer, place, product, serial and engineer; a P M VISIT row goes to PM
-  > Calls), **the review** (kept as imported, no Field Failure Report raised)
-  > and **one visit** from CURRENT CALL STATUS and the solved date, so a solved
-  > call reads Solved. Unattended calls stay Unattended; Canceled calls are
-  > filed cancelled. **Nobody is notified.** A call already in RITHI is left
-  > alone. Re-loading the file corrects the calls it filed.
+  > **DCCR Register — historical (calls kept in Call History)** (Quality) loads
+  > an old DCCR register export as it is — for a year whose calls are not in
+  > RITHI (2025 and before). Each row keeps **the call in Call History** (never
+  > a live register), dated by CALL DATE, with the file's CURRENT CALL STATUS
+  > and solved date as its status, and files **the review** (kept as imported,
+  > no Field Failure Report raised) so the **Recent Failure Rate** still counts
+  > its failures. **No visit is filed; nobody is notified.** A call already in
+  > RITHI is left alone. Re-loading the file corrects the history it kept.
+  > The 2025 calls loaded this way before 13-Oct-2026 were moved to Call History
+  > then, so 2025 no longer appears in the DCCR View.
   > **PM calls in the DCCR:** a PM call joins the Daily Complaint Review when
   > a part booked on it is a **Spare** in the Part Master (SPARE pre-set).
   > **Call History — calls before RITHI (up to 2025)** (Calls) stores old calls

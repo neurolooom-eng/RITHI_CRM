@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.187',
+    date: '2026-10-13',
+    title: 'The 2025 DCCR-history calls moved to Call History',
+    changes: [
+      'The 2025 calls loaded with the old DCCR register are now in Call History, out of the live call tables. 2025 therefore no longer appears in the DCCR View or Product Failure Analysis.',
+      'Their DCCR reviews are kept, and the Recent Failure Rate objectives still count those failures, so no 2026 figure changes.',
+      'Loading an old DCCR register now keeps its calls in Call History too, with the file\'s status. It files the review but no visit, and never adds anything to the live registers.',
+    ],
+  },
+  {
     version: '0.10.186',
     date: '2026-10-13',
     title: 'Call History: calls before RITHI, kept apart',
