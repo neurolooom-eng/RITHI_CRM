@@ -50,7 +50,11 @@ grant execute on function public.call_first_spare_on(text) to authenticated;
 comment on function public.call_first_spare_on(text) is
   'The first spare request''s date on a call (or_req_date, else its India creation date), for a call the caller may see; NULL otherwise. Read by call_dates (0424).';
 
-create or replace view public.call_dates as
+-- DROPPED FIRST: 0433 appends a column to this view, and a bundle replayed on a
+-- project that has it would otherwise stop here with "cannot drop columns
+-- from view". Nothing is built on call_dates; the grant follows below.
+drop view if exists public.call_dates;
+create view public.call_dates as
 select c.ucn,
        least(v.first_visit_on, public.call_first_spare_on(c.ucn)) as first_attended_on,
        v.last_visit_on,

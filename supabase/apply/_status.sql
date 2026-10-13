@@ -2237,7 +2237,10 @@ with checks(sort_order, bundle, provides, present) as (
                      from pg_proc p where p.oid = to_regprocedure('public._dccr_failure_calls(text,text,date)')), false))),
     (351, 'Call History keeps every source: latest year shown, duplicates flagged', 'call_history.source / record_year / duplicate / duplicates and the trigger call_history_zz_keep_latest (0432): when the same UC No. + Call No. comes from another source or year, the later year''s record shows and the other is kept, flagged -- nothing else done. NO means a second system''s file would overwrite a call''s history. Restore: daily_review.sql (0432)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_history' and column_name = 'duplicates')
-     and exists (select 1 from pg_trigger where tgname = 'call_history_zz_keep_latest' and tgrelid = to_regclass('public.call_history'))))
+     and exists (select 1 from pg_trigger where tgname = 'call_history_zz_keep_latest' and tgrelid = to_regclass('public.call_history')))),
+    (352, 'Call registers show the Call Pending Reason of each open call', 'call_dates.pending_reason (0433): the pending reason on the latest visit entry, only while the call is open (not cancelled, not Solved unless re-opened); the view stays security_invoker. NO means the Call Pending Reason column on the Field, Installation and PM registers reads blank. Restore: performance.sql (0433)',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_dates' and column_name = 'pending_reason')
+     and coalesce((select 'security_invoker=on' = any (c.reloptions) from pg_class c where c.oid = to_regclass('public.call_dates')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

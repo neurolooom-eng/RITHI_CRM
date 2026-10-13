@@ -32,6 +32,7 @@
 --   0417_spare_insights_planned_with_dates.sql
 --   0424_call_dates.sql
 --   0425_kpi_export_india_dates.sql
+--   0433_call_pending_reason.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -2457,7 +2458,11 @@ grant execute on function public.call_first_spare_on(text) to authenticated;
 comment on function public.call_first_spare_on(text) is
   'The first spare request''s date on a call (or_req_date, else its India creation date), for a call the caller may see; NULL otherwise. Read by call_dates (0424).';
 
-create or replace view public.call_dates as
+-- DROPPED FIRST: 0433 appends a column to this view, and a bundle replayed on a
+-- project that has it would otherwise stop here with "cannot drop columns
+-- from view". Nothing is built on call_dates; the grant follows below.
+drop view if exists public.call_dates;
+create view public.call_dates as
 select c.ucn,
        least(v.first_visit_on, public.call_first_spare_on(c.ucn)) as first_attended_on,
        v.last_visit_on,
@@ -2645,5 +2650,68 @@ grant select on public.kpi_field_inst to authenticated;
 
 comment on view public.kpi_field_inst is
   'The KPI workbook''s Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425). The per-call lookups into reports and spare_requests are LATERAL so the caller''s date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).';
+
+-- ------------------------------------------------------------------------
+-- 0433_call_pending_reason.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0433 -- THE CALL PENDING REASON ON EVERY OPEN CALL (the user, 2026-10-13:
+-- "i want the Call pending Reason and Cancellation Reason in Field,
+-- Installation, PM Calls").
+--
+-- Settled with the user the same day: the reason is the one on the LATEST
+-- VISIT ENTRY -- the same entry the call's status comes from
+-- (sync_call_last_visit(): updated_at desc, id desc) -- and it is shown ONLY
+-- WHILE THE CALL IS OPEN. A Solved call is pending nothing, and a Cancelled
+-- one is not waiting for anybody, so both read blank rather than carrying the
+-- reason a visit gave before it was closed. Open is pending_calls' own rule:
+-- not cancelled, and not Solved unless re-opened.
+--
+-- The Cancellation Reason needs nothing here: cancel_reason has been on all
+-- three call tables since 0108 and comes with the call.
+--
+-- APPENDED to call_dates (0424), not a view of its own: the registers already
+-- read that view for the calls on screen, so this is one column more on the
+-- same request. `create or replace view` may only add columns at the END, and
+-- it DROPS security_invoker, which is re-asserted below.
+-- ===========================================================================
+
+create or replace view public.call_dates as
+select c.ucn,
+       least(v.first_visit_on, public.call_first_spare_on(c.ucn)) as first_attended_on,
+       v.last_visit_on,
+       s.solved_on,
+       case when c.cancelled_at is null
+             and (coalesce(c.open_state, '') <> 'Solved' or c.reopened_at is not null)
+            then nullif(btrim(p.pending_reason), '')
+       end as pending_reason
+  from public.calls c
+  left join lateral (
+    select min((r.visit_at at time zone 'Asia/Kolkata')::date) as first_visit_on,
+           max((r.visit_at at time zone 'Asia/Kolkata')::date) as last_visit_on
+      from public.reports r
+     where r.ucn = c.ucn and r.visit_at is not null
+  ) v on true
+  left join lateral (
+    select (rs.visit_at at time zone 'Asia/Kolkata')::date as solved_on
+      from public.reports rs
+     where rs.ucn = c.ucn and rs.call_status ilike 'solved%report%complet%'
+     order by rs.updated_at desc nulls last, rs.id desc
+     limit 1
+  ) s on true
+  left join lateral (
+    select rp.pending_reason
+      from public.reports rp
+     where rp.ucn = c.ucn
+     order by rp.updated_at desc nulls last, rp.id desc
+     limit 1
+  ) p on true;
+
+alter view public.call_dates set (security_invoker = on);
+grant select on public.call_dates to authenticated;
+
+comment on view public.call_dates is
+  'Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424); and the Call Pending Reason of the latest visit entry while the call is open (0433). security_invoker: one row per call the reader may see.';
 
 commit;

@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.189',
+    date: '2026-10-13',
+    title: 'Call Pending Reason and Cancellation Reason on every call',
+    changes: [
+      'The Field, Installation and PM call registers have two new columns: Call Pending Reason and Cancellation Reason. Both also show when a call is opened and are in Export CSV.',
+      'Call Pending Reason is the reason given on the call\'s latest visit entry, the same entry its status comes from. It shows only while the call is open, so a Solved or Cancelled call reads blank.',
+      'Cancellation Reason is the reason typed when the call was cancelled. It shows while the call is cancelled; a restored call keeps it on its record.',
+      'Two new rows of filter chips, Call Pending Reason and Cancellation Reason, show how many calls carry each reason; click one to see only those calls.',
+    ],
+  },
+  {
     version: '0.10.188',
     date: '2026-10-13',
     title: 'Call History from every system; Evolution of Service Tools',
