@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.185',
+    date: '2026-10-13',
+    title: 'Objective: the Total column is calculated',
+    changes: [
+      'The Total column on the Objective page is now worked out the way the shared sheet does it. For the FFR count it is the sum of the months. For every percentage objective it is the average of the months that have a figure. Blank and NA months are left out.',
+      'It updates by itself whenever a month changes, whether by Re-Calculate or a month typed over by hand. An objective with no calculation keeps the Total typed for it.',
+    ],
+  },
+  {
     version: '0.10.184',
     date: '2026-10-13',
     title: 'Dashboard: click to narrow, trend by period, figures beside each chart, downloads',

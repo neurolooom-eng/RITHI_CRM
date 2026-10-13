@@ -631,7 +631,9 @@ const MODULES = {
             '0422_feedback_satisfaction_objective.sql',
             // The objective figures date a visit in India time (D-168, 0423).
             // Restates objective_value and objective_evidence.
-            '0423_objective_dates_in_india_time.sql'],
+            '0423_objective_dates_in_india_time.sql',
+            // The Total column calculated the sheet's way (0428).
+            '0428_objective_total_calculated.sql'],
   },
   validation: {
     title: 'Software Validation',

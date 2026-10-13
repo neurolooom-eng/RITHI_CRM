@@ -1426,6 +1426,10 @@ typed into a form that reads it.
 
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
+  - **Total** is worked out for every calculated objective, as the shared sheet
+    does: the **sum** of the months for the FFR count, the **average of the months
+    that have a figure** for every percentage. It follows any change to a month.
+    An objective with no calculation keeps the Total typed for it.
   - **Status**: each objective is Active, **Not Working** or **Do Not Use** (✏️ on
     the objective). The last two are hidden; tick **Show hidden** to see and
     change them. **Re-calculate works out Active objectives only** — a hidden

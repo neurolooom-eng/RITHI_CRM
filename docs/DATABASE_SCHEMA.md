@@ -3296,7 +3296,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Unique:** `sys_id` _(quality_objectives_sys_id_key)_ · `year, lower(btrim(parameter))` _(quality_objectives_year_param_uniq)_
 
-**Triggers:** `zy_quality_objectives_mark_override` → `quality_objectives_mark_override()` · `zz_quality_objectives_cutoff_guard` → `quality_objectives_cutoff_guard()` · `zz_quality_objectives_stamp` → `quality_objectives_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `zx_quality_objectives_total` → `quality_objectives_total()` · `zy_quality_objectives_mark_override` → `quality_objectives_mark_override()` · `zz_quality_objectives_cutoff_guard` → `quality_objectives_cutoff_guard()` · `zz_quality_objectives_stamp` → `quality_objectives_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
