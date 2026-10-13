@@ -580,6 +580,19 @@ console.log('\n-- which manuals belong on a call --');
   eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
 }
 
+// HAND STOCK HIDES PEOPLE WHO HAVE LEFT, ON A SWITCH (FRS-276).
+console.log('\n-- Hand Stock hides inactive users --');
+{
+  const hs = readFileSync('src/modules/HandStock.tsx', 'utf8');
+  const acc = readFileSync('src/lib/access.ts', 'utf8');
+  eq('Hand Stock reads useInactiveNames() and filters the list on it',
+    /useInactiveNames\(\)/.test(hs) && /filter\(\(r\) => !\(hideInactive && isInactive\(r\)\)\)/.test(hs), true);
+  eq('the switch is ON unless the device remembers it off',
+    /getItem\('rithi\.handstock\.hideInactive'\) !== '0'/.test(hs), true);
+  eq('inactive = on the User Master with no active row (a name it does not carry is never hidden)',
+    /seen\]\.filter\(\(n\) => !active\.has\(n\)\)/.test(acc), true);
+}
+
 // A CANCELLED CALL IS NOT ON THE SLA LIST (the user, 2026-10-13). A call
 // cancelled long ago read "SLA breached · Call closure · 273d over".
 console.log('\n-- a cancelled call has no SLA --');

@@ -228,6 +228,37 @@ export function useActivePeople(current?: Person): { people: Person[]; ready: bo
   return { people: list.sort((a, b) => a.name.localeCompare(b.name)), ready: rows !== null };
 }
 
+// ---------------------------------------------------------------------------
+// WHO ON THE USER MASTER HAS LEFT (Hand Stock, the user, 2026-10-13: "don't
+// show [In]active employees. Or add a Toggle button to remove INACTIVE USERS").
+//
+// A name is INACTIVE when the User Master carries it and every row carrying
+// it reads Validity false / no / 0 / inactive -- the same test the pickers
+// above use for "active". A name the User Master does not carry at all
+// ("INDOOR SERVICE", a Stores pool, a misspelling) is NOT called inactive:
+// nothing says that person left, so it stays on screen.
+// ---------------------------------------------------------------------------
+export function useInactiveNames(): { inactive: Set<string>; ready: boolean } {
+  const [inactive, setInactive] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!dataConfigured()) { setInactive(new Set()); return; }
+    let cancelled = false;
+    void loadUserMaster().then((rows) => {
+      if (cancelled) return;
+      const active = new Set<string>(), seen = new Set<string>();
+      rows.forEach((r) => {
+        const n = norm(pick(r, H_NAME));
+        if (!n) return;
+        seen.add(n);
+        if (!/^(false|no|0|inactive)$/i.test(String(r['Validity'] ?? '').trim())) active.add(n);
+      });
+      setInactive(new Set([...seen].filter((n) => !active.has(n))));
+    }).catch(() => { if (!cancelled) setInactive(new Set()); });
+    return () => { cancelled = true; };
+  }, []);
+  return { inactive: inactive ?? new Set(), ready: inactive !== null };
+}
+
 const H_REGION = ['REGION', 'Region', 'Zone'];
 
 // ---------------------------------------------------------------------------

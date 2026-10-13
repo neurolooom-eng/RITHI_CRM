@@ -13,7 +13,7 @@ import { PickList } from '../components/ui/PickList';
 import { useMaster } from '../lib/masters';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync, MAX_CACHED_ROWS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, previewScoped, useTeamEngineers } from '../lib/access';
+import { useAccessScope, previewScoped, useTeamEngineers, useInactiveNames } from '../lib/access';
 import {
   balanceTone, byEngineer, movementTone, num, partDescription, summarise, withoutHistory,
   type HandstockBalance, type HandstockMovement, type MovementKind,
@@ -132,11 +132,39 @@ export function HandStock() {
     setLiveOnly(on);
     try { localStorage.setItem('rithi.handstock.liveOnly', on ? '1' : '0'); } catch { /* private window */ }
   };
+  // PEOPLE WHO HAVE LEFT ARE HIDDEN, ON A SWITCH (the user, 2026-10-13:
+  // "don't show [In]active employees. Or add a Toggle button to remove
+  // INACTIVE USERS"). Hidden by default and remembered. Inactive = on the
+  // User Master with Validity false on every row (useInactiveNames); a holder
+  // the User Master does not carry is never hidden, since nothing says they
+  // left. It narrows the LIST -- every count, chip, the engineer picker and
+  // the CSV follow it -- and changes no balance.
+  const { inactive } = useInactiveNames();
+  const [hideInactive, setHideInactiveState] = useState(() => {
+    try { return localStorage.getItem('rithi.handstock.hideInactive') !== '0'; } catch { return true; }
+  });
+  const setHideInactive = (on: boolean) => {
+    setHideInactiveState(on);
+    try { localStorage.setItem('rithi.handstock.hideInactive', on ? '1' : '0'); } catch { /* private window */ }
+  };
+  const isInactive = (r: { engineer_key: string; engineer: string }) =>
+    inactive.has((r.engineer_key || r.engineer).trim().toLowerCase());
   // What this screen shows. RLS already scoped a real session; this only
   // narrows the list while an administrator previews as someone else, whose
   // identity the database never sees. See previewScoped() in lib/access.
+  const scoped = useMemo(
+    () => previewScoped(allRows, !!viewAs, scope, ['engineer', 'engineer_key'], ['engineer_email'], viewAs?.email),
+    [allRows, viewAs, scope],
+  );
+  const inactiveLines = useMemo(() => scoped.filter(isInactive).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scoped, inactive]);
+  const inactivePeople = useMemo(() => new Set(scoped.filter(isInactive).map((r) => r.engineer_key)).size,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scoped, inactive]);
   const rows = useMemo(
-    () => previewScoped(allRows, !!viewAs, scope, ['engineer', 'engineer_key'], ['engineer_email'], viewAs?.email)
+    () => scoped
+      .filter((r) => !(hideInactive && isInactive(r)))
       // With the history ignored, the WHOLE row is restated — not just the
       // total. A screen showing 4 in hand beside a stock out of 27 invites the
       // reader to check the arithmetic and find it broken, so each component
@@ -146,7 +174,8 @@ export function HandStock() {
       // The chips read this too; grouping needs it as a value ON the row, and
       // one derivation keeps the two from disagreeing.
       .map((r) => ({ ...r, _state: r.on_hand > 0 ? 'In hand' : r.on_hand < 0 ? 'Short' : 'Settled' })),
-    [allRows, viewAs, scope, liveOnly],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scoped, liveOnly, hideInactive, inactive],
   );
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
@@ -366,6 +395,17 @@ export function HandStock() {
                 : 'Showing everything on record, including the imported sheet era — the opening pools, the pre-2026 stock outs and the yearly consumption exports. Click to leave them out.'}
             >
               {liveOnly ? '📅 History ignored' : '🗄️ History included'}
+            </button>
+            {/* Narrows the list, like the chips -- but kept beside the other
+                switch because it, too, is remembered and stays on. */}
+            <button
+              className={`chip ${hideInactive ? 'chip-on' : ''}`}
+              onClick={() => setHideInactive(!hideInactive)}
+              title={hideInactive
+                ? `Hiding ${inactivePeople} inactive user${inactivePeople === 1 ? '' : 's'} on the User Master (${inactiveLines} line${inactiveLines === 1 ? '' : 's'}). Click to show them.`
+                : 'Showing everyone, including users marked inactive on the User Master. Click to hide them.'}
+            >
+              {hideInactive ? `🚫 Inactive users hidden${inactivePeople ? ` (${inactivePeople})` : ''}` : '👥 Inactive users shown'}
             </button>
           </div>
 
