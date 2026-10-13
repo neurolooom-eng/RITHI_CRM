@@ -5963,7 +5963,7 @@ export async function listSlaRules(): Promise<SlaRuleRow[]> {
   if (error) throw new Error(errMsg(error));
   return (data ?? []) as SlaRuleRow[];
 }
-export async function saveSlaRule(key: string, patch: { target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
+export async function saveSlaRule(key: string, patch: { label?: string; target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
   // COUNT THE ROWS (finding 58, as finding 48 did for calls): row-level security
   // refuses an UPDATE by matching nothing, which is not an error -- so a refused
   // save used to read "saved" while nothing changed.

@@ -2701,11 +2701,11 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 **Constraints:**
 
 - `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
-- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
 - `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
-- `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
-- `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
+- `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
 - `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
+- `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
+- `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
 
 **Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3591,8 +3591,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 - `recycle_requests_returned_qty_check` — `CHECK (((returned_qty IS NULL) OR (returned_qty > (0)::numeric)))`
+- `recycle_requests_qty_check` — `CHECK ((qty > (0)::numeric))`
 
 **Triggers:** `recycle_requests_guard` → `recycle_requests_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3936,6 +3936,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 11 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
 **Unique:** `sys_id` _(sla_rules_sys_id_key)_
+
+**Constraints:**
+
+- `sla_rules_label_named` — `CHECK ((btrim(label) <> ''::text))`
 
 **Triggers:** `sla_rules_touch` → `sla_rules_touch()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4422,9 +4426,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `stock_record_files_url_check` — `CHECK ((btrim(url) <> ''::text))`
 - `stock_record_files_ref_check` — `CHECK ((btrim(ref) <> ''::text))`
 - `stock_record_files_file_name_check` — `CHECK ((btrim(file_name) <> ''::text))`
+- `stock_record_files_url_check` — `CHECK ((btrim(url) <> ''::text))`
 
 **Triggers:** `stock_record_files_stamp` → `stock_record_files_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 

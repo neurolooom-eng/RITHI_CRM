@@ -67,8 +67,12 @@ different totals. An empty register usually means access, not emptiness.
 ## Overview & search
 
 - **Dashboard** `/` — what is open, what is overdue, what needs you.
-  > **SLA Breached** and **SLA — needs attention** count only calls still being
-  > worked: a **Solved** or **Cancelled** call is never on them.
+  > **One tile and one list per SLA**, each under the name set on SLA Targets
+  > (for example *First visit*, *Call closure*): breached first, then due soon.
+  > A call late for two SLAs is on both lists. Only calls still being worked
+  > are on them: a **Solved** or **Cancelled** call never is.
+  > **Signing in always opens the Dashboard.** Reloading a page while signed in
+  > stays on that page.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
@@ -1879,8 +1883,9 @@ typed into a form that reads it.
   ON** a call's Update Party Details and Update Product Details are hidden (and
   refused).
 - **SLA / Objective Configuration** `/sla-objective-config` — the targets the
-  service is measured against. **SLA Targets**: the hours for first visit and
-  closure, each switchable. **Product Failure Rate**: a machine has *failed*
+  service is measured against. **SLA Targets**: a **name** for each SLA, its
+  hours, and on/off. The Dashboard shows one tile and one list per SLA under
+  the name given here; a blank name is refused. **Product Failure Rate**: a machine has *failed*
   when a field call on it is registered within **3 months** of its installation
   (its **warranty start**); the rate is over the machines of that product
   installed in the last **12 months** (rolling, up to each month's cut-off). A

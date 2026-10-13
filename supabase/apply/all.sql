@@ -340,6 +340,7 @@
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
 --   0044_sla_rules.sql
+--   0427_sla_rule_named.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
 --   0301_knowledge_base_needs_a_profile.sql
@@ -44699,6 +44700,30 @@ drop policy if exists sla_write on public.sla_rules;
 create policy sla_write on public.sla_rules for all
   using (public.is_admin() or public.has_perm('config.manage'))
   with check (public.is_admin() or public.has_perm('config.manage'));
+
+-- ------------------------------------------------------------------------
+-- 0427_sla_rule_named.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0427 -- EVERY SLA HAS A NAME (the user, 2026-10-13: "Segregate the SLA
+-- Breach. Name it. Add Provision to Name the SLA. And use that name to
+-- Display. Every SLA should display a List separately").
+--
+-- sla_rules.label was always there and always editable by whoever holds
+-- Admin config (sla_write, 0044); the SLA Targets card now offers it, and the
+-- Dashboard shows one tile and one list per SLA under that name. A blank name
+-- would be a tile and a list with no heading, so it is refused here as well as
+-- on the form. The existing names are all filled, so the check validates at
+-- once.
+-- ===========================================================================
+do $$
+begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.sla_rules'::regclass and conname = 'sla_rules_label_named') then
+    alter table public.sla_rules add constraint sla_rules_label_named check (btrim(label) <> '');
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0042_knowledge_base.sql

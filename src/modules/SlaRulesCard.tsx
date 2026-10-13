@@ -43,8 +43,13 @@ export function SlaRulesCard() {
     if (!onDb) return;
     setBusy(true);
     const changed = rules.filter((r) => dirty[r.key]);
+    // THE NAME IS WHAT THE DASHBOARD SHOWS (the user, 2026-10-13: "Add
+    // Provision to Name the SLA. And use that name to Display"), so a blank
+    // one is refused here and by the database (0427).
+    const blank = changed.find((r) => !r.label.trim());
+    if (blank) { setMsg({ tone: 'error', text: 'Every SLA needs a name — the Dashboard shows its tile and list under it.' }); setBusy(false); return; }
     for (const r of changed) {
-      const res = await saveSlaRule(r.key, { target_hours: Math.max(1, Math.round(r.target_hours)), active: r.active });
+      const res = await saveSlaRule(r.key, { label: r.label.trim(), target_hours: Math.max(1, Math.round(r.target_hours)), active: r.active });
       if (!res.ok) { setMsg({ tone: 'error', text: `Save failed: ${res.error}` }); setBusy(false); return; }
     }
     setDirty({}); setBusy(false); setMsg({ tone: 'ok', text: `Saved ${changed.length} rule${changed.length === 1 ? '' : 's'}.` });
@@ -56,7 +61,7 @@ export function SlaRulesCard() {
     <SectionCard title="SLA Targets">
       <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
         Service-level targets used to highlight open calls (on track / due soon / breached) for engineers on the Dashboard.
-        Edit the hours or switch a rule off.
+        Name each SLA, edit its hours or switch it off. The Dashboard shows one tile and one list per SLA, under the name given here.
       </p>
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`} style={{ marginBottom: 10 }}>
@@ -66,11 +71,16 @@ export function SlaRulesCard() {
       )}
       <div className="assoc-scroll">
         <table className="assoc-table" style={{ minWidth: 480 }}>
-          <thead><tr><th>Rule</th><th style={{ width: 120 }}>Target (hours)</th><th style={{ width: 90 }}>=</th><th style={{ width: 70 }}>Active</th></tr></thead>
+          <thead><tr><th>SLA name</th><th style={{ width: 120 }}>Target (hours)</th><th style={{ width: 90 }}>=</th><th style={{ width: 70 }}>Active</th></tr></thead>
           <tbody>
             {rules.map((r) => (
               <tr key={r.key} style={{ opacity: r.active ? 1 : 0.55 }}>
-                <td>{r.label}</td>
+                <td>
+                  {mayEdit
+                    ? <input className="input" value={r.label} maxLength={80} aria-label="SLA name"
+                        onChange={(e) => edit(r.key, { label: e.target.value })} style={{ width: '100%', minWidth: 220 }} />
+                    : r.label}
+                </td>
                 <td>
                   <input className="input" type="number" min={1} value={r.target_hours}
                     onChange={(e) => edit(r.key, { target_hours: Number(e.target.value) })}

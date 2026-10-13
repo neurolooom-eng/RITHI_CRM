@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.183',
+    date: '2026-10-13',
+    title: 'One SLA list per SLA, named; sign-in opens the Dashboard',
+    changes: [
+      'The Dashboard now shows each SLA separately: one tile and one list per SLA, under its own name. The tile shows how many calls are breached and how many are due soon. The list puts breached calls first, then the nearest deadline. A call late for both its first visit and its closure appears on both lists.',
+      'SLA / Objective Configuration → SLA Targets lets you name each SLA; the Dashboard uses that name. A blank name is refused.',
+      'Signing in now always opens the Dashboard, instead of whatever page was last open. Reloading a page while signed in still keeps you on it.',
+    ],
+  },
+  {
     version: '0.10.182',
     date: '2026-10-13',
     title: 'Files on Stock Transfers and Material Returns; Stock Transfer (MTN)',
