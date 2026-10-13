@@ -87,3 +87,45 @@ export function slaWhen(hoursLeft: number): string {
   const txt = h >= 48 ? `${Math.round(h / 24)}d` : h >= 1 ? `${Math.round(h)}h` : `${Math.round(h * 60)}m`;
   return hoursLeft < 0 ? `${txt} over` : `in ${txt}`;
 }
+
+// ---------------------------------------------------------------------------
+// ONE LIST PER SLA (the user, 2026-10-13: "Segregate the SLA Breach. Name it.
+// Add Provision to Name the SLA. And use that name to Display. Every SLA
+// should display a List separately").
+//
+// Each call is judged against every rule that applies to it, so a call late
+// for its first visit AND its closure belongs on BOTH lists -- that is the
+// point of separating them. A list holds the calls whose part for that rule is
+// breached or due soon, breached first and then the nearest deadline. Lists
+// come out in the rules' own order and carry the rule, whose `label` is the
+// name an administrator gives it on SLA Targets. A rule nothing was judged
+// against (switched off, or not a call rule, like Stores dispatch) gets no
+// list.
+// ---------------------------------------------------------------------------
+export interface SlaRuleList<T> {
+  rule: SlaRule;
+  items: { item: T; part: SlaPart }[];
+  breached: number;
+  due: number;
+}
+export function slaByRule<T>(rules: SlaRule[], judged: { item: T; sla: SlaResult }[]): SlaRuleList<T>[] {
+  const by = new Map<string, { item: T; part: SlaPart }[]>();
+  for (const { item, sla } of judged) {
+    for (const part of sla.parts) {
+      if (part.status !== 'breach' && part.status !== 'due') continue;
+      by.set(part.key, [...(by.get(part.key) ?? []), { item, part }]);
+    }
+  }
+  return [...rules]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .filter((r) => by.has(r.key))
+    .map((rule) => {
+      const items = (by.get(rule.key) ?? []).sort((a, b) =>
+        (a.part.status === 'breach' ? 0 : 1) - (b.part.status === 'breach' ? 0 : 1) || a.part.hoursLeft - b.part.hoursLeft);
+      return {
+        rule, items,
+        breached: items.filter((x) => x.part.status === 'breach').length,
+        due: items.filter((x) => x.part.status === 'due').length,
+      };
+    });
+}

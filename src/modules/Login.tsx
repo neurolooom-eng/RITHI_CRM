@@ -25,7 +25,13 @@ export function Login() {
     setBusy(true);
     const res = await login(id, password);
     setBusy(false);
-    if (!res.ok) setError(res.error ?? 'Login failed');
+    if (!res.ok) { setError(res.error ?? 'Login failed'); return; }
+    // EVERY SIGN-IN LANDS ON THE DASHBOARD (the user, 2026-10-13: "Default
+    // Landing Page after Login has to be Dashboard"). The router is a hash
+    // router, so without this a sign-in opened whatever page the address still
+    // held -- the last one used before signing out. A RELOAD while signed in
+    // never comes through here, so it stays on its page.
+    window.location.hash = '#/';
   };
 
   return (

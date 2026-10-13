@@ -2216,7 +2216,9 @@ with checks(sort_order, bundle, provides, present) as (
      and not coalesce(has_table_privilege('authenticated', 'public.stock_record_files', 'update'), true)
      and not coalesce(has_table_privilege('authenticated', 'public.stock_record_files', 'delete'), true)
      and not coalesce(has_table_privilege('anon', 'public.stock_record_files', 'select'), true)
-     and exists (select 1 from pg_trigger where tgname = 'stock_record_files_stamp' and tgrelid = to_regclass('public.stock_record_files'))))
+     and exists (select 1 from pg_trigger where tgname = 'stock_record_files_stamp' and tgrelid = to_regclass('public.stock_record_files')))),
+    (347, 'Every SLA has a name', 'sla_rules_label_named (0427): a blank SLA name is refused, because the Dashboard shows each SLA''s tile and list under its name. NO means a blank name can be saved and a tile or list would have no heading. Restore: sla.sql (0427)',
+        exists (select 1 from pg_constraint where conname = 'sla_rules_label_named' and conrelid = to_regclass('public.sla_rules')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

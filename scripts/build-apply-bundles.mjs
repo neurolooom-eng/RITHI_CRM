@@ -396,7 +396,9 @@ const MODULES = {
             'first visit, closure, closure-with-spare and stores dispatch. Read by',
             'everyone; edited by admins / config.manage. Highlights open calls.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0044_sla_rules.sql'],
+    files: ['0044_sla_rules.sql',
+            // Every SLA has a name (0427): the Dashboard lists each under it.
+            '0427_sla_rule_named.sql'],
   },
   knowledge_base: {
     title: 'Knowledge Base',

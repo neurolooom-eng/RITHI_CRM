@@ -6,7 +6,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { listFieldCalls, listPending, dataConfigured } from '../lib/sheets';
 import { listSlaRules, callFamily, supabaseConfigured } from '../lib/supabase';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
-import { evaluateCallSla, DEFAULT_SLA_RULES, slaTone, slaLabel, slaWhen, type SlaRule } from '../lib/sla';
+import { evaluateCallSla, slaByRule, DEFAULT_SLA_RULES, slaTone, slaLabel, slaWhen, type SlaRule } from '../lib/sla';
 import { fmtLongDate } from '../lib/format';
 import { parseAnyDate } from '../lib/dates';
 
@@ -122,15 +122,24 @@ export function Dashboard() {
   // carry calls. The same distinct count the card above uses for parties.
   const activeEngineers = new Set(all.map((r) => g(r, 'allocatedTo').trim()).filter(Boolean)).size;
 
-  // SLA — evaluate each open call against the active rules, worst first.
-  const slaCalls = useMemo(() => all
-    .map((r) => ({ r, sla: evaluateCallSla(slaRules, { regAt: g(r, 'regDate') || g(r, 'complaintDate'), openState: g(r, 'callState'), itemStatus: g(r, 'itemStatus') }) }))
-    .filter((x) => x.sla.worst === 'breach' || x.sla.worst === 'due')
-    .sort((a, b) => (a.sla.worst === 'breach' ? 0 : 1) - (b.sla.worst === 'breach' ? 0 : 1)
-      || Math.min(...a.sla.parts.map((p) => p.hoursLeft)) - Math.min(...b.sla.parts.map((p) => p.hoursLeft))),
-  [all, slaRules]);
-  const slaBreaches = slaCalls.filter((x) => x.sla.worst === 'breach').length;
-  const slaDue = slaCalls.filter((x) => x.sla.worst === 'due').length;
+  // SLA — every open call judged against every rule that applies to it, then
+  // SEPARATED BY RULE (the user, 2026-10-13: "Segregate the SLA Breach. Name
+  // it ... Every SLA should display a List separately"). One tile and one list
+  // per SLA, each under the name given on SLA Targets; a call late for two
+  // rules is on both lists.
+  const slaJudged = useMemo(() => all.map((r) => ({
+    item: r,
+    sla: evaluateCallSla(slaRules, { regAt: g(r, 'regDate') || g(r, 'complaintDate'), openState: g(r, 'callState'), itemStatus: g(r, 'itemStatus') }),
+  })), [all, slaRules]);
+  const slaLists = useMemo(() => slaByRule(slaRules, slaJudged), [slaRules, slaJudged]);
+  // A tile for every rule the dashboard judges calls by -- 0 is an answer --
+  // in the rules' order, under their names.
+  const slaTiles = useMemo(() => {
+    const judgedKeys = new Set(slaJudged.flatMap((x) => x.sla.parts.map((p) => p.key)));
+    return [...slaRules].sort((a, b) => a.sort_order - b.sort_order)
+      .filter((rule) => rule.active && judgedKeys.has(rule.key))
+      .map((rule) => slaLists.find((l) => l.rule.key === rule.key) ?? { rule, items: [], breached: 0, due: 0 });
+  }, [slaRules, slaJudged, slaLists]);
 
   return (
     <div>
@@ -149,49 +158,60 @@ export function Dashboard() {
         <KpiCard label="Installation Calls" value={instS.length} tone="info" icon="🔧" sub="every call you can see" />
         <KpiCard label="Pending Registrations" value={pending == null ? '—' : pending} tone="warning" icon="⏳" sub="awaiting UCN" />
         <KpiCard label="Calls This Month" value={thisMonth} tone="success" icon="📅" />
-        <KpiCard label="SLA Breached" value={slaBreaches} tone={slaBreaches ? 'danger' : 'success'} icon="⏱️" sub={slaDue ? `${slaDue} due soon` : 'your open calls'} />
         <KpiCard label="Public Health Threats" value={phThreat} tone={phThreat ? 'danger' : 'neutral'} icon="⚠️" />
         <KpiCard label="Serious Incidents" value={serious} tone={serious ? 'danger' : 'neutral'} icon="🚨" />
         <KpiCard label="Parties Served" value={uniqueParties} tone="neutral" icon="🏥" />
         <KpiCard label="Engineers Active" value={activeEngineers} tone="neutral" icon="🧑‍🔧" />
       </KpiGrid>
 
-      {slaCalls.length > 0 && (
-        <SectionCard title={`⏱️ SLA — needs attention (${slaCalls.length})`}>
-          {(slaSource === 'none-configured' || slaSource === 'unreadable') && (
-            <div className="sheet-banner sheet-banner-warn" style={{ marginBottom: 8 }}>
-              <span>
-                {slaSource === 'unreadable'
-                  ? 'The configured SLA targets could not be read, so these are judged against the built-in default targets.'
-                  : 'No SLA targets are configured yet, so these are judged against the built-in default targets.'}
-                {' '}Set them under SLA / Objective Configuration → SLA Targets.
-              </span>
-            </div>
-          )}
+      {/* ONE TILE PER SLA, named as on SLA Targets: breached, and due soon. */}
+      {slaTiles.length > 0 && (
+        <KpiGrid min={200}>
+          {slaTiles.map((t) => (
+            <KpiCard key={t.rule.key} label={`⏱️ ${t.rule.label}`} value={t.breached}
+              tone={t.breached ? 'danger' : 'success'} icon="⏱️"
+              sub={`breached${t.due ? ` · ${t.due} due soon` : ''}`} />
+          ))}
+        </KpiGrid>
+      )}
+
+      {(slaSource === 'none-configured' || slaSource === 'unreadable') && slaLists.length > 0 && (
+        <div className="sheet-banner sheet-banner-warn" style={{ marginBottom: 8 }}>
+          <span>
+            {slaSource === 'unreadable'
+              ? 'The configured SLA targets could not be read, so these are judged against the built-in default targets.'
+              : 'No SLA targets are configured yet, so these are judged against the built-in default targets.'}
+            {' '}Set them under SLA / Objective Configuration → SLA Targets.
+          </span>
+        </div>
+      )}
+
+      {/* ONE LIST PER SLA, titled with its name: breached first, then due. */}
+      {slaLists.map((l) => (
+        <SectionCard key={l.rule.key}
+          title={`⏱️ ${l.rule.label} — ${l.breached} breached${l.due ? `, ${l.due} due soon` : ''}`}>
           <div className="assoc-scroll">
             <table className="assoc-table" style={{ minWidth: 620 }}>
-              <thead><tr><th>SLA</th><th>UCN</th><th>Call No</th><th>Party</th><th>Status</th><th>Registered</th><th>Which rule</th></tr></thead>
+              <thead><tr><th>SLA</th><th>UCN</th><th>Call No</th><th>Party</th><th>Status</th><th>Registered</th><th>Allotted to</th><th>Over / due</th></tr></thead>
               <tbody>
-                {slaCalls.slice(0, 20).map(({ r, sla }, i) => {
-                  const worstPart = [...sla.parts].sort((a, b) => a.hoursLeft - b.hoursLeft)[0];
-                  return (
-                    <tr key={i} className="row-link" title={`Open ${g(r, 'ucn')}`} onClick={() => openCall(r)}>
-                      <td><span className={`badge badge-${slaTone(sla.worst)}`}>{slaLabel(sla.worst)}</span></td>
-                      <td>{g(r, 'ucn')}</td>
-                      <td>{g(r, 'callNumber')}</td>
-                      <td>{g(r, 'partyName')}</td>
-                      <td>{g(r, 'callState')}</td>
-                      <td>{fmtLongDate(g(r, 'regDate'))}</td>
-                      <td className="muted">{worstPart ? `${worstPart.label} · ${slaWhen(worstPart.hoursLeft)}` : ''}</td>
-                    </tr>
-                  );
-                })}
+                {l.items.slice(0, 20).map(({ item: r, part }, i) => (
+                  <tr key={i} className="row-link" title={`Open ${g(r, 'ucn')}`} onClick={() => openCall(r)}>
+                    <td><span className={`badge badge-${slaTone(part.status)}`}>{slaLabel(part.status)}</span></td>
+                    <td>{g(r, 'ucn')}</td>
+                    <td>{g(r, 'callNumber')}</td>
+                    <td>{g(r, 'partyName')}</td>
+                    <td>{g(r, 'callState')}</td>
+                    <td>{fmtLongDate(g(r, 'regDate'))}</td>
+                    <td>{g(r, 'allocatedTo')}</td>
+                    <td className="muted">{slaWhen(part.hoursLeft)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-          {slaCalls.length > 20 && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>…and {slaCalls.length - 20} more.</div>}
+          {l.items.length > 20 && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>…and {l.items.length - 20} more.</div>}
         </SectionCard>
-      )}
+      ))}
 
       <div className="dash-grid">
         <SectionCard title="Calls — last 6 months">

@@ -4,6 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
+_Last updated: 2026-10-13 (SLA PER RULE, NAMED + SIGN-IN OPENS DASHBOARD — 0427 (sla.sql), v0.10.183: slaByRule() gives one Dashboard tile and list per SLA under its sla_rules.label, editable on SLA Targets (blank refused by sla_rules_label_named); Login sends a sign-in to #/. FRS-116.5/.13/.14, OQ-282.)
 _Last updated: 2026-10-13 (FILES ON STOCK TRANSFERS AND MATERIAL RETURNS — 0426 (HandStock_X.sql), v0.10.182, FRS-277 / OQ-281: stock_record_files, append-only, read/attach following the record; Stock Transfer renamed Stock Transfer (MTN) (menu, page, matrix label only). ⏳ THE USER'S STEP: create the folders "Stock Transfers" and "Material Returns" in the Reports shared drive and redeploy the CallReg Apps Script (DRIVE_FOLDERS gains stocktransfer / materialreturn); until then files go to the drive root and still open.)
 _Last updated: 2026-10-13 (D-169 FIXED — 0425 (performance.sql), v0.10.181: the KPI Field_INST export dates every call in India time and reads the first spare request through call_first_spare_on(), so it agrees with the call registers; OQ-280, _status.sql row 345.)
 _Last updated: 2026-10-13 (HAND STOCK HIDES INACTIVE USERS — v0.10.180, FRS-276 / OQ-279: a remembered switch, on by default, leaves User Master Validity-false people off the Stock Level list; balances unchanged; no migration.)
