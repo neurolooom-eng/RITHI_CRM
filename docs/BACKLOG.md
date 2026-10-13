@@ -4,6 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
+_Last updated: 2026-10-13 (D-169 FIXED — 0425 (performance.sql), v0.10.181: the KPI Field_INST export dates every call in India time and reads the first spare request through call_first_spare_on(), so it agrees with the call registers; OQ-280, _status.sql row 345.)
 _Last updated: 2026-10-13 (HAND STOCK HIDES INACTIVE USERS — v0.10.180, FRS-276 / OQ-279: a remembered switch, on by default, leaves User Master Validity-false people off the Stock Level list; balances unchanged; no migration.)
 _Last updated: 2026-10-13 (CALL DATES + CANCELLED OFF SLA — 0424 (performance.sql), v0.10.179: call_dates view → First Attended / Last Visit / Solved Date on the Field, Installation and PM registers (FRS-131.15, OQ-278); evaluateCallSla() leaves Cancelled calls out (FRS-116.4). OPEN: D-169 -- the KPI Field_INST export still dates visits in UTC, a day early.)
 _Last updated: 2026-10-12 (SUPPORTING DOCUMENTS LIST ONLY LATEST TECHNICAL NOTES — v0.10.178, FRS-035: a note is offered on a call only while tagged Latest for the product that brings it there (noteMatchesCall in docmatch.ts); manuals unchanged. No migration.)

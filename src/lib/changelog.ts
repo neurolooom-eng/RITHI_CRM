@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.181',
+    date: '2026-10-13',
+    title: 'KPI Export: India dates',
+    changes: [
+      'FIXED: the KPI Export took Call Attended On and Call Solved Date in UTC. A visit loaded from a file is recorded at midnight India time, so almost every one read a day early, and Attended in Days and Solved in Days were a day short. They now use the India date, as the call registers do.',
+      'Failure Month and the day the counts start from are India dates too, so a call registered just after midnight on the 1st belongs to that month.',
+      'Call Attended On now counts a spare request whoever raised it, so an engineer\'s export shows the same dates as their call register and their manager\'s export.',
+      'Nothing to re-calculate: the next download has the corrected dates.',
+    ],
+  },
+  {
     version: '0.10.180',
     date: '2026-10-13',
     title: 'Hand Stock: inactive users hidden',
