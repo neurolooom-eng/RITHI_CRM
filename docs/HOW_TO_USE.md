@@ -894,6 +894,40 @@ set to zero.
 > last year's price arriving in this year's contract without somebody putting it
 > there.
 
+- **Quotations** `/quotations` — quotations to customers, numbered `QT/YY/NNNN`
+  when saved: a **service contract** on their machines (AMC or CMC, one line per
+  machine with its period and rate), **spares** (a Part Master part, HSN,
+  quantity and unit price), or **both on the one document**.
+  - **＋ New quotation**: type the customer's name and pick the Party Master entry
+    — its address, city, state, pincode, GSTIN and PAN fill in (a prospect not on
+    the master can be typed). The date is today and **Valid Until** 30 days on;
+    change either.
+  - **＋ Machine on contract** offers the party's machines from the Product
+    Database (serial · model). Picking one fills the description, AMC or CMC from
+    its current cover, and a period starting the day after that cover ends (or
+    today). Type the **rate for the period**; **what the machine was charged on
+    its last contract is shown beside the box**, never put into it. A machine the
+    Product Database does not list can be typed — model and serial.
+  - **＋ Spare** offers the Part Master. Picking a part fills the description and
+    HSN; type the quantity and unit price, with the part's **last quoted price
+    and Item Master purchase cost shown beside the box**. A part not on the
+    master is added there first.
+  - Discount % and GST % (18 by default) per line. Taxable, GST and total work
+    out as you type, per line and for the document — and the figures you see
+    after saving are the **database's own**, read back.
+  - **Print / PDF** opens the quotation on the Air Liquide letterhead: the party
+    block, both tables, totals with the amount in words, your terms and a
+    signature block. A **Draft** prints marked DRAFT; so do Declined and
+    Cancelled.
+  - **Mark Sent / Accepted / Declined / Cancelled.** A quotation is **never
+    deleted**. Once Accepted, Declined or Cancelled it is **frozen** — every box
+    is read-only and the database refuses a change. **⎘ Revise** copies it into
+    a new Draft that records which number it revises; the original is untouched.
+  - An accepted contract quotation is keyed into the Contract Register as the
+    new MC; the quotation stays as the record of what was offered.
+  - Who sees it: the page goes to Admin, Technical Support, NSM and Commercial;
+    raising and editing (**quote.edit**) to Admin, NSM and Commercial. Grant the
+    rest on Roles & Permissions.
 - **Ownership Transfer** `/ownership-transfer` — one row per hand-over; the
   machine follows the **latest** transfer.
   - On the Product Database the machine then shows the **new owner's address,

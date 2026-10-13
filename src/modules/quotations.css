@@ -1,0 +1,22 @@
+/* QUOTATIONS -- the editor's layout. Colours are the theme's tokens; nothing
+   here restates one, so both themes come for free. */
+.qt-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
+.qt-grid .field { margin: 0; }
+.qt-span2 { grid-column: span 2; }
+.qt-grid-line { margin-top: 6px; }
+.qt-lines-head { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 6px; }
+.qt-lines-head h3 { margin: 0; font-size: 15px; }
+.qt-line { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; background: var(--surface); }
+.qt-line-top { display: flex; align-items: flex-end; gap: 10px; }
+.qt-line-top .field { margin: 0; }
+.qt-line-no { font-weight: 700; min-width: 18px; text-align: right; padding-bottom: 8px; }
+.qt-line-top .badge { margin-bottom: 9px; white-space: nowrap; }
+.qt-grow { flex: 1; min-width: 240px; }
+.qt-line-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; font-size: 12.5px; flex-wrap: wrap; }
+.qt-totals { margin: 6px 0 0 auto; width: 320px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+.qt-totals > div { display: flex; justify-content: space-between; padding: 2px 0; }
+.qt-totals .qt-grand { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; font-weight: 700; }
+@media (max-width: 760px) {
+  .qt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .qt-line-top { flex-wrap: wrap; }
+}

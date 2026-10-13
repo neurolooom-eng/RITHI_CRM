@@ -119,6 +119,9 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/warranties', label: 'Warranty Register', icon: '🛡️' },
       { to: '/contracts', label: 'Contract Register', icon: '📋' },
+      // QUOTATIONS (0428): beside the Contract Register, which is what an
+      // accepted contract quotation becomes.
+      { to: '/quotations', label: 'Quotations', icon: '🧾' },
       { to: '/ownership-transfer', label: 'Ownership Transfer', icon: '🔁' },
       // MOVED FROM MASTER (the user, 2026-10-05: "Move Product Database to
       // Contracts & Warranty"): the three registers above are what fill it.

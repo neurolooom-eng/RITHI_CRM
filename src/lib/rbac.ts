@@ -103,6 +103,13 @@ export const MODULES: ModuleDef[] = [
   { path: '/training', label: 'Training', admin: true },
   { path: '/warranties', label: 'Warranty Register' },
   { path: '/contracts', label: 'Contract Register' },
+  // QUOTATIONS (0428, the user, 2026-10-13: "Quote Generation for Both Product
+  // Contract + Spares"): a service contract on a customer's machines, spares,
+  // or both on one document. Beside the Contract Register because that is
+  // what an accepted contract quotation becomes. 0428 gives the page to admin,
+  // technical_support, nsm and commercial; on a project in use a code default
+  // reaches nobody, so the rest is ticked on Roles & Permissions.
+  { path: '/quotations', label: 'Quotations' },
   { path: '/ownership-transfer', label: 'Ownership Transfer' },
   { path: '/request-registration', label: 'Request Registration' },
   { path: '/pending-registrations', label: 'Pending Registrations' },
@@ -414,6 +421,10 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Masters', key: 'contract.edit.delete', label: ' Delete a whole contract entry with its machines' },
   { group: 'Masters', key: 'pd2.rebuild', label: 'Rebuild Product Database 2.0' },
   { group: 'Masters', key: 'ownership.transfer', label: 'Transfer a machine between customers' },
+  // QUOTATIONS (0428): raise, edit, revise and move the status of a quotation.
+  // One key: a quotation is not a quality record and has no approval chain;
+  // whoever may price one may send it. Reading needs only the page key.
+  { group: 'Masters', key: 'quote.edit', label: 'Raise, edit, revise and send quotations (contract and spares)' },
   { group: 'Documents', key: 'docs.manage', label: 'Add / edit service manuals' },
   { group: 'Documents', key: 'qms.manage', label: 'Add / edit QMS documents' },
   { group: 'Documents', key: 'training.manage', label: 'Manage training — assign, record sessions, see everyone\'s training and R&R' },
@@ -502,7 +513,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   // out of NON_ADMIN_MODULES, which would otherwise hand it to all twelve
   // roles; that leaves admin, technical_support and zoho_migration (the three
   // in SEES_EVERY_MODULE), and the user asked for NSM as well.
-  nsm: ['mod:/knowledge-base/how-it-works', 'ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
+  nsm: ['mod:/knowledge-base/how-it-works', 'ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'quote.edit'],
   rgm: ['ffr.view', 'ffr.manage', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'feedback.view', 'review.edit'],
   rm: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
@@ -512,7 +523,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view'],
-  commercial: ['calls.view', 'ownership.transfer', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
+  commercial: ['calls.view', 'ownership.transfer', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit', 'quote.edit'],
 };
 
 // CLONED FROM TECHNICAL SUPPORT, by reference rather than by a second copy of
@@ -722,6 +733,7 @@ export const PERM_TREE: PermHeader[] = [
     // here too so whoever grants this page sees what it can create.
     { path: '/warranties', label: 'Warranty Register', actions: ['masters.view', 'cover.edit', 'cover.edit.entries', 'cover.edit.delete', 'calls.create', 'install.create', 'masters.parties.add', 'masters.parties.edit'] },
     { path: '/contracts', label: 'Contract Register', actions: ['masters.view', 'contract.edit', 'contract.edit.entries', 'contract.edit.delete', 'calls.create'] },
+    { path: '/quotations', label: 'Quotations', actions: ['quote.edit'] },
     { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit.entries', 'install.create'] },
     // Moved from Master with the menu entry (2026-10-05); same key, so no grant changes.
     { path: '/product-database', label: 'Product Database', actions: ['calls.create', 'install.create', 'ownership.transfer'] },

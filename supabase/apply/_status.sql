@@ -2218,7 +2218,22 @@ with checks(sort_order, bundle, provides, present) as (
      and not coalesce(has_table_privilege('anon', 'public.stock_record_files', 'select'), true)
      and exists (select 1 from pg_trigger where tgname = 'stock_record_files_stamp' and tgrelid = to_regclass('public.stock_record_files')))),
     (347, 'Every SLA has a name', 'sla_rules_label_named (0427): a blank SLA name is refused, because the Dashboard shows each SLA''s tile and list under its name. NO means a blank name can be saved and a tile or list would have no heading. Restore: sla.sql (0427)',
-        exists (select 1 from pg_constraint where conname = 'sla_rules_label_named' and conrelid = to_regclass('public.sla_rules')))
+        exists (select 1 from pg_constraint where conname = 'sla_rules_label_named' and conrelid = to_regclass('public.sla_rules'))),
+    (348, 'Quotations are numbered, stamped, priced and frozen by the database', 'quotations and quotation_lines (0428) with zz_quotation_stamp (QT/YY/NNNN on insert, Prepared by from the session, a frozen quotation refused) and zz_quotation_line_guard (a frozen quotation''s lines refused); taxable, GST and total GENERATED on every line; quotation_register security_invoker and granted to authenticated; quote_next_no() closed to the API roles; no DELETE on quotations for authenticated. NO means a quotation can be raised unnumbered, re-priced after acceptance, or deleted. Restore: quotations.sql (0428)',
+        (to_regclass('public.quotations') is not null
+     and to_regclass('public.quotation_lines') is not null
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.quotations') and tgname = 'zz_quotation_stamp')
+     and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.quotation_lines') and tgname = 'zz_quotation_line_guard')
+     and (select count(*) = 3 from information_schema.columns
+           where table_schema = 'public' and table_name = 'quotation_lines'
+             and column_name in ('taxable_amount', 'tax_amount', 'total_amount') and is_generated = 'ALWAYS')
+     and to_regclass('public.quotation_register') is not null
+     and coalesce((select 'security_invoker=on' = any (c.reloptions) from pg_class c where c.oid = to_regclass('public.quotation_register')), false)
+     and coalesce(has_table_privilege('authenticated', 'public.quotation_register', 'select'), false)
+     and to_regprocedure('public.quote_next_no(timestamptz)') is not null
+     and not has_function_privilege('anon', 'public.quote_next_no(timestamptz)', 'execute')
+     and not has_function_privilege('authenticated', 'public.quote_next_no(timestamptz)', 'execute')
+     and not has_table_privilege('authenticated', 'public.quotations', 'delete')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

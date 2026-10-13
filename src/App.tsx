@@ -65,6 +65,8 @@ import { IndoorService } from './modules/IndoorService';
 import { SpareRecycling } from './modules/SpareRecycling';
 import { PreDeliveryQc } from './modules/PreDeliveryQc';
 import { PdqcPrint } from './modules/PdqcPrint';
+import { Quotations } from './modules/Quotations';
+import { QuotationPrint } from './modules/QuotationPrint';
 import { Tracker } from './modules/Tracker';
 // User Access folded into User Master; /users now redirects there.
 import { Settings } from './modules/Settings';
@@ -112,7 +114,8 @@ function Shell() {
       || location.pathname.startsWith('/ffr/')
       || location.pathname.startsWith('/indoor-pdt/') || location.pathname.startsWith('/indoor-register/')
       || location.pathname.startsWith('/indoor-dc/')
-      || location.pathname.startsWith('/mtn/') || location.pathname.startsWith('/mrn-print/')) {
+      || location.pathname.startsWith('/mtn/') || location.pathname.startsWith('/mrn-print/')
+      || location.pathname.startsWith('/quotation/')) {
     // THE PRINTED REPORT ANSWERS TO THE REGISTER'S OWN KEY (D-026). It used to
     // be reachable by URL by anybody signed in, so a role without the Field
     // Failure Register read every report row-level security let it see. The
@@ -148,6 +151,15 @@ function Shell() {
         </div>
       );
     }
+    // THE PRINTED QUOTATION (0428) answers to the Quotations page's key, or to
+    // the right to raise one -- the same two its rows answer to.
+    if (location.pathname.startsWith('/quotation/') && !can(actionForPath('/quotations')) && !can('quote.edit')) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to Quotations. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
     // THE TWO STORES RECORDS (MTN R/SER/STR/003, MRN R/SER/STR/002) answer to
     // the key of the screen that prints them, as the indoor records do.
     if (location.pathname.startsWith('/mtn/') && !can(actionForPath('/stock-transfer'))) {
@@ -175,6 +187,8 @@ function Shell() {
           <Route path="/ffr/:ffrNo" element={<FieldFailureReportPrint />} />
           <Route path="/indoor-pdt/:jobId" element={<IndoorPdtPrint />} />
           <Route path="/indoor-pdqc/:id" element={<PdqcPrint />} />
+          {/* The quotation to a customer (0428): its own route, no chrome, one Print button. */}
+          <Route path="/quotation/:quoteNo" element={<QuotationPrint />} />
           <Route path="/indoor-register/:sheet" element={<IndoorRegisterPrint />} />
           {/* Indoor_DC (0321), and the two stores records. */}
           <Route path="/indoor-dc/:dcNo" element={<IndoorDcPrint />} />
@@ -227,6 +241,7 @@ function Shell() {
         <Route path="/training" element={<Training />} />
         <Route path="/warranties" element={<WarrantyRegister />} />
         <Route path="/contracts" element={<ContractRegister />} />
+        <Route path="/quotations" element={<Quotations />} />
         <Route path="/field-calls" element={<FieldCalls />} />
         <Route path="/installations" element={<InstallationCalls />} />
         {/* Call updation is not a separate view — it's call reporting, done via

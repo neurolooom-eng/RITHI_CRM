@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**113 tables · 44 views · 3261 columns · 232 policies · 69 foreign keys.**
+**115 tables · 45 views · 3343 columns · 237 policies · 70 foreign keys.**
 
 ## How to read this
 
@@ -106,6 +106,8 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [products_resync_backup](#products-resync-backup)
 - [profiles](#profiles)
 - [quality_objectives](#quality-objectives)
+- [quotation_lines](#quotation-lines)
+- [quotations](#quotations)
 - [record_audit](#record-audit)
 - [recycle_consumption](#recycle-consumption)
 - [recycle_issues](#recycle-issues)
@@ -933,10 +935,10 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 1 | `id` | bigint | **no** | `nextval('export_schedules_id_seq'::regclass)` |  |
 | 2 | `label` | text | **no** |  |  |
 | 3 | `tables` | ARRAY | **no** |  |  |
-| 4 | `frequency` | text | **no** | `'daily'::text` | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
-| 5 | `day_of_week` | smallint | yes |  | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
-| 6 | `hour_ist` | smallint | **no** | `23` | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
-| 7 | `minute_ist` | smallint | **no** | `0` | ((((hour_ist >= 0) AND (hour_ist <= 23)) AND ((minute_ist >= 0) AND (minute_ist <= 59)) AND (((frequency = 'daily'::text) AND (day_of_week IS NULL)) OR ((frequency = 'weekly'::text) AND ((day_of_week >= 0) AND (day_of_week <= 6)))))) |
+| 4 | `frequency` | text | **no** | `'daily'::text` |  |
+| 5 | `day_of_week` | smallint | yes |  |  |
+| 6 | `hour_ist` | smallint | **no** | `23` |  |
+| 7 | `minute_ist` | smallint | **no** | `0` |  |
 | 8 | `enabled` | boolean | **no** | `true` |  |
 | 9 | `created_by` | uuid | yes |  | → users(id) |
 | 10 | `created_at` | timestamp with time zone | **no** | `now()` |  |
@@ -1286,7 +1288,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 3 | `engineer_key` | text _(generated)_ | yes |  |  |
 | 4 | `part` | text | **no** |  |  |
 | 5 | `part_code` | text _(generated)_ | yes |  |  |
-| 6 | `qty` | numeric | **no** |  |  |
+| 6 | `qty` | numeric | **no** |  | ((qty <> (0)::numeric)) |
 | 7 | `reason` | text | **no** |  |  |
 | 8 | `reference` | text | **no** | `''::text` |  |
 | 9 | `adjusted_at` | timestamp with time zone | **no** | `now()` |  |
@@ -1476,7 +1478,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 5 | `accessory_id` | bigint | yes |  | → indoor_job_accessories(id) |
 | 6 | `part_no` | text | **no** | `''::text` |  |
 | 7 | `description` | text | **no** | `''::text` |  |
-| 8 | `qty` | numeric | **no** | `1` |  |
+| 8 | `qty` | numeric | **no** | `1` | ((qty > (0)::numeric)) |
 | 9 | `purpose` | text | **no** | `''::text` |  |
 | 10 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 11 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
@@ -1596,7 +1598,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 10 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 11 | `sys_updated_by` | uuid | yes |  |  |
 | 12 | `sys_updated_on` | timestamp with time zone | yes |  |  |
-| 13 | `qty` | numeric | **no** | `1` | How many of this accessory were RECEIVED with the unit (0323). Printed on the Indoor DC line. |
+| 13 | `qty` | numeric | **no** | `1` | ((qty > (0)::numeric)) · How many of this accessory were RECEIVED with the unit (0323). Printed on the Indoor DC line. |
 
 **Unique:** `sys_id` _(indoor_job_accessories_sys_id_key)_
 
@@ -1685,7 +1687,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 2 | `job_id` | bigint | **no** |  | → indoor_jobs(id) |
 | 3 | `part_code` | text | **no** | `''::text` |  |
 | 4 | `description` | text | **no** | `''::text` |  |
-| 5 | `qty` | numeric | **no** | `0` |  |
+| 5 | `qty` | numeric | **no** | `0` | ((qty >= (0)::numeric)) |
 | 6 | `condition_grade` | text | **no** | `''::text` | (empty) · Serviceable · Repairable · Scrap |
 | 7 | `destination` | text | **no** | `''::text` |  |
 | 8 | `note` | text | **no** | `''::text` |  |
@@ -1830,8 +1832,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
+- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
 **Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `indoor_report_keeps_its_number` → `indoor_report_keeps_its_number()` · `zy_indoor_jobs_call_status` → `indoor_jobs_call_status()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -2701,11 +2703,11 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 **Constraints:**
 
 - `pdqc_records_product_name_check` — `CHECK ((btrim(product_name) <> ''::text))`
+- `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
 - `pdqc_records_measuring_equipment_id_check` — `CHECK ((btrim(measuring_equipment_id) <> ''::text))`
 - `pdqc_records_serial_check` — `CHECK ((btrim(serial) <> ''::text))`
 - `pdqc_records_ht_check` — `CHECK ((btrim(ht) <> ''::text))`
 - `pdqc_records_hv_check` — `CHECK ((btrim(hv) <> ''::text))`
-- `pdqc_records_software_version_check` — `CHECK ((btrim(software_version) <> ''::text))`
 
 **Triggers:** `zy_pdqc_number` → `pdqc_number()` · `zz_pdqc_stamp` → `pdqc_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3307,6 +3309,132 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## quotation_lines
+
+> The lines of a quotation (0428): Contract (one machine, AMC or CMC, a period, a rate) or Spare (a Part Master part, HSN, quantity, unit price). Taxable, GST and total are generated from qty, unit_price, discount_pct and gst_pct. Frozen with the quotation once it is Accepted, Declined or Cancelled.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `quote_id` | bigint | **no** |  | → quotations(id) |
+| 3 | `row_no` | integer | **no** | `1` |  |
+| 4 | `line_type` | text | **no** |  | Contract · Spare |
+| 5 | `description` | text | **no** |  |  |
+| 6 | `product_name` | text | **no** | `''::text` |  |
+| 7 | `serial_number` | text | **no** | `''::text` |  |
+| 8 | `cover_type` | text | **no** | `''::text` | AMC · CMC |
+| 9 | `period_months` | integer | yes |  | (((period_months IS NULL) OR (period_months > 0))) |
+| 10 | `period_start` | date | yes |  |  |
+| 11 | `period_end` | date | yes |  |  |
+| 12 | `part_code` | text | **no** | `''::text` |  |
+| 13 | `hsn_code` | text | **no** | `''::text` |  |
+| 14 | `qty` | numeric | **no** | `1` | ((qty > (0)::numeric)) |
+| 15 | `unit_price` | numeric | **no** | `0` | ((unit_price >= (0)::numeric)) |
+| 16 | `discount_pct` | numeric | **no** | `0` | (((discount_pct >= (0)::numeric) AND (discount_pct <= (100)::numeric))) |
+| 17 | `gst_pct` | numeric | **no** | `18` | (((gst_pct >= (0)::numeric) AND (gst_pct <= (100)::numeric))) |
+| 18 | `taxable_amount` | numeric _(generated)_ | yes |  |  |
+| 19 | `tax_amount` | numeric _(generated)_ | yes |  |  |
+| 20 | `total_amount` | numeric _(generated)_ | yes |  |  |
+| 21 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 22 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 23 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 24 | `sys_created_by` | uuid | yes |  |  |
+| 25 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 26 | `sys_updated_by` | uuid | yes |  |  |
+| 27 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(quotation_lines_sys_id_key)_
+
+**References:**
+
+- `quote_id` → **quotations**(`id`) · on delete cascade _(quotation_lines_quote_id_fkey)_
+
+**Constraints:**
+
+- `quotation_lines_description_check` — `CHECK ((btrim(description) <> ''::text))`
+- `quotation_lines_spare_shape` — `CHECK (((line_type <> 'Spare'::text) OR (btrim(part_code) <> ''::text)))`
+- `quotation_lines_period` — `CHECK (((period_end IS NULL) OR (period_start IS NULL) OR (period_end >= period_start)))`
+- `quotation_lines_period_months_check` — `CHECK (((period_months IS NULL) OR (period_months > 0)))`
+- `quotation_lines_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `quotation_lines_unit_price_check` — `CHECK ((unit_price >= (0)::numeric))`
+- `quotation_lines_discount_pct_check` — `CHECK (((discount_pct >= (0)::numeric) AND (discount_pct <= (100)::numeric)))`
+- `quotation_lines_gst_pct_check` — `CHECK (((gst_pct >= (0)::numeric) AND (gst_pct <= (100)::numeric)))`
+
+**Triggers:** `zz_quotation_line_guard` → `quotation_line_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| ALL | `quotation_lines_write` | `( SELECT has_perm('quote.edit'::text) AS has_perm)` | `( SELECT has_perm('quote.edit'::text) AS has_perm)` |
+| SELECT | `quotation_lines_read` | `(( SELECT has_perm('mod:/quotations'::text) AS has_perm) OR ( SELECT has_perm('quote.edit'::text) AS has_perm))` | — |
+
+---
+
+## quotations
+
+> A quotation to a customer (0428): a service contract on their machines, spares, or both on one document. Numbered QT/YY/NNNN by the database; Prepared by stamped from the session. Never deleted: Cancelled instead, and frozen once Accepted, Declined or Cancelled -- a change is a revision (revision_of).
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `quote_no` | text | yes |  |  |
+| 3 | `quote_date` | date | **no** | `((now() AT TIME ZONE 'Asia/Kolkata'::text))::date` |  |
+| 4 | `valid_until` | date | yes |  |  |
+| 5 | `party_name` | text | **no** |  |  |
+| 6 | `party_address` | text | **no** | `''::text` |  |
+| 7 | `party_city` | text | **no** | `''::text` |  |
+| 8 | `party_state` | text | **no** | `''::text` |  |
+| 9 | `party_pincode` | text | **no** | `''::text` |  |
+| 10 | `party_gstin` | text | **no** | `''::text` |  |
+| 11 | `party_pan` | text | **no** | `''::text` |  |
+| 12 | `contact_name` | text | **no** | `''::text` |  |
+| 13 | `contact_phone` | text | **no** | `''::text` |  |
+| 14 | `contact_email` | text | **no** | `''::text` |  |
+| 15 | `subject` | text | **no** | `''::text` |  |
+| 16 | `customer_ref` | text | **no** | `''::text` |  |
+| 17 | `status` | text | **no** | `'Draft'::text` | Draft · Sent · Accepted · Declined · Cancelled |
+| 18 | `status_by` | uuid | yes |  |  |
+| 19 | `status_at` | timestamp with time zone | yes |  |  |
+| 20 | `terms` | text | **no** | `''::text` |  |
+| 21 | `remarks` | text | **no** | `''::text` |  |
+| 22 | `revision_of` | text | **no** | `''::text` | The quote_no this quotation revises, where it was raised by Revise on a frozen one; blank otherwise. |
+| 23 | `prepared_by` | uuid | yes |  |  |
+| 24 | `prepared_by_name` | text | **no** | `''::text` |  |
+| 25 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 26 | `updated_by` | uuid | yes |  |  |
+| 27 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 28 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 29 | `sys_created_by` | uuid | yes |  |  |
+| 30 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 31 | `sys_updated_by` | uuid | yes |  |  |
+| 32 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(quotations_sys_id_key)_
+
+**Referenced by:** `quotation_lines.quote_id`
+
+**Constraints:**
+
+- `quotations_party_name_check` — `CHECK ((btrim(party_name) <> ''::text))`
+- `quotations_valid_until_after_date` — `CHECK (((valid_until IS NULL) OR (valid_until >= quote_date)))`
+
+**Triggers:** `zz_quotation_stamp` → `quotation_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `quotations_insert` | — | `( SELECT has_perm('quote.edit'::text) AS has_perm)` |
+| SELECT | `quotations_read` | `(( SELECT has_perm('mod:/quotations'::text) AS has_perm) OR ( SELECT has_perm('quote.edit'::text) AS has_perm))` | — |
+| UPDATE | `quotations_update` | `( SELECT has_perm('quote.edit'::text) AS has_perm)` | `( SELECT has_perm('quote.edit'::text) AS has_perm)` |
+
+---
+
 ## record_audit
 
 > The row-level audit trail: a before-and-after image of every row changed on the audited tables, written by the record_audit_* triggers (0048, switched off by 0112, back on since 0225). A statement changing more than 150 rows writes one summary row instead. Rows are never edited or deleted through the API.
@@ -3353,7 +3481,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 3 | `holder` | uuid | yes |  |  |
 | 4 | `holder_name` | text | **no** | `''::text` |  |
 | 5 | `part_code` | text | **no** |  |  |
-| 6 | `qty` | numeric | **no** |  |  |
+| 6 | `qty` | numeric | **no** |  | ((qty > (0)::numeric)) |
 | 7 | `consumed_at` | timestamp with time zone | **no** | `now()` |  |
 | 8 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
 | 9 | `sys_created_by` | uuid | yes |  |  |
@@ -3391,8 +3519,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- | --- | --- |
 | 1 | `id` | bigint _(identity)_ | **no** |  |  |
 | 2 | `mrs_line_id` | bigint | **no** |  | → recycle_mrs_lines(id) |
-| 3 | `qty` | numeric | **no** |  |  |
-| 4 | `unit_cost` | numeric | **no** |  |  |
+| 3 | `qty` | numeric | **no** |  | ((qty > (0)::numeric)) |
+| 4 | `unit_cost` | numeric | **no** |  | ((unit_cost >= (0)::numeric)) |
 | 5 | `issued_at` | timestamp with time zone | **no** | `now()` |  |
 | 6 | `issued_by` | uuid | yes |  |  |
 | 7 | `issued_by_name` | text | **no** | `''::text` |  |
@@ -3410,8 +3538,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 - `recycle_issues_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 
 **Triggers:** `recycle_issues_guard` → `recycle_issues_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3473,7 +3601,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 2 | `mrs_id` | bigint | **no** |  | → recycle_mrs(id) |
 | 3 | `part_code` | text | **no** |  |  |
 | 4 | `part_description` | text | **no** | `''::text` |  |
-| 5 | `qty` | numeric | **no** |  |  |
+| 5 | `qty` | numeric | **no** |  | ((qty > (0)::numeric)) |
 | 6 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
 | 8 | `sys_created_by` | uuid | yes |  |  |
@@ -3514,7 +3642,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 2 | `request_id` | bigint | **no** |  | → recycle_requests(id) |
 | 3 | `cost_type` | text | **no** | `'Other'::text` | Labour · Courier · Vendor · Other |
 | 4 | `description` | text | **no** | `''::text` |  |
-| 5 | `amount` | numeric | **no** |  |  |
+| 5 | `amount` | numeric | **no** |  | ((amount >= (0)::numeric)) |
 | 6 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 7 | `created_by` | uuid | yes |  |  |
 | 8 | `created_by_name` | text | **no** | `''::text` |  |
@@ -3558,14 +3686,14 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 4 | `part_code` | text | **no** |  |  |
 | 5 | `part_description` | text | **no** | `''::text` |  |
 | 6 | `serial` | text | **no** | `''::text` |  |
-| 7 | `qty` | numeric | **no** | `1` |  |
+| 7 | `qty` | numeric | **no** | `1` | ((qty > (0)::numeric)) |
 | 8 | `received_from` | text | **no** | `''::text` |  |
 | 9 | `call_ref` | text | **no** | `''::text` |  |
 | 10 | `remarks` | text | **no** | `''::text` |  |
 | 11 | `job_done` | text | **no** | `''::text` |  |
 | 12 | `status` | text | **no** | `'Open'::text` | Open · Returned · Not recyclable |
 | 13 | `returned_part_code` | text | **no** | `''::text` |  |
-| 14 | `returned_qty` | numeric | yes |  |  |
+| 14 | `returned_qty` | numeric | yes |  | (((returned_qty IS NULL) OR (returned_qty > (0)::numeric))) |
 | 15 | `returned_on` | date | yes |  |  |
 | 16 | `not_recyclable_reason` | text | **no** | `''::text` |  |
 | 17 | `closed_at` | timestamp with time zone | yes |  |  |
@@ -4013,7 +4141,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 3 | `engineer_key` | text _(generated)_ | yes |  |  |
 | 4 | `part` | text | **no** |  |  |
 | 5 | `part_code` | text _(generated)_ | yes |  |  |
-| 6 | `qty` | numeric | **no** |  |  |
+| 6 | `qty` | numeric | **no** |  | ((qty >= (0)::numeric)) |
 | 7 | `consumed_at` | timestamp with time zone | yes |  |  |
 | 8 | `ucn` | text | **no** | `''::text` |  |
 | 9 | `call_number` | text | **no** | `''::text` |  |
@@ -4164,7 +4292,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 3 | `engineer_key` | text _(generated)_ | yes |  |  |
 | 4 | `part` | text | **no** |  |  |
 | 5 | `part_code` | text _(generated)_ | yes |  |  |
-| 6 | `qty` | numeric | **no** |  |  |
+| 6 | `qty` | numeric | **no** |  | ((qty > (0)::numeric)) |
 | 7 | `issued_at` | timestamp with time zone | yes |  |  |
 | 8 | `so_no` | text | **no** | `''::text` |  |
 | 9 | `line_uid` | text | **no** | `''::text` |  |
@@ -4426,9 +4554,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `stock_record_files_ref_check` — `CHECK ((btrim(ref) <> ''::text))`
 - `stock_record_files_file_name_check` — `CHECK ((btrim(file_name) <> ''::text))`
 - `stock_record_files_url_check` — `CHECK ((btrim(url) <> ''::text))`
+- `stock_record_files_ref_check` — `CHECK ((btrim(ref) <> ''::text))`
 
 **Triggers:** `stock_record_files_stamp` → `stock_record_files_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -4466,7 +4594,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 2 | `transfer_uid` | text | **no** |  | → stock_transfers(uid) |
 | 3 | `row_no` | integer | yes |  |  |
 | 4 | `part` | text | **no** |  |  |
-| 5 | `qty` | numeric | **no** |  |  |
+| 5 | `qty` | numeric | **no** |  | ((qty > (0)::numeric)) |
 | 6 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 7 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
 | 8 | `sys_created_by` | uuid | yes |  |  |
@@ -4969,6 +5097,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `product_database_v2` | **on** | 35 |
 | `product_party_names` | **on** | 2 |
 | `product_register_names` | **on** | 2 |
+| `quotation_register` | **on** | 23 |
 | `recycle_consumption_list` | **on** | 10 |
 | `recycle_hand_stock` | **on** | 8 |
 | `recycle_mrs_list` | **on** | 17 |

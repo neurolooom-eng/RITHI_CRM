@@ -154,16 +154,34 @@ const C = by(cols), FK = by(fks), UQ = by(uniq), UI = by(uidx), CK = by(checks),
 const PK = Object.fromEntries(pks.map((r) => [r[0], r[1]]));
 const VO = Object.fromEntries(viewOpts.map((r) => [r[0], r[1]]));
 
-// Allowed values pulled out of a CHECK: `col = ANY (ARRAY['a'::text, ...])`
+// Allowed values pulled out of a CHECK: `col = ANY (ARRAY['a'::text, ...])`.
+//
+// THE LIST IS TAKEN ONLY WHERE IT IS THIS COLUMN'S. A CHECK that names several
+// columns -- `line_type <> 'Contract' OR (serial_number <> '' AND cover_type =
+// ANY (ARRAY['AMC', 'CMC']))` -- used to hand the one ARRAY in it to EVERY
+// column it mentioned, so `serial_number` read as "AMC · CMC" (0428's
+// quotation_lines, 2026-10-13). The list is matched to the column it is
+// compared with, and a column the constraint only mentions gets nothing from
+// it; its own single-column CHECK, where it has one, still speaks for it.
 function allowedFromChecks(table, col) {
+  const colNames = new Set((C[table] ?? []).map((c) => c[2]));
+  // The column a `= ANY (ARRAY[...])` compares: the LAST column named before
+  // it, so `COALESCE(kyc_status, '') = ANY (...)` is kyc_status's list and
+  // `... AND (cover_type = ANY (...))` is cover_type's, not serial_number's.
+  const listsOf = (def) => [...def.matchAll(/= ANY \(\(?ARRAY\[(.*?)\]/gs)].map((m) => {
+    const before = def.slice(0, m.index);
+    const words = (before.match(/\b[a-z_][a-z0-9_]*\b/g) ?? []).filter((w) => colNames.has(w));
+    return { col: words[words.length - 1], vals: [...m[1].matchAll(/'((?:[^']|'')*)'/g)].map((x) => x[1].replace(/''/g, "'")) };
+  });
   for (const [, , def] of CK[table] ?? []) {
     if (!new RegExp(`\\b${col}\\b`).test(def)) continue;
-    const arr = /ARRAY\[(.*?)\]/s.exec(def);
-    if (arr) {
-      const vals = [...arr[1].matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1].replace(/''/g, "'"));
-      if (vals.length) return vals.map((v) => (v === '' ? '(empty)' : v)).join(' · ');
-    }
-    if (/> *0|>= *0/.test(def)) return def.replace(/^CHECK ?/, '');
+    const lists = listsOf(def);
+    const mine = lists.find((l) => l.col === col);
+    if (mine && mine.vals.length) return mine.vals.map((v) => (v === '' ? '(empty)' : v)).join(' · ');
+    if (lists.length) continue;   // another column's list, not this one's
+    // A range on this column alone (`qty > 0`, `pct <= 100`): the rule, verbatim.
+    const named = (def.match(/\b[a-z_][a-z0-9_]*\b/g) ?? []).filter((w) => colNames.has(w));
+    if (/> *\(?0|>= *\(?0/.test(def) && named.every((w) => w === col)) return def.replace(/^CHECK ?/, '');
   }
   return '';
 }
