@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { toIsoDate, localIsoDate } from './dates';
+import { callFamily } from './calltype';
 
 // Ordered exactly as the columns appear in the FIELD tab of the register.
 export const FIELD_HEADERS: { header: string; key: string }[] = [
@@ -111,6 +112,52 @@ export const FC_CONTRACT_TYPE = ['CMC', 'AMC'];
 export const PERSON_CALLING = ['DIRECT CUSTOMER', 'DIRECT ENGINEER', 'DEALER', 'Other'];
 export const MODE_OF_REPORTING = ['EMAIL', 'Phone Call', 'Whatsapp', 'EXOTEL', 'Portal', 'Other'];
 export const YES_NO = ['NO', 'YES'];
+
+// ---------------------------------------------------------------------------
+// D-033 — THE THREE VIGILANCE QUESTIONS ON A FIELD CALL ARE ANSWERED, NEVER
+// PRE-FILLED (the system owner, 2026-10-05: "Blank, must be answered").
+//
+// They used to default to NO, so a call registered without anybody asking the
+// customer recorded "no death, no serious incident, no public-health threat" —
+// a regulatory answer nobody gave. On the FIELD (breakdown) register they now
+// start blank and the call cannot be registered until all three read YES or NO.
+//
+// INSTALLATION AND PM KEEP THE DEFAULT NO, deliberately: nothing has failed on
+// an installation or a planned visit, and the calls raised automatically from a
+// Sale Entry or an Ownership Transfer record NO on purpose (FRS-085.5).
+//
+// Pure and import-free beyond `calltype`, so check:ui runs it as behaviour.
+// ---------------------------------------------------------------------------
+export const VIGILANCE_KEYS = ['publicHealthThreat', 'death', 'seriousIncident'] as const;
+
+/** Does this register demand the three answers (no default, required)? */
+export function vigilanceMustBeAnswered(callType: unknown): boolean {
+  return callFamily(callType) === 'field';
+}
+
+/** The vigilance keys of a call record that are not answered YES or NO —
+ *  empty when the call may be registered. Always empty for Installation / PM. */
+export function vigilanceUnanswered(rec: Record<string, unknown>, callType: unknown = rec.callType): string[] {
+  if (!vigilanceMustBeAnswered(callType)) return [];
+  return VIGILANCE_KEYS.filter((k) => !YES_NO.includes(String(rec[k] ?? '').trim().toUpperCase()));
+}
+
+/** The vigilance fields of a call form, for the register they are on.
+ *  FIELD: no default in any mode (so a call whose answers are blank SHOWS
+ *  blank, and an edit cannot write a NO nobody chose), and `required` when the
+ *  call is being REGISTERED. Installation / PM: returned unchanged. */
+export function withVigilanceRule<F extends { name: string; required?: boolean; defaultValue?: unknown }>(
+  fields: F[], callType: unknown, mode: 'create' | 'edit' | 'view',
+): F[] {
+  if (!vigilanceMustBeAnswered(callType)) return fields;
+  return fields.map((f) => {
+    if (!(VIGILANCE_KEYS as readonly string[]).includes(f.name)) return f;
+    const { defaultValue: _drop, ...rest } = f;
+    void _drop;
+    return { ...rest, required: mode === 'create' } as F;
+  });
+}
+
 export const CALL_ACCEPTANCE = ['Allocated - Acceptance Pending', 'Accepted', 'Rejected'];
 export const OPEN_CLOSE = ['Open', 'Close'];
 export const FC_CALL_STATUS = [

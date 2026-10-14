@@ -138,6 +138,21 @@ export interface UploadDef {
    *  fill it. A STAMPED column is never cleared, and neither is a `required`
    *  one — a row missing that is held back rather than blanked. */
   blanksClear?: boolean;
+  /** NUMBER THE LINES WITHIN A GROUP, IN FILE ORDER, where the file gives none
+   *  (D-071). A line the database numbers itself (max + 1 within its parent)
+   *  never collides with anything, so a file with no row numbers was loaded a
+   *  second time in full; numbered here, the same file lands on the same rows
+   *  -- the numbers the database gave the first load, which numbered them in
+   *  the same order. A number the file does carry is kept. */
+  numberLines?: { field: string; within: string };
+  /** A RE-LOAD REPLACES EACH GROUP WHOLE (D-177, the user's decision of
+   *  2026-10-14: "Replace the whole SI / transfer"). The rows go through
+   *  reload_imported_stock_lines() (0465) instead of an upsert: every SI Number
+   *  ('mrn') or transfer ('stl') the file names has its imported lines replaced
+   *  by the file's, and a line the file no longer carries is removed. A line
+   *  NUMBER could not survive an edited file (D-177): dropping line 1 renumbered
+   *  every line after it. `by` is the field that names the group. */
+  replaceGroups?: { kind: 'mrn' | 'stl'; by: string };
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
   /** Headers to DROP rather than keep. `extraInto` keeps everything it does not
@@ -427,6 +442,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // dedupes nothing.
   // BEFORE the de-duplication below, which keeps the LAST row of a repeated key:
   // a key the file shares between calls is not a repeat of one row.
+  if (def.numberLines) numberLines(rows, def.numberLines.field, def.numberLines.within);
   const splitShared = def.splitShared ? splitSharedKeys(rows, def.splitShared.key, def.splitShared.by) : 0;
   const dedupeOn = def.conflictFrom ?? (def.conflict ? def.conflict.split(',') : []);
   const deduped = def.fold ? fold(rows, def.fold) : dedupeOn.length ? dedupe(rows, dedupeOn) : rows;
@@ -496,6 +512,51 @@ function fold(
     (by.sum ?? []).forEach((f) => { had[f] = (Number(had[f]) || 0) + (Number(r[f]) || 0); });
   });
   return [...out.values()];
+}
+
+/** Split rows into calls of about `max` rows WITHOUT cutting a group in two:
+ *  a group is replaced whole in one transaction (0465), so half of one in a
+ *  call would remove the other half's lines. A group bigger than `max` goes
+ *  alone. Groups keep their file order. Exported for check:uploads. */
+export function chunkByGroup(rows: Record<string, unknown>[], by: string, max = 400): Record<string, unknown>[][] {
+  const groups = new Map<string, Record<string, unknown>[]>();
+  rows.forEach((r) => {
+    const k = String(r[by] ?? '').trim();
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(r);
+  });
+  const out: Record<string, unknown>[][] = [];
+  let cur: Record<string, unknown>[] = [];
+  for (const g of groups.values()) {
+    if (cur.length && cur.length + g.length > max) { out.push(cur); cur = []; }
+    cur = cur.concat(g);
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
+/** Give each row without a `field` the next number not already used in its
+ *  `within` group, in file order (D-071). Exported for check:uploads. */
+export function numberLines(rows: Record<string, unknown>[], field: string, within: string): void {
+  const has = (v: unknown) => v !== undefined && v !== null && String(v).trim() !== '';
+  const used = new Map<string, Set<number>>();
+  const group = (r: Record<string, unknown>) => String(r[within] ?? '').trim();
+  rows.forEach((r) => {
+    if (!has(r[field])) return;
+    const g = group(r);
+    if (!used.has(g)) used.set(g, new Set());
+    used.get(g)!.add(Number(r[field]));
+  });
+  const next = new Map<string, number>();
+  rows.forEach((r) => {
+    if (has(r[field])) return;
+    const g = group(r);
+    const taken = used.get(g) ?? new Set<number>();
+    let n = (next.get(g) ?? 0) + 1;
+    while (taken.has(n)) n++;
+    next.set(g, n);
+    r[field] = n;
+  });
 }
 
 function dedupe(rows: Record<string, unknown>[], keys: string[]): Record<string, unknown>[] {
@@ -631,8 +692,9 @@ export const REPORT_COLS: Col[] = [
 //
 // IT LIVES HERE, NOT IN `supabase.ts`, FOR THE `paging.ts` REASON: that module
 // reads `import.meta.env`, so no node script can import it and nothing in it
-// can be tested as behaviour. `prepareUpload` keeps the two round trips and
-// this decides what they should say — `check:uploads` proves it.
+// can be tested as behaviour. `planUpload` keeps the reads, `applyUploadPlan`
+// the writes (after the confirmation, D-075), and this decides what they
+// should say — `check:uploads` proves it.
 // ---------------------------------------------------------------------------
 export interface ConsumptionVisitPlan {
   /** One row per UCN to upsert into `reports`, keyed on `uid`. */
@@ -641,6 +703,10 @@ export interface ConsumptionVisitPlan {
   holdBack: Set<string>;
   /** What to tell the reader — both halves, in their words. */
   note: string;
+  /** The held-back half alone. The visits themselves are described by the
+   *  PrepWrite the upload plan carries, read in the confirmation as what WILL
+   *  be written and afterwards as what WAS (D-075). */
+  heldNote: string;
 }
 
 const squashKey = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -708,7 +774,135 @@ export function planConsumptionVisits(
       + `${holdBack.size > 6 ? `, and ${holdBack.size - 6} more` : ''}).`
       + ' Add that column, or file those visits, and load them again.');
   }
-  return { visits: [...wanted.values()], holdBack, note: bits.join(' ') };
+  return { visits: [...wanted.values()], holdBack, note: bits.join(' '),
+           heldNote: dropped ? bits[bits.length - 1] : '' };
+}
+
+// ---------------------------------------------------------------------------
+// PLAN FIRST, WRITE ONLY AFTER THE OPERATOR SAYS YES (D-075).
+//
+// Two preparations WRITE: `spare-line-parents` creates stub spare requests for
+// OR numbers in neither file, and `consumption-visits` files visits into
+// `reports` -- and a visit MOVES ITS CALL'S STATUS. Both used to be written
+// before the confirmation, deliberately, so the count approved was the count
+// written; pressing Cancel then left them in the register.
+//
+// So a preparation is now TWO steps. The PLAN reads and decides -- which rows
+// go, which are held back, and which rows other tables must be given first --
+// and returns those writes as DATA (`PrepWrite`), so the confirmation can name
+// them with exact counts. `applyUploadPlan` (supabase.ts) performs them only
+// after OK, immediately before the upload, and a failure there stops the
+// upload. The planners never touch their input: they return new rows, so a
+// Cancel followed by another Upload plans again from the file as read.
+// ---------------------------------------------------------------------------
+export interface PrepWrite {
+  table: string;
+  rows: Record<string, unknown>[];
+  onConflict: string;
+  ignoreDuplicates?: boolean;
+  /** The rows' noun, singular and plural: ['visit', 'visits']. */
+  noun: [string, string];
+  /** Why they are written, in the reader's words. */
+  why: string;
+}
+export interface UploadPlan {
+  /** What will be uploaded into the register, after the plan. */
+  rows: Record<string, unknown>[];
+  /** Written first -- AFTER the confirmation, BEFORE the rows. */
+  writes: PrepWrite[];
+  /** Everything else the reader should know: held back, re-pointed. */
+  note: string;
+}
+
+/** "58 spare requests (status Imported) — ..." for n of a write's rows. */
+export function describeWrite(w: PrepWrite, n = w.rows.length): string {
+  return `${n.toLocaleString('en-IN')} ${n === 1 ? w.noun[0] : w.noun[1]}${w.why ? ` (${w.why})` : ''}`;
+}
+
+/** What the confirmation says the upload will write before its rows. */
+export function prepWritesQuestion(writes: PrepWrite[]): string {
+  const ws = writes.filter((w) => w.rows.length);
+  if (!ws.length) return '';
+  return `Before the rows, this upload will FIRST write — only if you press OK:\n`
+    + ws.map((w) => `• ${describeWrite(w)}`).join('\n');
+}
+
+/** What a failed preparation wrote and did not, write by write. `sent[i]` is
+ *  how many rows of writes[i] were accepted before the failure; the upload
+ *  itself never started, so none of its rows were written. */
+export function prepFailureMessage(writes: PrepWrite[], sent: number[], error: string, uploadRows: number): string {
+  const ws = writes.filter((w) => w.rows.length);
+  const done = ws.map((w, i) => (sent[i] ?? 0) ? describeWrite(w, sent[i]) : '').filter(Boolean);
+  const notDone = ws.map((w, i) => {
+    const left = w.rows.length - (sent[i] ?? 0);
+    return left > 0 ? describeWrite(w, left) : '';
+  }).filter(Boolean);
+  return `${error} — the upload was stopped before any of its ${uploadRows.toLocaleString('en-IN')} rows were written.`
+    + ` Written: ${done.length ? done.join('; ') : 'nothing'}.`
+    + ` Not written: ${notDone.join('; ')}.`
+    + (done.length ? ' Re-running the upload is safe: what was written is matched, not duplicated.' : '');
+}
+
+/** The consumption upload's plan: the visits to file first, and the rows that
+ *  are left once the calls the file cannot date are held back. */
+export function planConsumptionVisitUpload(rows: Record<string, unknown>[], haveVisit: Set<string>): UploadPlan {
+  const p = planConsumptionVisits(rows, haveVisit);
+  return {
+    rows: rows.filter((r) => !p.holdBack.has(String(r.ucn ?? '').trim())),
+    writes: p.visits.length ? [{
+      table: 'reports', rows: p.visits, onConflict: 'uid', noun: ['visit report', 'visit reports'],
+      why: 'one per call that has none yet, from this file\u2019s Visit Date & Time, so the spares have a visit'
+        + ' behind them; a call whose status the file does not give will read Report pending',
+    }] : [],
+    note: p.heldNote,
+  };
+}
+
+/** The spare-line upload's plan. `here` is the request uids already in the
+ *  register; `byOrNo` maps an OR number the lines name to the uid of the
+ *  request already holding it. Numbers the lines, re-points them, and holds
+ *  back by name a line whose request is in neither (D-158) -- it writes nothing. */
+export function planSpareLineParents(
+  rows: Record<string, unknown>[], here: Set<string>, byOrNo: Map<string, string>,
+): UploadPlan {
+  const out = rows.map((r) => ({ ...r }));
+  // RowNo is the part's position within its request. The export does not carry
+  // one, and the database's own numbering asks `max(row_no) + 1` from a BEFORE
+  // trigger -- which cannot see the rows the same insert is writing, so a whole
+  // batch would come out as row 1. Numbered from the order the file itself puts
+  // them in, which is also the same on every re-run.
+  const seen = new Map<string, number>();
+  out.forEach((r) => {
+    if (r.row_no !== undefined && r.row_no !== null && r.row_no !== '') return;
+    const key = String(r.request_uid ?? '');
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    r.row_no = n;
+  });
+  const wanted = [...new Set(out.map((r) => String(r.request_uid ?? '').trim()).filter(Boolean))];
+  const missing = wanted.filter((u) => !here.has(u));
+  if (!missing.length) return { rows: out, writes: [], note: '' };
+
+  // Here under a different uid -- the OR number is what the line names.
+  let repointed = 0;
+  out.forEach((r) => {
+    const held = byOrNo.get(String(r.request_uid ?? ''));
+    if (held) { r.request_uid = held; repointed += 1; }
+  });
+  // A line whose request is in NEITHER file is HELD BACK, counted (the user,
+  // 2026-10-08: "Yes, block uploads with empty engineer"). This used to plan a
+  // stub request for it, marked Imported -- with no engineer, because the lines
+  // export carries none -- and a dispatched line on such a request booked its
+  // spare to NOBODY's hand stock (D-158). Load the Spare Request file, which
+  // must name the engineer, and then this one. Nothing is written for them.
+  const orphans = new Set(missing.filter((u) => !byOrNo.has(u)));
+  const kept = out.filter((r) => !orphans.has(String(r.request_uid ?? '').trim()));
+  const held = out.length - kept.length;
+  const bits = [
+    held ? `${held} line${held === 1 ? '' : 's'} held back — ${orphans.size} request${orphans.size === 1 ? ' is' : 's are'} not in RITHI (load the Spare Request file first, with the engineer named): ${[...orphans].slice(0, 10).join(', ')}${orphans.size > 10 ? ', …' : ''}` : '',
+    repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number` : '',
+  ].filter(Boolean);
+  return { rows: kept, writes: [], note: bits.join('; ') };
 }
 
 export const UPLOADS: UploadDef[] = [
@@ -898,7 +1092,17 @@ export const UPLOADS: UploadDef[] = [
     // 602-row batch. They are not returns; held back by name.
     reject: (r) => (Number(r.good_qty ?? 0) + Number(r.defective_qty ?? 0) > 0
       ? '' : 'nothing returned — good and defective are both zero'),
-    note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. The export has no unique row id (its SI Number repeats), so load it once.',
+    // D-177 (the user's decision, 2026-10-14: "Replace the whole SI /
+    // transfer"): every SI Number the file names is REPLACED whole by
+    // reload_imported_stock_lines() (0465) -- its imported lines become the
+    // file's, a line the file no longer carries is removed -- so loading the
+    // file again never returns the stock twice. (0458 matched line by line,
+    // which an edited file defeated.) The line number is the file's, or its
+    // position within the SI Number; it no longer decides anything.
+    conflictFrom: ['uid', 'part', 'row_no'],
+    numberLines: { field: 'row_no', within: 'uid' },
+    replaceGroups: { kind: 'mrn', by: 'uid' },
+    note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. Each SI Number in the file is loaded as a whole: loading the file again REPLACES what was loaded under that SI Number -- a line the file no longer carries is removed -- so the stock is never returned twice. An SI Number holding a return entered in RITHI is refused. A row with no SI Number is held back: it could never be matched again.',
     cols: [
       // `Item Details` is Item Code|Item Name, which is how a part is stored.
       { to: 'part', from: ['item details', 'part details clean', 'part', 'part no', 'spare'], required: true,
@@ -907,7 +1111,8 @@ export const UPLOADS: UploadDef[] = [
       TEXT('mrn_no', 'mrn no'), DATE('mrn_date', 'mrn date'),
       TEXT('engineer', 'engineer name', 'engineer'),
       TEXT('engineer_email', 'user email', 'engineer email'),
-      TEXT('uid', 'si number', 'reference'),
+      // The SI Number; `uid` first, as it always was, so which heading wins is unchanged.
+      { to: 'uid', from: ['uid', 'si number', 'reference'], required: true },
       { to: 'row_no', from: ['row no', 'si no'], type: 'int' },
       NUM('good_qty', 'good qty', 'good'), NUM('defective_qty', 'defective qty', 'defective'),
       TEXT('customer_name', 'customer name', 'customer'), TEXT('report_no', 'report no'),
@@ -942,7 +1147,12 @@ export const UPLOADS: UploadDef[] = [
     // and one of those failed the first batch of 500. Held back by name.
     prepare: 'stock-transfer-parents',
     requires: 'Stock Transfer Register',
-    note: 'No natural key — a re-run ADDS rows rather than correcting them.',
+    // D-177 (0465): every transfer the file names has its lines REPLACED whole
+    // -- a line the file no longer carries is removed.
+    conflictFrom: ['transfer_uid', 'row_no'],
+    numberLines: { field: 'row_no', within: 'transfer_uid' },
+    replaceGroups: { kind: 'stl', by: 'transfer_uid' },
+    note: 'Each transfer in the file is loaded as a whole: loading the file again REPLACES its lines -- a line the file no longer carries is removed -- so the stock never moves twice. Only an imported transfer can be re-loaded.',
     cols: [
       { to: 'transfer_uid', from: ['transfer uid', 'uid', 'stock transfer number'], required: true },
       { to: 'part', from: ['part', 'part no', 'spare'], required: true },
@@ -1746,3 +1956,21 @@ export const uploadGroups = (defs: UploadDef[]): { title: string; items: UploadD
   defs.forEach((d) => { by.set(d.group, [...(by.get(d.group) ?? []), d]); });
   return order.filter((g) => by.has(g)).map((title) => ({ title, items: by.get(title)! }));
 };
+
+// ---------------------------------------------------------------------------
+// D-152 (the user's decision, 2026-10-04: "Just flag it for now, Lets Observe
+// and then decide"): a Sold Through that is not a DEALER on the Party Master
+// is FLAGGED on upload and written all the same. The distinct values, as the
+// file spells them, whose name is not among `dealers` (lower-cased, trimmed --
+// the Party Master's dealers as party_is_dealer() reads them).
+// ---------------------------------------------------------------------------
+export function soldThroughNotDealers(rows: Record<string, unknown>[], dealers: Set<string>): string[] {
+  const out = new Map<string, string>();
+  rows.forEach((r) => {
+    const v = String(r.sold_through ?? '').trim();
+    if (!v) return;
+    const k = v.toLowerCase();
+    if (!dealers.has(k) && !out.has(k)) out.set(k, v);
+  });
+  return [...out.values()].sort((a, b) => a.localeCompare(b));
+}

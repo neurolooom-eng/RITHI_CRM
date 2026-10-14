@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { db, type BaseRecord } from './db';
 import { parseAnyDate, formatDayTime, todayLocal } from './dates';
 import type { FieldOption } from '../components/form/Form';
-import { mayExport, deliverExport, type ExportScope } from './exportscope';
+import { exportAllowed, deliverExport, type ExportScope } from './exportscope';
 import { gsheetCell } from './xlsx';
 
 export const fmtCurrency = (n: unknown): string => {
@@ -138,10 +138,10 @@ export function statusBadge(value: unknown, toneMap: Record<string, Tone>): Reac
 }
 
 // Central export gate — set from auth (can('export.data')). Engineers (and any
-// role without the permission) cannot download data from ANY screen.
-let _canExport = true;
-export function setCanExport(v: boolean): void { _canExport = v; }
-export function canExportData(): boolean { return _canExport; }
+// role without the permission) cannot download data from ANY screen. The flag
+// itself lives in exportscope.ts so the .xlsx and .xls writers ask the SAME one
+// (D-018); these are re-exports, not a second copy.
+export { setCanExport, canExportData } from './exportscope';
 
 // THE FOURTH ARGUMENT IS REQUIRED, and that is the point of it.
 //
@@ -155,10 +155,14 @@ export function canExportData(): boolean { return _canExport; }
 // fault itself in a new place. Required, TypeScript refuses the call until
 // somebody has answered the question -- the same discipline `FacetChips`
 // carries for `more`, where `{ more: false }` is a claim rather than a default.
-export function csvExport(filename: string, columns: { key: string; header: string }[], rows: Record<string, unknown>[], scope: ExportScope) {
-  if (!_canExport) { try { alert('Exporting / downloading data is not permitted for your role.'); } catch { /* ignore */ } return; }
-  // ASKED BEFORE A SINGLE BYTE IS BUILT, so Cancel leaves nothing behind.
-  if (!mayExport(scope, rows.length)) return;
+//
+// RESOLVES TO WHETHER THE FILE WAS WRITTEN (D-018): false when the role is
+// refused, the partial-load question is cancelled, or the chooser is closed
+// with nothing taken. Audit and "Downloaded" messages wait for `true`.
+export function csvExport(filename: string, columns: { key: string; header: string }[], rows: Record<string, unknown>[], scope: ExportScope): Promise<boolean> {
+  // REFUSED, THEN ASKED — BEFORE A SINGLE BYTE IS BUILT, so Cancel leaves
+  // nothing behind. The same gate as xlsxDownload and xlsDownload.
+  if (!exportAllowed(scope, rows.length)) return Promise.resolve(false);
   // A DATE IN THE FILE READS dd-MMM-yyyy [HH:mm:ss] (finding 7; the user's
   // R2/R3), in the reader's own time — never the database's UTC wire string.
   // By VALUE, not by column: formatDayTime rewrites only a whole-cell ISO date
@@ -167,7 +171,7 @@ export function csvExport(filename: string, columns: { key: string; header: stri
     const v = s == null ? '' : typeof s === 'string' ? formatDayTime(s) : String(s);
     return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
   };
-  deliverExport({
+  return deliverExport({
     filename, kind: 'CSV',
     sheets: () => [{
       name: filename.replace(/\.csv$/i, ''),

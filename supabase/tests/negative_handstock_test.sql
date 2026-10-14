@@ -31,7 +31,9 @@ insert into public.profiles (id, email, full_name, role, active) values
   ('0e600000-0000-0000-0000-000000000003', 'neg-coord-off@x.com', 'NEG COORD OFF', 'spare_coordinator', false),
   ('0e600000-0000-0000-0000-000000000004', 'neg-stores@x.com',    'NEG STORES',    'stores_incharge',   true)
 on conflict (id) do update set role = excluded.role, full_name = excluded.full_name, active = excluded.active;
-insert into public.user_directory (name, email) values ('NEG ENG', 'neg-eng@x.com');
+-- NEG COORD is on the User Master too: a transfer goes to a person who is
+-- (stock_transfer_own_or_team, D-049), and section 5 is about the STOCK check.
+insert into public.user_directory (name, email) values ('NEG ENG', 'neg-eng@x.com'), ('NEG COORD', 'neg-coord@x.com');
 
 create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid = (select id from auth.users where email = p), email = p; end $$;

@@ -104,7 +104,7 @@ export function ProductLines() {
   };
   const removeLine = async (r: Row) => {
     const code = s(r, 'product_code');
-    if (!window.confirm(`Delete ${code} — ${s(r, 'product_name')} from the Product Master?\n\nThis cannot be undone. It is refused while any machine, sale or contract names this code; mark it Inactive instead to stop new sales.`)) return;
+    if (!window.confirm(`Delete ${code} — ${s(r, 'product_name')} from the Product Master?\n\nThis cannot be undone. It is refused while any machine, sale or contract names this code, or any Indoor Service job names it by product name; mark it Inactive instead to stop new sales.`)) return;
     const res = await deleteMasterRecord('product_master', 'product_code', code);
     if (!res.ok) { setMsg(res.error ?? 'Could not delete it.'); return; }
     setMsg('');
@@ -126,6 +126,16 @@ export function ProductLines() {
     if (missing.length) { setAddErr(`Fill ${missing.join(', ')}.`); return; }
     const code = adding.product_code.trim();
     if (editingCode) {
+      // D-138: indoor jobs find a line by its NAME (its code, and whether a DEMO
+      // unit owes Pre-Delivery Testing), so renaming the only line with a name
+      // they carry leaves them matching nothing. Say how many, and ask.
+      const before = rows.find((r) => s(r, 'product_code') === editingCode);
+      const oldName = before ? s(before, 'product_name') : '';
+      if (oldName && oldName.toLowerCase() !== adding.product_name.trim().toLowerCase()) {
+        const { data: uses } = await c.rpc('product_line_name_uses', { p_name: oldName, p_except_code: editingCode });
+        const n = Number(uses ?? 0);
+        if (n > 0 && !window.confirm(`${n} Indoor Service job${n === 1 ? '' : 's'} name${n === 1 ? 's' : ''} this line as “${oldName}”. After the rename ${n === 1 ? 'it' : 'they'} will no longer find its product code or whether it is imported.\n\nRename it anyway?`)) return;
+      }
       setSaving(true); setAddErr('');
       const { data, error } = await c.from('product_master').update({
         product_name: adding.product_name.trim(),

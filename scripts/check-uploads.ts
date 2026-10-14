@@ -1,14 +1,16 @@
 // Checks for src/lib/uploads.ts — the shaping behind the individual register
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
 import { shapeUpload, byColumnSet, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups,
-  planConsumptionVisits } from '../src/lib/uploads';
+  planConsumptionVisits, planConsumptionVisitUpload, planSpareLineParents, prepWritesQuestion,
+  prepFailureMessage, describeWrite, numberLines, chunkByGroup } from '../src/lib/uploads';
 import { parseDateParts, toIsoDate, toIsoTimestamp, parseAnyDate } from '../src/lib/dates';
 import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
 import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
 import { machineKey } from '../src/lib/machine';
 import { parseCSV } from '../src/lib/csv';
-import { shapePmRows } from '../src/lib/pmImport';
+import { shapePmRows, shapePmDueRows, checkPmUploadRows, preparePmUpload, pmHeldSummary, PM_STANDARD_COMPLAINT, type PmDueMachine } from '../src/lib/pmImport';
+import { encodeComplaintEntry } from '../src/lib/complaints';
 import { planComplaintKeys, KEY_FIELD } from '../src/lib/complaints';
 import { productToCallPrefill, partyToCallPrefill } from '../src/lib/fieldcall';
 
@@ -515,11 +517,46 @@ eq('the rest is kept', (srl.rows[0].extra as Record<string, unknown>)['POD'], 'n
 
 console.log('\n-- a return of nothing is not a return --');
 const mr = shapeUpload(def('material_returns'), [
-  { 'Item Details': 'KY632200|SENSOR', 'Good Qty': '1', 'Defective Qty': '0' },
-  { 'Item Details': 'KY632200|SENSOR', 'Good Qty': '0', 'Defective Qty': '0' },
+  { 'SI Number': 'SI-1', 'Item Details': 'KY632200|SENSOR', 'Good Qty': '1', 'Defective Qty': '0' },
+  { 'SI Number': 'SI-2', 'Item Details': 'KY632200|SENSOR', 'Good Qty': '0', 'Defective Qty': '0' },
 ]);
 eq('the real return loads', mr.rows.length, 1);
 eq('the empty one is held back by name', mr.skipped[0].why, 'nothing returned — good and defective are both zero');
+
+// D-071 (0458, the user's decision 2026-10-12: "Overwrite with the file"): the
+// MRN Register and Stock Transfer Lines are keyed, and a file with no row
+// numbers is numbered in file order within its parent -- the numbers the
+// database gave the first load -- so the same file lands on the same rows.
+console.log('\n-- D-071: a re-loaded MRN or transfer line is matched, not added --');
+eq('the MRN Register replaces each SI Number whole (D-177)', JSON.stringify(def('material_returns').replaceGroups), JSON.stringify({ kind: 'mrn', by: 'uid' }));
+eq('Stock Transfer Lines replaces each transfer whole (D-177)', JSON.stringify(def('stock_transfer_lines').replaceGroups), JSON.stringify({ kind: 'stl', by: 'transfer_uid' }));
+eq('...and neither upserts line by line any more', [def('material_returns').conflict, def('stock_transfer_lines').conflict], [undefined, undefined]);
+{
+  const g = (k: string, n: number) => Array.from({ length: n }, () => ({ uid: k }));
+  const calls = chunkByGroup([...g('A', 3), ...g('B', 2), ...g('C', 4)], 'uid', 5);
+  eq('a call never cuts an SI Number in two', calls.map((c) => c.map((r) => r.uid).join('')).join(' '), 'AAABB CCCC');
+  eq('...and a group bigger than a call goes alone', chunkByGroup([...g('A', 7), ...g('B', 1)], 'uid', 5).map((c) => c.length).join(' '), '7 1');
+}
+const mrnFile = [
+  { 'SI Number': 'SI-7', 'Item Details': 'KY1|A', 'Good Qty': '1' },
+  { 'SI Number': 'SI-8', 'Item Details': 'KY1|A', 'Good Qty': '1' },
+  { 'SI Number': 'SI-7', 'Item Details': 'KY2|B', 'Good Qty': '2' },
+  { 'Item Details': 'KY3|C', 'Good Qty': '1' },
+];
+const m1 = shapeUpload(def('material_returns'), mrnFile);
+const mrnLines = (r: { rows: Record<string, unknown>[] }) => r.rows.map((x) => `${x.uid}/${x.part}/${x.row_no}`).sort().join(' ');
+eq('lines are numbered within their SI Number, in file order', mrnLines(m1), 'SI-7/KY1|A/1 SI-7/KY2|B/2 SI-8/KY1|A/1');
+eq('...and the same file numbers the same way again', mrnLines(shapeUpload(def('material_returns'), mrnFile)), mrnLines(m1));
+eq('a row with no SI Number is held back by name', m1.skipped.map((x) => x.why).join(','), 'no uid');
+const numbered: Record<string, unknown>[] = [{ g: 'T1', n: 2 }, { g: 'T1' }, { g: 'T1' }, { g: 'T2' }];
+numberLines(numbered, 'n', 'g');
+eq('a number the file carries is kept and the others step round it', numbered.map((x) => `${x.g}:${x.n}`).join(' '), 'T1:2 T1:1 T1:3 T2:1');
+const stl = shapeUpload(def('stock_transfer_lines'), [
+  { 'Transfer UID': 'ST-1', 'Part': 'KY1|A', 'Qty': '1' },
+  { 'Transfer UID': 'ST-1', 'Part': 'KY2|B', 'Qty': '1' },
+  { 'Transfer UID': 'ST-2', 'Part': 'KY1|A', 'Qty': '3' },
+]);
+eq('transfer lines are numbered within their transfer', stl.rows.map((x) => `${x.transfer_uid}/${x.row_no}`).sort().join(' '), 'ST-1/1 ST-1/2 ST-2/1');
 
 console.log('\n-- a transfer to the same engineer is not a transfer --');
 const st = shapeUpload(def('stock_transfers'), [
@@ -984,6 +1021,62 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   }
 }
 
+// NOTHING IS WRITTEN BEFORE THE OPERATOR CONFIRMS (D-075). The planners
+// return what must be written first AS DATA -- the confirmation names it with
+// exact counts, and applyUploadPlan writes it only after OK. Proved here as
+// behaviour: the plans write nothing (they cannot: these modules have no
+// client), leave their input untouched, and count what they will write.
+{
+  console.log('\n-- the upload plan writes nothing and leaves the file as read (D-075) --');
+  const lines = [
+    { request_uid: 'OR1', part: 'A' }, { request_uid: 'OR1', part: 'B' },
+    { request_uid: 'OR2', part: 'C' }, { request_uid: 'OR3', part: 'D' },
+  ];
+  const before = JSON.stringify(lines);
+  // OR1 is here; OR2 is here under uid U-2; OR3 is in neither.
+  const p = planSpareLineParents(lines, new Set(['OR1']), new Map([['OR2', 'U-2']]));
+  eq('the spare-line plan does not touch the caller\'s rows', JSON.stringify(lines), before);
+  eq('...numbers the lines per request, in file order (the held-back line is not among them)', p.rows.map((r) => r.row_no), [1, 2, 1]);
+  eq('...re-points a line at the request already holding its OR number', p.rows[2].request_uid, 'U-2');
+  // D-158 (the user, 2026-10-08): a line whose request is in NEITHER file is
+  // HELD BACK and named -- no stub request, which had no engineer and booked
+  // its spare to nobody's hand stock.
+  eq('...holds back the line whose request is in neither, and plans no request for it',
+    [p.rows.map((r) => r.request_uid), p.writes.length], [['OR1', 'OR1', 'U-2'], 0]);
+  eq('...and names it in the note', /1 line held back — 1 request is not in RITHI.*OR3/.test(p.note), true);
+  eq('...the re-pointing is in the note', /1 line pointed/.test(p.note), true);
+  eq('the confirmation asks nothing when nothing is written first', prepWritesQuestion(p.writes), '');
+  eq('all parents present: nothing to write, no question',
+    [planSpareLineParents(lines, new Set(['OR1', 'OR2', 'OR3']), new Map()).writes.length, prepWritesQuestion([])], [0, '']);
+
+  const cRows = [
+    { ucn: 'U-1', created_at: '2026-03-04T10:00:00+05:30', data: {} },
+    { ucn: 'U-1', created_at: '2026-03-04T10:00:00+05:30', data: {} },
+    { ucn: 'U-9', created_at: '', data: {} },
+  ];
+  const cBefore = JSON.stringify(cRows);
+  const cp = planConsumptionVisitUpload(cRows, new Set());
+  eq('the consumption plan does not touch the caller\'s rows', JSON.stringify(cRows), cBefore);
+  eq('...returns ONE visit to file as a write, not a write done',
+    cp.writes.map((w) => [w.table, w.rows.length, w.onConflict]), [['reports', 1, 'uid']]);
+  eq('...the rows it will upload exclude the call it cannot date', cp.rows.map((r) => r.ucn), ['U-1', 'U-1']);
+  eq('...and its note is the held-back half only (the visits are the write\'s)',
+    /held back/.test(cp.note) && !/filed/.test(cp.note), true);
+  eq('a call that already has a visit: nothing to write',
+    planConsumptionVisitUpload(cRows.slice(0, 2), new Set(['U-1'])).writes.length, 0);
+
+  // A FAILURE AFTER OK says, write by write, what was written and what was not.
+  const w2 = { table: 'reports', rows: Array.from({ length: 450 }, (_, i) => ({ uid: `V${i}` })),
+    onConflict: 'uid', noun: ['visit report', 'visit reports'] as [string, string], why: '' };
+  const m = prepFailureMessage([w2], [400], 'boom', 1200);
+  eq('a part-written preparation names what was written', /Written: 400 visit reports/.test(m), true);
+  eq('...and what was not', /Not written: 50 visit reports/.test(m), true);
+  eq('...and that the upload itself did not start', /before any of its 1,200 rows were written/.test(m), true);
+  eq('a preparation that failed at once says nothing was written',
+    /Written: nothing\./.test(prepFailureMessage([w2], [0], 'boom', 10)), true);
+  eq('describeWrite counts singular and plural', [describeWrite(w2, 1), describeWrite(w2)], ['1 visit report', '450 visit reports']);
+}
+
 // OLD REVIEWS LOAD AS IMPORTED (0269, the user: "no new FFRs"). The database
 // keeps an imported row's reviewer and dates and raises no report for it; this
 // is the half that proves the upload actually says so on every row.
@@ -1018,6 +1111,76 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
   eq('...and so is its Breakdown Date', row.breakdown_date, '2026-10-01');
   eq('...and the sheet\u2019s own dates are not kept in extra',
     Object.keys((row.extra ?? {}) as Record<string, unknown>).filter((k) => /complaint date|breakdown date/i.test(k)), []);
+}
+
+// D-038 (FRS-142.4, .5, .11): WHAT A PM UPLOAD MAY CREATE. Run on real shaped
+// rows, through the same preparation the screen uses. The PM Due path shares
+// shapePmRows and must be untouched by any of it.
+{
+  const ctx = {
+    complaints: [
+      encodeComplaintEntry('PREVENTIVE MAINTENANCE', {}),                       // all products
+      encodeComplaintEntry('O2 CELL CALIBRATION', { products: ['MONNAL T75'] }), // one product only
+    ],
+    activeEngineers: ['SIVARANI', 'KARTHIK SUNDAR'],
+    existing: [{ ucn: '26J01P0001', product_name: 'ORION-G', serial: '873' }],
+  };
+  const r = (party: string, product: string, serial: string, complaint: string, engineer: string) =>
+    ({ 'Party Name': party, 'Product': product, 'Serial No': serial, 'Standard Complaint': complaint, 'Engineer': engineer });
+  const raw = [
+    r('A', 'MONNAL T75', '11414', 'O2 Cell Calibration ', 'sivarani'),   // row 2: kept, master spellings written
+    r('B', 'VEGA', '', 'PREVENTIVE MAINTENANCE', 'SIVARANI'),             // row 3: no serial
+    r('C', 'VEGA', '201', 'O2 CELL CALIBRATION', 'SIVARANI'),             // row 4: complaint not mapped to VEGA
+    r('D', 'VEGA', '202', 'PREVENTIVE MAINTENANCE', 'NOBODY HERE'),       // row 5: engineer not active
+    r('E', ' monnal t75 ', '11414', 'PREVENTIVE MAINTENANCE', 'SIVARANI'),// row 6: same machine as row 2
+    r('F', 'orion-g', ' 873 ', 'PREVENTIVE MAINTENANCE', 'SIVARANI'),     // row 7: already a call this month
+    r('G', 'VEGA', '203', '', ''),                                          // row 8: blanks are not held back
+    { 'Party Name': '', 'Product': '', 'Serial No': '', 'Remarks': 'x' },  // row 9: blank, dropped as before
+  ];
+  const got = preparePmUpload(raw, '2026-10', '2026-10-01T00:30:00', 5, ctx);
+  const why = (row: number) => got.held.find((h) => h.row === row);
+  eq('D-038: the kept rows are rows 2 and 8, in order', got.kept.map((k) => k.party_name), ['A', 'G']);
+  eq('D-038: ...the blank row is dropped and counted, as before', got.blank, 1);
+  eq('D-038: a complaint in the product’s master is kept, in the master’s spelling',
+    [got.kept[0].standard_complaint, got.kept[0].allocated_to], ['O2 CELL CALIBRATION', 'SIVARANI']);
+  eq('D-038: a row with no serial is held back and named', [why(3)?.kinds, why(3)?.reason], [['no-serial'], 'no serial number']);
+  eq('D-038: a complaint not mapped to the row’s product is held back', why(4)?.kinds, ['complaint']);
+  eq('D-038: ...naming the complaint and the product', /O2 CELL CALIBRATION.*VEGA/.test(why(4)?.reason ?? ''), true);
+  eq('D-038: an engineer not active on the User Master is held back', why(5)?.kinds, ['engineer']);
+  eq('D-038: the same machine twice in the file: the first is kept, the second named', why(6)?.reason, 'the same machine is on row 2 of this file');
+  eq('D-038: a machine with a PM call this month is skipped with that UCN (trimmed, case ignored)',
+    [why(7)?.kinds, why(7)?.ucn, why(7)?.reason], [['exists'], '26J01P0001', 'already a PM call this month: 26J01P0001']);
+  eq('D-038: a blank complaint and a blank engineer are not held back (FRS-142.5: "a value on neither")',
+    [got.kept[1].standard_complaint, got.kept[1].allocated_to], [undefined, undefined]);
+  eq('D-038: registration times step across the KEPT rows only',
+    got.kept.map((k) => k.reg_at), [new Date('2026-10-01T00:30:00').toISOString(), new Date('2026-10-01T00:30:05').toISOString()]);
+  eq('D-038: the summary counts each reason',
+    pmHeldSummary(got.held), '5 rows held back — 1 already have a PM call this month (skipped, not changed); 1 repeat a machine already on an earlier row; 1 have no serial number; 1 carry a Standard Complaint not on the product’s complaint master; 1 name an engineer who is not active on the User Master.');
+  eq('D-038: a duplicate is decided before the value checks, so a bad first row still holds back its twin',
+    checkPmUploadRows([{ row: 2, rec: { product_name: 'VEGA', serial: '9', allocated_to: 'NOBODY' } },
+                       { row: 3, rec: { product_name: 'VEGA', serial: '9', allocated_to: 'SIVARANI' } }], ctx).held.map((h) => h.kinds[0]),
+    ['engineer', 'repeated']);
+  eq('D-038: an empty complaint master holds back every named complaint, it does not wave them through',
+    checkPmUploadRows([{ row: 2, rec: { product_name: 'VEGA', serial: '9', standard_complaint: 'PREVENTIVE MAINTENANCE' } }],
+      { ...ctx, complaints: [] }).held.length, 1);
+  // With nothing held back the preparation is EXACTLY shapePmRows -- the shaping is unchanged.
+  const clean = [r('A', 'MONNAL T75', '11414', 'O2 CELL CALIBRATION', 'SIVARANI'), r('G', 'VEGA', '203', '', '')];
+  eq('D-038: shapePmRows is unchanged -- a clean file prepares to exactly its output',
+    preparePmUpload(clean, '2026-10', '2026-10-01T00:30:00', 5, { ...ctx, existing: [] }).kept,
+    shapePmRows(clean, '2026-10', '2026-10-01T00:30:00', 5));
+  // PM DUE IS NOT FILTERED: its own complaint is on no master here, its engineer
+  // on no User Master, and two of its machines share a serial -- and every row
+  // still comes through, shaped as before.
+  const due = (serial: string, product: string, engineer: string): PmDueMachine => ({
+    source: 'Contract', ref_no: 'MC1', product_name: product, serial, party_name: 'P', city: null, state: null,
+    engineer, cover_type: 'CMC', cover_start: '2026-01-01', cover_end: '2026-12-31', pm_visits: 2, visit_no: 1, due_date: '2026-10-01' });
+  const dueRows = shapePmDueRows([due('', 'VEGA', 'NOT ON THE MASTER'), due('873', 'ORION-G', ''), due('873', 'ORION-G', '')],
+    '2026-10', '2026-10-01T00:30:00', 5);
+  eq('D-038: PM Due rows are not filtered by the upload checks', dueRows.length, 3);
+  eq('...they keep SCHEDULED PM VISIT and the engineer as given',
+    [dueRows[0].standard_complaint, dueRows[0].allocated_to], [PM_STANDARD_COMPLAINT, 'NOT ON THE MASTER']);
+  eq('...and are stepped as before', dueRows.map((d) => d.reg_at),
+    [0, 5, 10].map((sec) => new Date(new Date('2026-10-01T00:30:00').getTime() + sec * 1000).toISOString()));
 }
 
 // EXCEL'S SEMICOLON "CSV" (2026-10-05): a PM Reports file saved on a machine

@@ -94,7 +94,8 @@ begin;
 rollback;
 
 \echo '--- 7. a QMS document is uploaded and training assigned to the engineer and the colleague ---'
-insert into public.documents (kind, title, doc_no, revision, url) values ('qms', 'Service SOP', 'SOP-10', '02', 'https://drive/sop10');
+-- With its effective date: a QMS document needs one since 0368.
+insert into public.documents (kind, title, doc_no, revision, effective_date, url) values ('qms', 'Service SOP', 'SOP-10', '02', '2026-08-01', 'https://drive/sop10');
 call public.be('tr_admin@x.com');
 begin;
   set local role authenticated;

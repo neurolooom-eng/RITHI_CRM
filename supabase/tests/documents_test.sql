@@ -56,8 +56,10 @@ commit;
 \echo '--- 2. ...but NOT onto the QMS shelf (expect ERROR: row-level security) ---'
 begin;
   set local role authenticated;
-  insert into public.documents (kind, title, doc_no, url)
-    values ('qms','DL Sneaked SOP','QMS-999','https://drive/x3');
+  -- Complete (revision and effective date, which 0368 asks for), so what
+  -- refuses it is the policy this section is about.
+  insert into public.documents (kind, title, doc_no, revision, effective_date, url)
+    values ('qms','DL Sneaked SOP','QMS-999','01','2026-01-01','https://drive/x3');
 commit;
 
 \echo '--- 3. qms.manage is the other way round: QMS yes, manual no (expect ERROR) ---'
@@ -110,6 +112,9 @@ commit;
 select title, active from public.documents where title = 'DL General safety';
 
 \echo '--- 8. cleanup ---'
+-- As the SQL editor would: no session. A signed-in delete of a QMS document is
+-- refused since 0368 (a quality record is retired), which is not this cleanup.
+update public.harness set uid = null, email = null;
 delete from public.documents where title like 'DL %';
 delete from public.app_roles where role in ('dl_docs','dl_qms','dl_eng');
 delete from public.profiles where email like 'dl_%';

@@ -19,7 +19,7 @@
 // them and are NOT interpreted: nobody has said what they measure.
 // ===========================================================================
 import type { IndoorJob, IndoorPdt } from './supabase';
-import { formatDay } from './dates';
+import { formatDay, formatDayTime } from './dates';
 
 /** The organisation line both forms carry -- the FFR's, the same company. */
 export const INDOOR_ORG = 'AIR LIQUIDE MEDICAL SYSTEMS PVT. LTD.';
@@ -309,4 +309,50 @@ export function jobStage(j: StageJob, dcStatus?: string): StageState {
 export function indoorReportFileName(reportNo: string, original: string): string {
   const clean = (v: string) => v.trim().replace(/[\\/:*?"<>|]/g, '-');
   return `${clean(reportNo)}_${clean(original) || 'report'}`;
+}
+
+// ---------------------------------------------------------------------------
+// A HARVESTED PART IS RECORDED WHOLE (FRS-143.7, D-039).
+//
+// It used to be added with a blank code and could not be edited, so the record
+// said a part was taken from a customer's device and not which. The grades are
+// the table's own CHECK (0158); a blank grade is allowed there and is not
+// offered here.
+// ---------------------------------------------------------------------------
+export const PART_GRADES = ['Serviceable', 'Repairable', 'Scrap'];
+
+export interface HarvestedPartDraft {
+  part_code: string; description: string; qty: string | number;
+  condition_grade: string; destination: string;
+}
+
+/** Why a new harvested part cannot be added yet, or null. */
+export function harvestedPartProblem(p: HarvestedPartDraft): string | null {
+  if (!String(p.part_code ?? '').trim()) return 'Enter the part code of the harvested part.';
+  if (!String(p.description ?? '').trim()) return 'Enter what the harvested part is (Description).';
+  const q = Number(String(p.qty ?? '').trim() || NaN);
+  if (!(q > 0)) return 'Enter the quantity harvested — more than 0.';
+  if (!PART_GRADES.includes(String(p.condition_grade ?? ''))) return 'Choose the condition grade (Serviceable, Repairable or Scrap).';
+  if (!String(p.destination ?? '').trim()) return 'Enter where the harvested part is going (Destination).';
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// A VOIDED ENTRY IS KEPT, NOT COUNTED (FRS-143.8, D-039, 0453).
+//
+// A harvested part, an accessory or a check is never deleted: an entry made in
+// error is marked void with the reason, and the database stamps when and who.
+// It stays on screen, set apart and read only, and it is left out of every
+// count and list the screen builds -- an accessory voided because it was never
+// received must not go out on a DC or be chased as outstanding.
+// ---------------------------------------------------------------------------
+export const isVoided = (r: { voided_at?: string | null } | null | undefined): boolean =>
+  !!String(r?.voided_at ?? '').trim();
+/** The entries still in force, in their order. */
+export const liveEntries = <T extends { voided_at?: string | null }>(rows: T[]): T[] => rows.filter((r) => !isVoided(r));
+/** "Voided <when> by <who> — <reason>". `who` is the name already resolved
+ *  from voided_by; an id nobody can name reads as such rather than blank. */
+export function voidNote(r: { voided_at?: string | null; void_reason?: string | null }, who: string): string {
+  const reason = String(r.void_reason ?? '').trim();
+  return `Voided ${formatDayTime(r.voided_at ?? '')} by ${who.trim() || 'a user not on the User Master'}${reason ? ` — ${reason}` : ''}`;
 }

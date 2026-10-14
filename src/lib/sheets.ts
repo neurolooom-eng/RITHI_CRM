@@ -8,10 +8,11 @@
 // text/plain (a "simple" request that skips pre-flight). GET is simple already.
 // ---------------------------------------------------------------------------
 
-import { recordToRow, rowToRecord } from './fieldcall';
+import { recordToRow, rowToRecord, vigilanceUnanswered } from './fieldcall';
 import type { DriveFolder } from './drivefolders';
 import type { GSheet } from './exportscope';
 import * as sb from './supabase';
+import { assertBridgeMayRun } from './previewGuard';
 
 const URL_KEY = 'rithi.sheets.url';
 const VER_KEY = 'rithi.sheets.urlVersion';
@@ -91,6 +92,9 @@ export interface PingResult {
 }
 
 async function getJson(params: Record<string, string>): Promise<Record<string, unknown>> {
+  // The bridge writes over GET as well as POST; a "View as" preview lets only
+  // the actions known to read through (D-069).
+  assertBridgeMayRun(params.action);
   const base = getSheetsUrl();
   if (!base) throw new Error('No Google Sheet URL configured (Settings → Google Sheet Connection).');
   const tab = getSheetsTab();
@@ -147,6 +151,7 @@ async function postJson(body: Record<string, unknown>): Promise<Record<string, u
   const tab = getSheetsTab();
   if (tab && body.tab === undefined) body = { ...body, tab };
   // Note: no custom Content-Type header -> browser sends text/plain -> no pre-flight.
+  assertBridgeMayRun(String(body.action ?? ''), 'POST');
   const res = await fetch(base, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' });
   if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
   return res.json();
@@ -179,11 +184,21 @@ export interface AddResult {
   ucn?: string;
   record?: Record<string, unknown>;
   error?: string;
+  /** The request never reached the database (D-032) — see supabase.ts. */
+  offline?: boolean;
 }
 
 // Add a new call. `record` is keyed by app keys; UCN + reg date are assigned
 // by the server so the number is unique against the live sheet.
 export async function addFieldCall(record: Record<string, unknown>, tab = ''): Promise<AddResult> {
+  // D-033: a FIELD call is never sent with a vigilance answer missing — the
+  // form requires all three, and this is the one door every screen's
+  // registration goes through, so no path can send them blank. Not `offline`:
+  // it is a refusal, and a screen must show it rather than keep the call.
+  const missing = vigilanceUnanswered(record, record.callType || (tab ? sb.callTypeForTab(tab) : ''));
+  if (missing.length) {
+    return { ok: false, error: 'Public Health Threat?, Death? and Serious Incident? must each be answered YES or NO before a Field call is registered.' };
+  }
   if (sb.supabaseConfigured()) {
     const rec = { ...record };
     if (!rec.callType && tab) rec.callType = sb.callTypeForTab(tab);
@@ -327,10 +342,12 @@ export async function addCrnRequest(data: Record<string, unknown>): Promise<bool
   const r = await getJson({ action: 'crnrequest', data: JSON.stringify(data) });
   return !!r.ok;
 }
-export async function setPendingUcn(row: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<boolean> {
-  if (sb.supabaseConfigured()) return (await sb.setCallRequestUcn(row, ucn, status, by)).ok;
+// THE REASON TRAVELS WITH THE ANSWER (D-031): a bare boolean let both callers
+// say only "could not save", and one of them said nothing at all.
+export async function setPendingUcn(row: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<{ ok: boolean; error?: string }> {
+  if (sb.supabaseConfigured()) return sb.setCallRequestUcn(row, ucn, status, by);
   const r = await getJson({ action: 'setucn', uid: String(row), ucn });
-  return !!r.ok;
+  return r.ok ? { ok: true } : { ok: false, error: String(r.error ?? 'the sheet did not record it') };
 }
 
 // User Master directory (all users, regardless of Validity).
@@ -476,6 +493,7 @@ export async function uploadManualReport(ucn: string, column: string, file: File
   const base = getSheetsUrl();
   if (!base) return { ok: false, error: 'No Google Sheet URL configured.' };
   try {
+    assertBridgeMayRun('upload', 'POST'); // an upload writes: refused in a preview (D-069)
     const dataBase64 = await fileToBase64(file);
     await fetch(base, {
       method: 'POST',
@@ -510,6 +528,7 @@ export async function uploadToDrive(file: File, prefix = '', folder?: DriveFolde
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` };
   const ref = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   try {
+    assertBridgeMayRun('driveupload', 'POST'); // an upload writes: refused in a preview (D-069)
     const dataBase64 = await fileToBase64(file);
     await fetch(base, {
       method: 'POST',
@@ -754,6 +773,7 @@ export async function saveAsGoogleSheet(
   const ref = `gs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   const started = Date.now();
   try {
+    assertBridgeMayRun('sheetexport', 'POST'); // creates a sheet in Drive: refused in a preview (D-069)
     await fetch(base, {
       method: 'POST',
       mode: 'no-cors',

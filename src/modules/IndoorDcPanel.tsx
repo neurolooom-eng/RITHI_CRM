@@ -35,7 +35,7 @@ import {
   listIndoorDcAuthorisers, approveIndoorDc, rejectIndoorDc,
   type IndoorDc, type IndoorJob,
 } from '../lib/supabase';
-import { equipmentDescription, jobConsignee } from '../lib/indoorforms';
+import { equipmentDescription, jobConsignee, liveEntries } from '../lib/indoorforms';
 import { formatDay } from '../lib/dates';
 import { todayISO } from '../lib/format';
 import { logAudit } from '../lib/audit';
@@ -131,7 +131,9 @@ export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
         out.push({ key: `${j.id}:eq`, jobId: j.id, accessoryId: null, jobNo: j.job_no, partNo: code,
                    description: equipmentDescription(j.product_name, j.serial), qty: 1, purpose: '', edited: false });
         // THE ACCESSORIES AS RECEIVED, with the quantity received (0323).
-        acc.filter((a) => a.name.trim() || a.serial.trim()).sort((a, b) => a.id - b.id).forEach((a) => out.push({
+        // A VOIDED one is left out (0453, D-039): create_indoor_dc leaves it
+        // off the DC, and the preview must show the lines the DC will carry.
+        liveEntries(acc).filter((a) => a.name.trim() || a.serial.trim()).sort((a, b) => a.id - b.id).forEach((a) => out.push({
           key: `${j.id}:${a.id}`, jobId: j.id, accessoryId: a.id, jobNo: j.job_no, partNo: '',
           description: equipmentDescription(a.name, a.serial), qty: Number(a.qty ?? 1) || 1, purpose: '', edited: false,
         }));
@@ -254,7 +256,7 @@ export function IndoorDcForm({ jobs, onClose, onIssued, inPane }: {
  *  transaction, as the approver -- so a refusal anywhere leaves the DC pending
  *  with nothing filed, and the approver's ROLE needs no call-report key: the
  *  User Master naming them is what lets them approve. */
-async function approveDc(dc: IndoorDc, onStep: (s: string) => void): Promise<{ ok: boolean; error?: string }> {
+async function approveDc(dc: IndoorDc, onStep: (s: string) => void): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   onStep(`Approving ${dc.dc_no} and filing its visits…`);
   return approveIndoorDc(dc.dc_no);
 }
@@ -291,7 +293,9 @@ export function IndoorDcList({ onChanged, namingMe = false }: { onChanged?: () =
     const r = await approveDc(d, (s) => setMsg(s)).catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
     setBusy('');
     logAudit({ action: 'indoor.dc_approve', target: d.dc_no, status: r.ok ? 'ok' : 'error', error: r.ok ? undefined : r.error });
-    setMsg(r.ok ? `Indoor DC ${d.dc_no} approved — the visits are filed against the calls.` : `Not approved: ${r.error}`);
+    setMsg(r.ok
+      ? `Indoor DC ${d.dc_no} approved — the visits are filed against the calls.${'skipped' in r && r.skipped ? ` Not filed: ${r.skipped} (each call was already Solved, so it was not put back to Unsolved).` : ''}`
+      : `Not approved: ${r.error}`);
     refresh();
   };
   const reject = async (dcNo: string) => {

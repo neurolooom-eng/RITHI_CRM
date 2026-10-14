@@ -67,6 +67,9 @@
 --   0398_dccr_junk_rows.sql
 --   0399_pm_spare_dccr_rerun.sql
 --   0400_pm_spare_blank_review.sql
+--   0455_review_answers_read_key.sql
+--   0446_ffr_customer_and_problem_required.sql
+--   0463_ffr_caller_rules.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -7080,5 +7083,165 @@ begin
   get diagnostics n = row_count;
   raise notice '0400: % PM review row(s) of 2026 given SPARE where the answer was blank', n;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0455_review_answers_read_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0455 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+--        (second re-review D-129, the open half; the user, 2026-10-05)
+--
+-- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
+-- user read every call's review -- the risk-to-patient answer and the root
+-- cause -- including calls they cannot otherwise see.
+-- THE USER'S DECISION: "It should be visible only to a selected few as set
+-- through roles & permissions", by "a new key, given to today's editors":
+--   * review.view ("Read Daily Complaint Review answers") is the read key;
+--     review.edit is its parent (an editor reads what they edit);
+--   * ONCE, it is merged into every role whose stored permissions hold
+--     review.edit, so nobody who works the register loses it on the day; the
+--     administrator then ticks or unticks it per role, or per person in Extra
+--     Access. A role with an EMPTY set (not configured) is left alone.
+-- The views over the table (field_call_review, field_call_review_summary,
+-- field_failure_register) are security_invoker, so for a reader without the
+-- key the review columns come back empty -- the screens say so.
+-- In the daily_review module, after 0353.
+-- ===========================================================================
+
+insert into public.perm_parents (child, parent) values ('review.view', 'review.edit')
+on conflict do nothing;
+
+drop policy if exists call_reviews_read on public.call_reviews;
+create policy call_reviews_read on public.call_reviews for select
+  using ((select public.has_perm('review.view')));
+
+-- 0318's definition VERBATIM (see 0369).
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare n bigint;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0455_review_view_to_editors') then return; end if;
+  update public.app_roles
+     set permissions = permissions || '["review.view"]'::jsonb
+   where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
+     and permissions ? 'review.edit'
+     and not (permissions ? 'review.view');
+  get diagnostics n = row_count;
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0455_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0455: % role(s) holding review.edit given review.view', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0446_ffr_customer_and_problem_required.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0446 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+--        (second re-review D-027)
+--
+-- The Field Failure Report form refuses a report without Customer Name or
+-- Problem reported, but field_failure_reports defaults both to empty text, so
+-- an insert through the data interface without them succeeded. The rule is now
+-- the database's as well:
+--   * a signed-in INSERT needs both;
+--   * a signed-in UPDATE may not BLANK either -- a report recorded before this
+--     with one of them empty can still be edited (its weekly review recorded),
+--     it is only never emptied.
+-- Not stopped: an import (bulk.upload / import.panel), a connection with no
+-- session, and a function running as its owner (ffr_from_review raises a
+-- report from the Daily Complaint Review and fills both from the call).
+-- In the daily_review module, after 0455.
+-- ===========================================================================
+
+create or replace function public.ffr_customer_and_problem_required()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare v_missing text[] := '{}';
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if btrim(coalesce(new.customer_name, '')) = ''
+     and (tg_op = 'INSERT' or btrim(coalesce(old.customer_name, '')) <> '') then
+    v_missing := v_missing || 'Customer Name'::text;
+  end if;
+  if btrim(coalesce(new.problem_reported, '')) = ''
+     and (tg_op = 'INSERT' or btrim(coalesce(old.problem_reported, '')) <> '') then
+    v_missing := v_missing || 'Problem Reported'::text;
+  end if;
+  if array_length(v_missing, 1) > 0 then
+    raise exception 'A Field Failure Report needs the Customer Name and the Problem Reported (missing: %)',
+      array_to_string(v_missing, ', ') using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.ffr_customer_and_problem_required() from public, anon, authenticated;
+drop trigger if exists ffr_customer_and_problem_required on public.field_failure_reports;
+create trigger ffr_customer_and_problem_required
+  before insert or update of customer_name, problem_reported on public.field_failure_reports
+  for each row execute function public.ffr_customer_and_problem_required();
+
+-- ------------------------------------------------------------------------
+-- 0463_ffr_caller_rules.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-175 (re-review 5, 2026-10-12): an FFR's number, its imported marker and
+-- its raiser's name are not the caller's to choose.
+--
+-- ffr_stamp() kept a caller-supplied ffr_no on insert and blanked raised_by
+-- whenever imported_from was non-blank, with no check that the caller is an
+-- importer; ffr_history_created() then dated the "Report raised" entry at the
+-- FFR Date under the caller's raised_by_name -- and for an ordinary raise the
+-- log's "Who" was also the client's raised_by_name. Measured: an RM holding
+-- ffr.manage and not bulk.upload raised FFR - 001/20 dated 2020, marked
+-- imported under SOMEBODY ELSE, and the same number again on another machine.
+--
+-- A trigger running AS THE CALLER (not as the owner) applies three rules to a
+-- signed-in caller writing DIRECTLY (current_user = authenticated) who is not
+-- an importer (bulk.upload / import.panel):
+--   * on insert the number is the database's: a supplied ffr_no is discarded,
+--     so ffr_stamp issues the next one;
+--   * imported_from is cleared on insert and kept as it was on an update, so
+--     the import treatment (raised_by blank, the log dated at the FFR Date)
+--     applies to imports alone;
+--   * raised_by_name is the session's own name (my_display_name()), so the
+--     log's "Who" is the person who raised it.
+-- The reviewer's Raise FFR (ffr_from_review / raise_ffr) runs as the owner, so
+-- current_user is not authenticated there and nothing it writes changes; the
+-- FFR Register upload is an importer's. Named a_* so it fires before
+-- ffr_customer_and_problem_required and zz_ffr_stamp (triggers fire by name).
+-- ===========================================================================
+create or replace function public.ffr_caller_rules()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user <> 'authenticated' or auth.uid() is null
+     or public.has_perm('bulk.upload') or public.has_perm('import.panel') then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    new.ffr_no := null;
+    new.imported_from := '';
+    new.raised_by_name := coalesce(nullif(btrim(public.my_display_name()), ''), new.raised_by_name);
+  else
+    new.imported_from := old.imported_from;
+    new.raised_by_name := old.raised_by_name;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.ffr_caller_rules() from public, anon;
+
+drop trigger if exists a_ffr_caller_rules on public.field_failure_reports;
+create trigger a_ffr_caller_rules
+  before insert or update on public.field_failure_reports
+  for each row execute function public.ffr_caller_rules();
 
 commit;

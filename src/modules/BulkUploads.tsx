@@ -3,8 +3,11 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
-import { uploadRows, prepareUpload, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
-import { UPLOADS, masterUpload, shapeUpload, uploadGroups, askedFields, missingAsk, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { uploadRows, planUpload, applyUploadPlan, reloadImportedStockLines, countImportedStockLines, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
+import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, prepWritesQuestion, askedFields, missingAsk,
+  type UploadDef, type ShapeResult, type UploadPlan } from '../lib/uploads';
+import { dealerParties } from '../lib/cover';
+import { recordAudit } from '../lib/audit';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -59,41 +62,134 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
     }
   };
 
+  // ONE AUDIT ENTRY PER LOAD (D-067, FRS-196.14) — every way `write` can end
+  // once Upload is pressed, including the ones that wrote nothing, because "it
+  // was attempted and stopped here" is the record somebody needs when a
+  // register looks short. Awaited so a failure to record is SAID, beside the
+  // load's own result, the way a Party Master that could not be read is (the ⚑
+  // note below) — never by stopping a load that has already happened.
+  const record = async (p: Pending, o: {
+    outcome: 'completed' | 'stopped' | 'cancelled'; ready: number; toWrite: number;
+    written: number; why?: string; wroteFirst?: string; started: number;
+  }): Promise<string> => {
+    const heldBack = p.shaped.skipped.length + Math.max(0, p.shaped.rows.length - o.ready);
+    const err = await recordAudit({
+      action: 'bulk.upload', target: def.table,
+      status: o.outcome === 'completed' ? 'ok' : 'error',
+      error: o.why ?? '',
+      duration_ms: Math.round(performance.now() - o.started),
+      meta: {
+        register: def.label, register_key: def.key, table: def.table, file: p.file,
+        rows_in_file: p.shaped.rows.length + p.shaped.skipped.length,
+        rows_ready: o.ready, rows_held_back: heldBack,
+        rows_to_write: o.toWrite, rows_written: o.written,
+        rows_failed: o.outcome === 'stopped' ? Math.max(0, o.toWrite - o.written) : 0,
+        written_first: o.wroteFirst ?? '',
+        outcome: o.outcome, completed: o.outcome === 'completed',
+        conflict: def.conflict ?? '',
+      },
+    });
+    return err ? ` ⚑ This load could not be recorded in the audit log: ${err}` : '';
+  };
+
   const write = async () => {
     if (!pending) return;
+    if (missing) { setMsg({ tone: 'error', text: `Choose the ${missing} before uploading.` }); return; }
+    const p = pending;
+    const started = performance.now();
+    // The answers to what the file cannot say go on every row BEFORE the plan,
+    // so the plan and the confirmation count what will actually be written.
+    const asked = askedFields(def.asks, answers);
+    const shapedRows = Object.keys(asked).length ? pending.shaped.rows.map((r) => ({ ...r, ...asked })) : pending.shaped.rows;
+    const askedNote = Object.keys(asked).length
+      ? `Every row is recorded with ${(def.asks ?? []).filter((a) => asked[a.to] !== undefined).map((a) => `${a.label}: ${String(asked[a.to])}`).join(', ')}.\n\n` : '';
     // Some registers point at rows that have to be there first, or accept only
-    // some of the names in the file (see `prepare`). Done in its own statements
-    // BEFORE anything is written — a database trigger cannot do this for us —
-    // and before the confirmation, so the number you are asked to approve is the
-    // number that will actually be written. It used to run after, which meant
-    // agreeing to 257,130 rows and being told afterwards that 4,538 went in.
-    let note = '';
+    // some of the names in the file (see `prepare`). PLANNED before the
+    // confirmation -- reads only -- so the number you are asked to approve is
+    // the number that will actually be written. It used to run after, which
+    // meant agreeing to 257,130 rows and being told afterwards that 4,538 went in.
+    // What the plan must WRITE first (stub spare requests, the visits a
+    // consumption file describes) is only NAMED in the confirmation and written
+    // after OK (D-075): it used to be written before it, so Cancel left those
+    // rows behind -- and a visit moves its call's status.
+    let plan: UploadPlan = { rows: shapedRows, writes: [], note: '' };
     if (def.prepare) {
       setBusy('Checking what these rows point at…');
-      const pre = await prepareUpload(def.prepare, pending.shaped.rows);
+      const pre = await planUpload(def.prepare, shapedRows);
       setBusy('');
-      if (!pre.ok) { setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload.' }); return; }
-      note = pre.note ?? '';
-      if (!pending.shaped.rows.length) {
-        setMsg({ tone: 'error', text: `Nothing left to load.${note ? ` ${note}` : ''}` });
+      if (!pre.ok || !pre.plan) {
+        const why = pre.error ?? 'Could not prepare the upload.';
+        const unrecorded = await record(p, { outcome: 'stopped', ready: p.shaped.rows.length, toWrite: 0, written: 0, why, started });
+        setMsg({ tone: 'error', text: why + unrecorded });
+        return;
+      }
+      plan = pre.plan;
+      if (!plan.rows.length) {
+        const why = `Nothing left to load — nothing was written.${plan.note ? ` ${plan.note}` : ''}`;
+        const unrecorded = await record(p, { outcome: 'stopped', ready: 0, toWrite: 0, written: 0, why, started });
+        setMsg({ tone: 'error', text: why + unrecorded });
         return;
       }
     }
-    if (missing) { setMsg({ tone: 'error', text: `Choose the ${missing} before uploading.` }); return; }
-    const asked = askedFields(def.asks, answers);
-    const rows = Object.keys(asked).length ? pending.shaped.rows.map((r) => ({ ...r, ...asked })) : pending.shaped.rows;
+    const rows = plan.rows;
+    const note = plan.note;
     const n = rows.length;
-    const askedNote = Object.keys(asked).length
-      ? `Every row is recorded with ${(def.asks ?? []).filter((a) => asked[a.to] !== undefined).map((a) => `${a.label}: ${String(asked[a.to])}`).join(', ')}.\n\n` : '';
-    const warn = def.conflict
-      ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
-      : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${askedNote}${note ? `${note}\n\n` : ''}${warn}`)) return;
+    // D-152: a Sold Through that is not a dealer on the Party Master is FLAGGED,
+    // not refused (the user: "Just flag it for now, Lets Observe and then decide").
+    let flag = '';
+    if (rows.some((r) => String(r.sold_through ?? '').trim())) {
+      try {
+        const odd = soldThroughNotDealers(rows, await dealerParties());
+        if (odd.length) {
+          flag = `⚑ ${odd.length} Sold Through value${odd.length === 1 ? ' is' : 's are'} not a DEALER on the Party Master and will be loaded as they are: ${odd.slice(0, 20).join(', ')}${odd.length > 20 ? ` and ${odd.length - 20} more` : ''}.`;
+        }
+      } catch { flag = '⚑ Could not read the Party Master\'s dealers, so Sold Through was not checked.'; }
+    }
+    // D-177: a register that replaces each group whole says how much it will
+    // replace -- read before the question, so the number asked about is real.
+    let warn: string;
+    const rg = def.replaceGroups;
+    if (rg) {
+      const keys = [...new Set(rows.map((r) => String(r[rg.by] ?? '').trim()).filter(Boolean))];
+      let had = '';
+      try { had = `${await countImportedStockLines(rg.kind, keys)} line(s) already loaded under them`; }
+      catch { had = 'the lines already loaded under them (they could not be counted)'; }
+      const what = rg.kind === 'mrn' ? 'SI Number' : 'transfer';
+      warn = `This file names ${keys.length} ${what}(s). Each is loaded WHOLE: ${had} will be REPLACED by the file's ${n} — a line the file no longer carries is removed. A ${what} holding a line entered in RITHI is refused, and the upload stops there.`;
+    } else {
+      warn = def.conflict
+        ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
+        : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
+    }
+    const first = prepWritesQuestion(plan.writes);
+    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${askedNote}${first ? `${first}\n\n` : ''}${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) {
+      const unrecorded = await record(p, { outcome: 'cancelled', ready: n, toWrite: n, written: 0, why: 'Cancelled at the confirmation — nothing was written.', started });
+      if (unrecorded) setMsg({ tone: 'error', text: `Cancelled — nothing was written.${unrecorded}` });
+      return;
+    }
+    // Only now, with OK pressed: what the rows point at, then the rows. A
+    // failure here stops the upload, and says what was and was not written.
+    let wroteFirst = '';
+    if (plan.writes.length) {
+      setBusy('Writing what these rows point at…');
+      const pre = await applyUploadPlan(plan);
+      setBusy('');
+      const why = pre.error ?? 'Could not prepare the upload — the upload was not started.';
+      if (!pre.ok) { setMsg({ tone: 'error', text: why + await record(p, { outcome: 'stopped', ready: n, toWrite: n, written: 0, why, wroteFirst: pre.done, started }) }); onDone(); return; }
+      wroteFirst = pre.done;
+    }
     setBusy(`Writing 0 / ${n}…`);
-    const res = await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
+    const res = rg
+      ? await reloadImportedStockLines(rg.kind, rg.by, rows, (d, t) => setBusy(`Writing ${d} / ${t}…`))
+      : await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
-    if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
-    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}` });
+    const firstNote = wroteFirst ? ` Written first: ${wroteFirst}.` : '';
+    if (!res.ok) {
+      const unrecorded = await record(p, { outcome: 'stopped', ready: n, toWrite: n, written: res.written, why: res.error ?? 'The upload stopped.', wroteFirst, started });
+      setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)${firstNote}${unrecorded}` }); onDone(); return;
+    }
+    const unrecorded = await record(p, { outcome: 'completed', ready: n, toWrite: n, written: res.written, wroteFirst, started });
+    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${firstNote}${note ? ` ${note}` : ''}${flag ? ` ${flag}` : ''}${unrecorded}` });
     setPending(null);
     onDone();
   };
@@ -150,7 +246,7 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       )}
       {def.note && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{def.note}</div>}
       {def.requires && <div className="muted" style={{ fontSize: 12 }}>Load <b>{def.requires}</b> first — these rows point at it.</div>}
-      {!def.conflict && (
+      {!def.conflict && !def.replaceGroups && (
         <div className="muted" style={{ fontSize: 12 }}>
           ⚠ No natural key: a second run adds rows rather than correcting them.
         </div>

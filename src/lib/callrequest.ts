@@ -67,6 +67,83 @@ export function machineRowProblem(rows: RequestRow[], isInstall: boolean): strin
 }
 
 // ---------------------------------------------------------------------------
+// A REQUEST IS WRITTEN WHOLE OR NOT AT ALL (FRS-123.8, D-030).
+//
+// `addCallRequestBatch` mints ONE REQID with `next_call_reqid()` and writes
+// every call in ONE insert, which Postgres makes all-or-nothing. It used to
+// fall back, when the mint failed, to inserting call 1 alone (letting a trigger
+// mint the REQID) and then the rest — and when the rest failed it returned
+// ok: true with "Saved X (1 call)", a request half-saved under a comment saying
+// that never happens. There is no way to make two inserts one from the
+// browser, so the fallback is gone: no REQID, no write.
+//
+// Here, not in supabase.ts, so check:ui can run it with real inputs.
+// ---------------------------------------------------------------------------
+export const NOTHING_SAVED = 'Nothing was saved';
+
+export function reqidOrRefusal(minted: unknown, mintError?: string | null):
+  { ok: true; reqid: string } | { ok: false; error: string } {
+  const reqid = String(minted ?? '').trim();
+  if (!mintError && reqid) return { ok: true, reqid };
+  return {
+    ok: false,
+    error: `The request number could not be issued${mintError ? ` (${mintError})` : ''}. `
+      + `${NOTHING_SAVED} — no call on this request was written. Try again; if it keeps failing, `
+      + 'the database is missing next_call_reqid() (apply bundle: call_requests).',
+  };
+}
+
+/** WHY AN ATTENDED DATE CANNOT BE ACCEPTED, or null (FRS-123.4, D-030).
+ *  It becomes the call's complaint date, and no visit may precede that, so a
+ *  date after today is a call nobody can ever report on. `today` is passed in
+ *  (yyyy-mm-dd, the reader's calendar) so this can be run with a fixed day;
+ *  ISO dates compare correctly as strings. The database refuses the same
+ *  ("The Attended Date cannot be in the future"); this says it first. */
+export function attendedDateProblem(attended: boolean, date: string, today: string): string | null {
+  if (!attended) return null;
+  const d = String(date ?? '').trim().slice(0, 10);
+  if (!d) return 'Attended Date is required when Call Attended? = Yes.';
+  if (d > today) return 'The Attended Date cannot be in the future.';
+  return null;
+}
+
+/**
+ * WHY A CORRECTION TO ONE CALL OF A PENDING REQUEST CANNOT BE SAVED, or null
+ * (FRS-124, D-030).
+ *
+ * The correction offers the form's own pickers, so a value no master holds
+ * cannot be typed; this is what the pickers cannot see — the row as a whole,
+ * and the row against the OTHER calls on the same REQID. On a field or PM call
+ * the machine names the customer (CR-005), so a row with a serial and no
+ * customer is a serial the register does not hold; one machine cannot be two
+ * calls; and a request is one visit to one customer (CR-007). An installation
+ * names its customer by hand (CR-017), so it needs one typed.
+ */
+export function correctionProblem(
+  row: RequestRow, others: RequestRow[], isInstall: boolean,
+): string | null {
+  const t = (v: unknown) => String(v ?? '').trim();
+  const squash = (v: unknown) => t(v).replace(/\s+/g, ' ').toLowerCase();
+  if (!t(row.product)) return 'Product is required.';
+  if (!t(row.serial)) return 'Serial No is required.';
+  if (!t(row.reportedProblem)) return 'Reported Problem is required.';
+  if (isInstall) return t(row.party) ? null : 'Enter the Party Name.';
+  if (!t(row.party)) {
+    return 'That serial is not on the register, so no customer came with it. '
+         + 'Pick the machine from the list, or have it added to Product Database.';
+  }
+  if (others.some((o) => squash(o.serial) !== '' && squash(o.serial) === squash(row.serial))) {
+    return 'That machine is already on this request as another call.';
+  }
+  const other = others.find((o) => squash(o.party) !== '' && squash(o.party) !== squash(row.party));
+  if (other) {
+    return `That machine belongs to ${t(row.party)}, but the other calls on this request are for `
+         + `${t(other.party)}. A request is one visit to one customer — raise a separate request for this machine.`;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // WHAT THE PRODUCT BOX READS WHEN NOTHING IS CHOSEN.
 //
 // A message explaining an empty list must appear ONLY when the list is empty.

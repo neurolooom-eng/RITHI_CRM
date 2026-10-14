@@ -70,6 +70,7 @@
 --   0347_feedback_read_once_and_no_machine_delete.sql
 --   0350_delete_guard_counts_every_name.sql
 --   0381_master_reads_once_per_query.sql
+--   0461_unmatched_login_holds_nothing.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -99,6 +100,12 @@
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
 --   0378_pdqc_number.sql
+--   0457_indoor_approval_skips_a_solved_call.sql
+--   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
+--   0367_indoor_dc_approver_is_the_login.sql
+--   0443_indoor_record_visit_closed_and_comments.sql
+--   0451_indoor_reported_to_customer_stamp.sql
+--   0453_indoor_parts_accessories_checks_voided.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
 --   0376_spare_recycling_delete.sql
@@ -121,14 +128,20 @@
 --   0319_product_master_imported.sql
 --   0325_product_line_and_list_add_edit_delete.sql
 --   0326_party_country.sql
+--   0366_masters_required_kyc_and_line_names.sql
+--   0371_master_list_delete_key.sql
+--   0448_master_value_in_use_kept.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
 --   0299_document_drive_details.sql
 --   0354_service_note_dated_latest.sql
 --   0356_service_notes_batch_save.sql
+--   0368_qms_revision_is_a_new_entry.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
+--   0444_user_master_keeps_history.sql
+--   0464_training_acknowledged_by_the_trainee.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -169,6 +182,9 @@
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
 --   0406_install_call_registers_requests.sql
+--   0452_field_call_vigilance_answered.sql
+--   0447_call_request_attended_not_future.sql
+--   0450_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -209,6 +225,9 @@
 --   0398_dccr_junk_rows.sql
 --   0399_pm_spare_dccr_rerun.sql
 --   0400_pm_spare_blank_review.sql
+--   0455_review_answers_read_key.sql
+--   0446_ffr_customer_and_problem_required.sql
+--   0463_ffr_caller_rules.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -247,6 +266,7 @@
 --   0310_rename_passes_the_line_guard.sql
 --   0311_tick_box_rm_auto_approves.sql
 --   0333_spare_request_files_visit.sql
+--   0393_spare_line_people_from_session.sql
 --   0122_spare_requests_replay_tail.sql
 --   0020_stock_transfer.sql
 --   0123_stock_transfer_update_policy.sql
@@ -293,6 +313,11 @@
 --   0339_stock_moves_only_within_what_is_held.sql
 --   0340_spare_request_fixed_once_decided.sql
 --   0335_master_key_changes_only_by_rename.sql
+--   0369_filed_under_own_name_unless_granted.sql
+--   0373_stock_movement_dates.sql
+--   0375_stock_transfer_own_or_team.sql
+--   0392_save_records_whole.sql
+--   0458_stock_loads_overwrite_on_reload.sql
 --   0385_stores_dispatch_report.sql
 --   0387_stores_dispatch_2025_history.sql
 --   0388_stores_dispatch_2026_history.sql
@@ -307,6 +332,8 @@
 --   0420_drop_or44271_ky550200.sql
 --   0421_delete_voided_ky550200_consumption.sql
 --   0426_stock_record_files.sql
+--   0462_spare_receipt_by_the_raiser.sql
+--   0465_stock_reload_replaces_the_group.sql
 --   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
@@ -339,6 +366,8 @@
 --   0331_install_solved_date_starts_warranty.sql
 --   0332_installation_warranty_starts.sql
 --   0351_dealer_guard_stands_aside_on_reload.sql
+--   0361_sold_through_cleared_only_if_a_transfer_set_it.sql
+--   0362_installation_once_and_no_dealer_request.sql
 --   0383_transfer_fresh_warranty.sql
 --   0391_transfer_ot_number_invoice_files.sql
 --   0401_pm_due.sql
@@ -346,6 +375,8 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
+--   0454_pm_calls_in_month.sql
+--   0459_cover_normalise_says_first.sql
 --   0044_sla_rules.sql
 --   0427_sla_rule_named.sql
 --   0042_knowledge_base.sql
@@ -389,6 +420,8 @@
 --   0431_failure_rate_reads_dccr_history.sql
 --   0438_objective_attended_from_breakdown.sql
 --   0441_objective_days_lower_of_two.sql
+--   0456_objective_with_figures_kept.sql
+--   0460_objective_feedback_evidence_gate.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -396,6 +429,8 @@
 --   0225_record_audit_on.sql
 --   0246_record_audit_description.sql
 --   0314_record_audit_on_movements_and_training.sql
+--   0445_record_audit_on_configuration_objectives_indoor.sql
+--   0449_cover_registers_imaged.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -457,6 +492,7 @@
 --   0245_sys_columns_view_tail.sql
 --   0248_lock_down_internal_functions.sql
 --   0338_helpers_not_public.sql
+--   0466_unused_definers_revoked.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5087,7 +5123,9 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.add', 'masters.edit'),
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
-  ('masters.product_master.delete', 'masters.edit');
+  ('masters.product_master.delete', 'masters.edit'),
+  -- D-129 (0455, 2026-10-05): an editor of the review reads its answers.
+  ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
 -- my_extra_perms() is NULL, and several callers rely on `if not has_perm()`
@@ -5895,6 +5933,73 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0461_unmatched_login_holds_nothing.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-172 (re-review 5; the user's decision, 2026-10-14: "Nothing until added").
+-- A REGRESSION OF D-074: a sign-in whose email is on no User Master row was
+-- given an ENGINEER profile the first time it signed in.
+--
+-- sbCurrentProfile() calls ensure_my_profile() for every login with no
+-- profile, and the function (0033) inserted coalesce(<the User Master role>,
+-- 'engineer') whether or not a User Master row matched -- so D-074's "an
+-- unknown login holds nothing" path ran only when the call failed. Measured: a
+-- login with no profile and no User Master row went from has_perm(calls.report)
+-- = false to true on its first sign-in.
+--
+-- From here the function makes a profile ONLY from a User Master row that
+-- carries the login's email or gmail. With none it creates nothing and returns
+-- NULL; the client then shows the one "not set up" page and the database holds
+-- the login to nothing (0300) until an administrator adds the person to the
+-- User Master. Profiles already created this way are left as they are (the
+-- user's decision); supabase/apply/_profiles_without_a_user_master_row.sql
+-- lists them.
+--
+-- Restated from 0033 (the latest definition); only the early return is new.
+-- ===========================================================================
+create or replace function public.ensure_my_profile()
+returns public.profiles
+language plpgsql security definer set search_path = public as $$
+declare
+  me   uuid := auth.uid();
+  mail text := lower(coalesce(auth.email(), ''));
+  dir  public.user_directory;
+  p    public.profiles;
+  want text;
+begin
+  if me is null then return null; end if;
+
+  select * into p from public.profiles where id = me;
+  if found then return p; end if;
+
+  select * into dir from public.user_directory
+   where mail <> '' and (lower(email) = mail or lower(gmail) = mail)
+   limit 1;
+  -- 0461 (D-172): no User Master row, no profile -- and so no permission.
+  if not found then return null; end if;
+
+  want := nullif(btrim(coalesce(dir.role, '')), '');
+  if want is not null and not exists (select 1 from public.app_roles where role = want) then
+    want := null;  -- not a role the matrix knows: fall back rather than guess
+  end if;
+
+  insert into public.profiles (id, email, full_name, role, designation, active)
+  values (
+    me,
+    coalesce(auth.email(), ''),
+    coalesce(nullif(btrim(coalesce(dir.name, '')), ''), coalesce(auth.email(), '')),
+    coalesce(want, 'engineer'),
+    coalesce(dir.designation, ''),
+    coalesce(dir.validity, true)
+  )
+  on conflict do nothing;   -- id or email already taken: leave what is there
+
+  select * into p from public.profiles where id = me;
+  return p;   -- null if the email belongs to another profile; the caller copes
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -6074,8 +6179,10 @@ begin
     with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
+  -- masters_delete is 0371_master_list_delete_key's (a list's own delete key,
+  -- or masters.edit -- not "Add / edit master records", D-086).
   create policy masters_delete on public.masters for delete
-    using      (public.has_perm('masters.edit.records')
+    using      (public.has_perm('masters.edit')
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 end $$;
 
@@ -11502,6 +11609,779 @@ create trigger zy_pdqc_number before insert or update on public.pdqc_records
 alter table public.pdqc_records alter column pdqc_no set not null;
 
 -- ------------------------------------------------------------------------
+-- 0457_indoor_approval_skips_a_solved_call.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0457 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+--        (second re-review D-145; the user's decision, 2026-10-04)
+--
+-- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
+-- Field without asking the call's state. Measured: a call solved by a field
+-- visit after the draft received the approval's Unsolved visit as its latest
+-- entry, so it read Unsolved, reopen_count 0, nothing saying why.
+--
+-- THE USER'S DECISION: "Approve, skip that visit" -- the DC is approved and
+-- its other units' visits are filed; for a unit whose call is already Solved
+-- the drafted visit (and its spares) is NOT filed, the skip is written to the
+-- audit log (indoor.visit_skipped) and the approver is told which calls: the
+-- function returns "<DC No> | visit not filed, call already Solved: <UCNs>",
+-- and the screen shows it. "Solved" is the call's last status beginning with
+-- Solved (Solved, Solved - Report Pending ...) -- NOT open_state's "Report
+-- pending", which also covers a visit with a blank status.
+--
+-- Built on 0372's definition (the workshop's Call Status / Pending Reason
+-- decide the visit's), VERBATIM, with those lines added -- so the skip applies
+-- only where the call is already Solved AND the visit this job would file is
+-- not: a visit the workshop records as Solved is still filed.
+-- (Written as 0360 against 0327; renumbered after main's 0372 re-stated the
+-- function without it, which would otherwise have dropped the skip.)
+-- In the indoor module, after 0372.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.approve_indoor_dc(p_dc_no text, p_check_only boolean DEFAULT false)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_vs     record;
+  v_skipped text[] := '{}';
+  v_dc    public.indoor_dcs%rowtype;
+  j       record;
+  v_call  record;
+  v_draft jsonb;
+  v_uid   text;
+  v_me    text;
+  v_sp    jsonb;
+begin
+  select * into v_dc from public.indoor_dcs where dc_no = btrim(p_dc_no) for update;
+  if not found then
+    raise exception 'Indoor DC % was not found', p_dc_no using errcode = '23503';
+  end if;
+  if not public.indoor_dc_may_approve(v_dc.authorised_by_name) then
+    raise exception 'only % (AUTHORISED BY) or an administrator approves Indoor DC %', coalesce(nullif(v_dc.authorised_by_name, ''), '(nobody named)'), v_dc.dc_no
+      using errcode = '42501';
+  end if;
+  if v_dc.created_by = auth.uid() and not public.is_admin() then
+    raise exception 'Indoor DC % was issued by you -- the Reporting Manager, Regional Manager or NSM the User Master names approves it', v_dc.dc_no
+      using errcode = '42501';
+  end if;
+  if v_dc.approval_status <> 'Pending approval' then
+    raise exception 'Indoor DC % is %, not pending approval', v_dc.dc_no, v_dc.approval_status
+      using errcode = '23514';
+  end if;
+
+  -- Every unit with a call must have its visit drafted before anything is
+  -- written -- including on a check-only call, so the screen says so first.
+  for j in select * from public.indoor_jobs
+            where btrim(dispatch_ref) = v_dc.dc_no
+              and coalesce(btrim(ucn), '') <> '' and visit_filed_at is null
+            order by id loop
+    if j.visit_draft is null or jsonb_typeof(j.visit_draft) <> 'object' then
+      raise exception '%: no visit was drafted with its Indoor Service Report -- the Indoor engineer completes it (Report stage) before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
+    if btrim(coalesce(j.call_status, '')) = 'Unsolved' and btrim(coalesce(j.call_pending_reason, '')) = '' then
+      raise exception '%: the Call Status is Unsolved with no Call Pending Reason -- choose one in the Workshop record before Indoor DC % can be approved', j.job_no, v_dc.dc_no
+        using errcode = '23514';
+    end if;
+    if not exists (select 1 from public.calls c where c.ucn = btrim(j.ucn)) then
+      raise exception '%: call % was not found -- its visit cannot be filed', j.job_no, btrim(j.ucn)
+        using errcode = '23503';
+    end if;
+  end loop;
+  if p_check_only then return 'OK'; end if;
+
+  v_me := coalesce((select nullif(btrim(p.email), '') from public.profiles p where p.id = auth.uid()), auth.email(), '');
+  perform set_config('rithi.indoor_visit', 'on', true);
+
+  for j in select * from public.indoor_jobs
+            where btrim(dispatch_ref) = v_dc.dc_no
+              and coalesce(btrim(ucn), '') <> '' and visit_filed_at is null
+            order by id loop
+    select c.ucn, c.call_number, c.call_type, c.last_status into v_call from public.calls c where c.ucn = btrim(j.ucn) limit 1;
+    v_draft := j.visit_draft;
+    -- 0372: the Call Status / Pending Reason chosen on the job's Workshop record.
+    select * into v_vs from public.indoor_visit_status(j.call_status, j.call_pending_reason);
+    -- D-145 (the user's decision, 2026-10-04: "Approve, skip that visit"): a
+    -- call SOLVED since the visit was drafted is not put back to an open
+    -- status. When the call's last status is Solved and the visit this job
+    -- would file is not, the visit and its spares are not filed, the job keeps
+    -- no visit, the skip goes to the audit log, and the approver is told which
+    -- calls. A visit the workshop records as Solved (0372) is still filed, and
+    -- a visit an earlier attempt already filed is still reused.
+    if lower(btrim(coalesce(v_call.last_status, ''))) like 'solved%'
+       and lower(btrim(coalesce(v_vs.call_status, ''))) not like 'solved%'
+       and not (j.visit_uid is not null and exists (select 1 from public.reports r where r.uid = j.visit_uid)) then
+      v_skipped := v_skipped || btrim(j.ucn);
+      insert into public.audit_log (actor, role, action, target, status, meta)
+      values (v_me, '', 'indoor.visit_skipped', j.job_no, 'ok',
+              jsonb_build_object('dc_no', v_dc.dc_no, 'job_no', j.job_no, 'ucn', btrim(j.ucn),
+                                 'call_status', coalesce(v_call.last_status, ''),
+                                 'reason', 'the call was Solved after the visit was drafted, so the visit was not filed'));
+      continue;
+    end if;
+    -- WHAT THE VISIT ENTRY'S SAVE PATH FILES (fileVisit, CallReporting.tsx),
+    -- with the user's fixed Indoor values whatever the draft says: Unsolved /
+    -- Return to Field / work details Yes; the report is the uploaded Indoor
+    -- Service Report and its number travels as Manual Report No.
+    -- A VISIT ALREADY FILED by an earlier attempt through the screen (0323's
+    -- path recorded its uid before finishing) is reused, never filed twice;
+    -- that path's retry then filed the spares, and so does this.
+    if j.visit_uid is not null and exists (select 1 from public.reports r where r.uid = j.visit_uid) then
+      v_uid := j.visit_uid;
+    else
+    v_uid := 'WEB-' || upper(to_hex((extract(epoch from clock_timestamp()) * 1000)::bigint))
+             || '-' || upper(substr(md5(random()::text || j.id::text), 1, 5));
+    insert into public.reports (uid, ucn, call_number, manual_report, call_status, pending_reason,
+                                engineer, engineer_email, visit_at, data, updated_at)
+    values (v_uid, btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(j.report_file_url, ''),
+            v_vs.call_status, v_vs.pending_reason,
+            coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''),
+            case when coalesce(v_draft->>'visitDate', '') <> '' then ((v_draft->>'visitDate') || 'T00:00:00Z')::timestamptz end,
+            jsonb_build_object(
+              'Email-ID', v_me,
+              'Call Type', coalesce(v_call.call_type, ''),
+              'Visit Entry Date', to_char(now() at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI:SS'),
+              'Visit Date & Time', coalesce(v_draft->>'visitDate', ''))
+            || case when jsonb_typeof(v_draft->'work') = 'object' then v_draft->'work' else '{}'::jsonb end
+            -- the fixed values LAST, so nothing in the draft can override them
+            || jsonb_build_object('Update Visit Work Details?', 'Yes',
+                                  'Manual Report', coalesce(j.report_file_url, ''),
+                                  'Manual Report No.', coalesce(j.indoor_report_no, '')),
+            now());
+    end if;
+
+    -- The drafted spares, every part in ONE statement, as the screen did.
+    if jsonb_typeof(v_draft->'spares') = 'array' and jsonb_array_length(v_draft->'spares') > 0 then
+      insert into public.spare_consumption (ucn, call_number, part, qty, grir, engineer, engineer_email, data)
+      select btrim(j.ucn), coalesce(v_call.call_number, ''), coalesce(sp->>'part', ''),
+             coalesce(nullif(sp->>'qty', '')::numeric, 1), coalesce(sp->>'grir', ''),
+             coalesce(v_draft->>'engineer', ''), coalesce(v_draft->>'engineerEmail', ''), '{}'::jsonb
+        from jsonb_array_elements(v_draft->'spares') sp;
+    end if;
+
+    update public.indoor_jobs set visit_uid = v_uid, visit_filed_at = now() where id = j.id;
+  end loop;
+
+  update public.indoor_dcs
+     set approval_status  = 'Approved',
+         approved_by      = auth.uid(),
+         approved_at      = now(),
+         approved_by_name = coalesce((select coalesce(nullif(btrim(p.full_name), ''), p.email)
+                                        from public.profiles p where p.id = auth.uid()), '')
+   where id = v_dc.id;
+  if array_length(v_skipped, 1) > 0 then
+    return v_dc.dc_no || ' | visit not filed, call already Solved: ' || array_to_string(v_skipped, ', ');
+  end if;
+  return v_dc.dc_no;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0363_indoor_pdt_lock_dispatch_and_cleaning.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0363 — A SIGNED PDT IS LOCKED; THE DISPATCH DATE IS WHEN THE UNIT LEAVES;
+--        A CLEANING TIME MAY BE EARLIER BUT NEVER LATER, AND NAMES WHO
+--        (second re-review D-111, D-112, D-114; the user's decisions, 2026-10-04)
+--
+-- D-111 -- indoor_pdt_stamp() stamps the inspector on signing and nothing
+-- refused a later change: measured, a second engineer changed the HV reading
+-- and a check from OK to NOT OK after the first had signed, and the row still
+-- named the first as the inspector -- after dispatch too.
+-- THE USER'S DECISION: "Lock once signed" -- a signed PDT cannot be changed;
+-- a correction needs it un-signed first, by "a new key, ticked per person":
+-- indoor.pdt_unsign (an administrator holds every key; nobody else is given
+-- it here). Un-signing is unsign_indoor_pdt(job, reason): the reason and who
+-- go to the audit log (indoor.pdt_unsign), and only that function's ticket
+-- lets a signature be withdrawn. Signing over somebody else's signature is
+-- refused too: that is a change of who vouched for the test.
+--
+-- D-112 -- the 0323 guard stamps dispatched_at / dispatched_by when the DC
+-- number is set, i.e. when the DC is ISSUED; moving the unit to Dispatched
+-- later did not re-stamp, so a unit still Ready showed a dispatch date.
+-- THE USER'S DECISION: the Dispatch Date is the date it is marked Dispatched.
+-- They are stamped on the move into Dispatched (or straight into Closed with
+-- none yet) from the session, and a unit not Dispatched or Closed carries
+-- none. ONCE, the stamps the DC issue left on units still not dispatched are
+-- cleared -- that one statement lifts zz_indoor_jobs_guard by name (the
+-- migration has no session, and the guard would read the clearing as an
+-- unauthorised dispatch) and puts it straight back.
+--
+-- D-114 -- the report may be uploaded only after cleaning, judged on
+-- cleaned_at, which the browser sent; measured, cleaned_at = 2020-01-01 with
+-- no cleaned_by was accepted. THE USER'S DECISION: "allow an earlier time"
+-- (cleaning is sometimes recorded after it happened), never a future one, and
+-- the database records WHO marked it -- cleaned_by is the session whatever was
+-- sent. Clearing the cleaning time clears who.
+--
+-- ONE TRIGGER OF ITS OWN for D-112 / D-114, not another edit of
+-- indoor_jobs_guard: that function is 269 lines and has been rebuilt before.
+-- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
+-- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
+-- A connection with no session (a repair, an import) is not stopped.
+-- In the indoor module, after 0457.
+-- ===========================================================================
+
+-- ---- D-111 ------------------------------------------------------------------
+create or replace function public.indoor_pdt_locked_once_signed()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_stamps text[] := array['id', 'job_id', 'inspected_by', 'inspector_name', 'inspector_designation',
+                           'inspected_at', 'created_by', 'created_at', 'updated_by', 'updated_at',
+                           'sys_id', 'sys_created_by', 'sys_created_on', 'sys_updated_by', 'sys_updated_on'];
+begin
+  if auth.uid() is null then return new; end if;                -- a repair
+  if old.inspected_by is null then return new; end if;           -- not signed: editable
+
+  if new.inspected_by is null then                               -- withdrawing the signature
+    if coalesce(current_setting('rithi.pdt_unsign', true), '') = 'on'
+       and public.has_perm('indoor.pdt_unsign') then
+      return new;
+    end if;
+    raise exception 'A signed Pre-Delivery Testing record is un-signed with "Un-sign", by somebody given indoor.pdt_unsign, with a reason'
+      using errcode = '42501';
+  end if;
+
+  if new.inspected_by is distinct from old.inspected_by then
+    raise exception 'This Pre-Delivery Testing record is already signed by % -- it is un-signed first, then signed again',
+      coalesce(nullif(old.inspector_name, ''), 'the inspector') using errcode = '42501';
+  end if;
+
+  if (to_jsonb(new) - v_stamps) is distinct from (to_jsonb(old) - v_stamps) then
+    raise exception 'This Pre-Delivery Testing record is signed by % and locked -- it is un-signed first (needs indoor.pdt_unsign and a reason) before anything on it changes',
+      coalesce(nullif(old.inspector_name, ''), 'the inspector') using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_pdt_locked_once_signed() from public, anon, authenticated;
+drop trigger if exists indoor_pdt_locked_once_signed on public.indoor_pdt;
+create trigger indoor_pdt_locked_once_signed
+  before update on public.indoor_pdt
+  for each row execute function public.indoor_pdt_locked_once_signed();
+
+create or replace function public.unsign_indoor_pdt(p_job_id bigint, p_reason text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_pdt public.indoor_pdt%rowtype; v_job text; v_actor text;
+begin
+  if not public.has_perm('indoor.pdt_unsign') then
+    raise exception 'indoor.pdt_unsign is required to un-sign a Pre-Delivery Testing record' using errcode = '42501';
+  end if;
+  if btrim(coalesce(p_reason, '')) = '' then
+    raise exception 'Say why the Pre-Delivery Testing record is un-signed' using errcode = '23514';
+  end if;
+  select * into v_pdt from public.indoor_pdt where job_id = p_job_id for update;
+  if not found or v_pdt.inspected_by is null then
+    raise exception 'That Pre-Delivery Testing record is not signed' using errcode = '23514';
+  end if;
+  select job_no into v_job from public.indoor_jobs where id = p_job_id;
+  select coalesce(nullif(btrim(p.full_name), ''), p.email, '') into v_actor from public.profiles p where p.id = auth.uid();
+
+  perform set_config('rithi.pdt_unsign', 'on', true);
+  update public.indoor_pdt set inspected_by = null where job_id = p_job_id;
+  perform set_config('rithi.pdt_unsign', 'off', true);
+
+  insert into public.audit_log (actor, role, action, target, status, meta)
+  values (coalesce(v_actor, ''), '', 'indoor.pdt_unsign', coalesce(v_job, p_job_id::text), 'ok',
+          jsonb_build_object('job_id', p_job_id, 'reason', btrim(p_reason),
+                             'was_signed_by', v_pdt.inspector_name, 'was_signed_at', v_pdt.inspected_at));
+end $$;
+revoke execute on function public.unsign_indoor_pdt(bigint, text) from public, anon;
+grant execute on function public.unsign_indoor_pdt(bigint, text) to authenticated;
+
+-- ---- D-112 / D-114 ----------------------------------------------------------
+create or replace function public.indoor_dispatch_and_cleaning_stamps()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;                -- a repair, an import
+
+  -- D-112: dispatched when it is marked Dispatched, not when its DC was issued.
+  if new.status in ('Dispatched', 'Closed') then
+    if new.status = 'Dispatched'
+       and (tg_op = 'INSERT' or old.status is distinct from 'Dispatched')
+       and (tg_op = 'INSERT' or old.status is distinct from 'Closed') then
+      new.dispatched_at := now();
+      new.dispatched_by := auth.uid();
+    elsif new.status = 'Closed' and new.dispatched_at is null then
+      new.dispatched_at := now();
+      new.dispatched_by := auth.uid();
+    end if;
+  else
+    new.dispatched_at := null;
+    new.dispatched_by := null;
+  end if;
+
+  -- D-114: an earlier cleaning time is allowed, a later one is not; who is the session.
+  if new.cleaned_at is distinct from (case when tg_op = 'UPDATE' then old.cleaned_at end)
+     or new.cleaned_by is distinct from (case when tg_op = 'UPDATE' then old.cleaned_by end) then
+    if new.cleaned_at is null then
+      new.cleaned_by := null;
+    else
+      if new.cleaned_at > now() + interval '5 minutes' then
+        raise exception 'A cleaning cannot be recorded in the future (%) -- give the time it was done',
+          to_char(new.cleaned_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI') using errcode = '23514';
+      end if;
+      new.cleaned_by := auth.uid();
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_dispatch_and_cleaning_stamps() from public, anon, authenticated;
+drop trigger if exists zzy_indoor_dispatch_and_cleaning on public.indoor_jobs;
+create trigger zzy_indoor_dispatch_and_cleaning
+  before insert or update on public.indoor_jobs
+  for each row execute function public.indoor_dispatch_and_cleaning_stamps();
+
+-- ---- once: the dispatch stamps the DC issue left on units not yet dispatched --
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare n bigint;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0363_premature_dispatch_stamps_cleared') then return; end if;
+  -- Lifted for this ONE statement and put straight back (the 0210 rule).
+  alter table public.indoor_jobs disable trigger zz_indoor_jobs_guard;
+  update public.indoor_jobs
+     set dispatched_at = null, dispatched_by = null
+   where status not in ('Dispatched', 'Closed')
+     and (dispatched_at is not null or dispatched_by is not null);
+  get diagnostics n = row_count;
+  alter table public.indoor_jobs enable trigger zz_indoor_jobs_guard;
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0363_premature_dispatch_stamps_cleared', n || ' unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared');
+  raise notice '0363: % unit(s) not yet dispatched had the DC issue''s dispatch stamp cleared', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0367_indoor_dc_approver_is_the_login.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0367 — AN INDOOR DC IS APPROVED BY THE LOGIN THE USER MASTER NAMES, NOT BY
+--        ANYBODY WHOSE PROFILE CARRIES THE SAME NAME
+--        (second re-review D-143)
+--
+-- indoor_dc_may_approve() (0323) compared authorised_by_name with
+-- my_dir_name() (limit 1, no order) OR the caller's profile full_name.
+-- Measured: a second login whose profile name equals the approver's, holding
+-- calls.view only and with no User Master row, saw both DCs (indoor_read reads
+-- it through indoor_job_on_my_dc()) and approved one; the DC then read
+-- approved_by_name as the right person.
+--
+-- The authoriser is chosen from the User Master (0327), so the person named is
+-- a User Master row, and that row says which login is theirs: its Mail ID or
+-- its Gmail. The caller is now the person named when a User Master row of that
+-- name carries the caller's sign-in address -- any such row, not the first.
+-- The profile's own name is still accepted ONLY where no User Master row of
+-- that name carries any address at all: then the directory cannot say who the
+-- person is, and refusing would leave the DC with no approver but an
+-- administrator. Where it does carry one, a different login with the same
+-- name is refused.
+-- Signature and every caller unchanged (approve, reject, record_indoor_visit,
+-- the DC list, indoor_job_on_my_dc). In the indoor module, after 0363.
+-- ===========================================================================
+
+create or replace function public.indoor_dc_may_approve(p_authorised_by text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin()
+      or (coalesce(btrim(p_authorised_by), '') <> ''
+          and (exists (select 1 from public.user_directory d
+                        where upper(btrim(d.name)) = upper(btrim(p_authorised_by))
+                          and coalesce(auth.email(), '') <> ''
+                          and (lower(btrim(coalesce(d.email, ''))) = lower(auth.email())
+                               or lower(btrim(coalesce(d.gmail, ''))) = lower(auth.email())))
+               or (not exists (select 1 from public.user_directory d
+                                where upper(btrim(d.name)) = upper(btrim(p_authorised_by))
+                                  and (btrim(coalesce(d.email, '')) <> '' or btrim(coalesce(d.gmail, '')) <> ''))
+                   and upper(btrim(p_authorised_by))
+                       = upper(btrim(coalesce((select p.full_name from public.profiles p where p.id = auth.uid()), ''))))));
+$$;
+comment on function public.indoor_dc_may_approve(text) is
+  'True for an administrator, or for the login a User Master row of that name carries (Mail ID or Gmail); by profile name only where no row of that name carries an address (0367, D-143).';
+revoke all on function public.indoor_dc_may_approve(text) from public;
+revoke execute on function public.indoor_dc_may_approve(text) from anon;
+grant execute on function public.indoor_dc_may_approve(text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0443_indoor_record_visit_closed_and_comments.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0443 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+--        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
+--        (second re-review D-108, D-116)
+--
+-- D-108 -- 0327 stopped the engineer marking a unit's visit filed, but
+-- record_indoor_visit() stayed executable by authenticated, and no screen calls
+-- it (read: src/ -- only an unused wrapper names it). Measured: the DC's named
+-- approver pointed a repair at a 200-day-old visit with it and approved; the DC
+-- read Approved and nothing of this repair was filed. The approval files the
+-- visit itself (approve_indoor_dc(), 0327), running as its owner, so it does
+-- not need the grant. The function is KEPT for a repair in the SQL editor,
+-- where its own checks still apply.
+--
+-- D-116 -- the column comments 0323 wrote say the visit is filed when the DC is
+-- ISSUED and that create_indoor_dc() requires it; since 0327 the visit is filed
+-- at APPROVAL and create_indoor_dc() asks neither. DATABASE_SCHEMA.md carries
+-- the comments, so it said the same.
+-- In the indoor module, after 0367.
+-- ===========================================================================
+
+revoke execute on function public.record_indoor_visit(bigint, text, boolean) from public, anon, authenticated;
+
+comment on column public.indoor_jobs.visit_draft is
+  'For a job with a UCN: the Visit Entry answers captured with the report upload, a DRAFT. Filed against the UCN when the Indoor DC is APPROVED -- by approve_indoor_dc(), as the approver (0327) -- not when it is issued.';
+comment on column public.indoor_jobs.visit_uid is
+  'The reports row (visit) filed against the UCN from this job''s draft, written by the DC''s approval (0327). Must name a visit of this job''s UCN; no signed-in write may change it.';
+comment on column public.indoor_jobs.visit_filed_at is
+  'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
+
+-- ------------------------------------------------------------------------
+-- 0451_indoor_reported_to_customer_stamp.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0451 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+--        (second re-review D-039, FRS-143.9)
+--
+-- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
+-- screen. The screen now records when damage was reported to the owner; the
+-- person is the database's to write, the 0363 rule for the cleaning:
+--   * setting or changing the time stamps reported_to_customer_by from the
+--     session, discarding whatever was sent;
+--   * a time in the future is refused (five minutes' grace for a clock);
+--   * clearing the time clears the person.
+-- A connection with no session (a repair, an import) is left alone.
+-- In the indoor module, after 0443.
+-- ===========================================================================
+
+create or replace function public.indoor_reported_to_customer_stamp()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if new.reported_to_customer_at is distinct from (case when tg_op = 'UPDATE' then old.reported_to_customer_at end)
+     or new.reported_to_customer_by is distinct from (case when tg_op = 'UPDATE' then old.reported_to_customer_by end) then
+    if new.reported_to_customer_at is null then
+      new.reported_to_customer_by := null;
+    else
+      if new.reported_to_customer_at > now() + interval '5 minutes' then
+        raise exception 'A damage report to the customer cannot be recorded in the future (%)',
+          to_char(new.reported_to_customer_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI') using errcode = '23514';
+      end if;
+      new.reported_to_customer_by := auth.uid();
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.indoor_reported_to_customer_stamp() from public, anon, authenticated;
+drop trigger if exists zzy_indoor_reported_to_customer on public.indoor_jobs;
+create trigger zzy_indoor_reported_to_customer
+  before insert or update on public.indoor_jobs
+  for each row execute function public.indoor_reported_to_customer_stamp();
+
+-- ------------------------------------------------------------------------
+-- 0453_indoor_parts_accessories_checks_voided.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0453 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
+--        (second re-review D-039, FRS-143.8)
+--
+-- The parts, accessories and checks under an indoor job were FOR ALL policies
+-- with DELETE granted (0158), and the screen offered Remove on each, so a
+-- harvested part or a recorded check verdict could be erased. 0445 images the
+-- delete; FRS-143.8 asks for more: they "shall not be deletable through the
+-- application; an entry made in error shall be marked void with the reason,
+-- the person and the time retained".
+--
+--   * each table gains voided_at / voided_by / void_reason;
+--   * a signed-in DELETE is refused -- "void it instead";
+--   * setting voided_at needs a reason, and the person and the time are the
+--     database's (from the session), whatever was sent; a voided row cannot be
+--     changed again; a row cannot be inserted already voided;
+--   * a voided accessory does not travel on a new Indoor DC (create_indoor_dc,
+--     0374's body plus that one condition) and is left out of the indoor list's
+--     accessory count, outstanding count and received list (indoor_job_list,
+--     0323's definition plus the same condition -- and 0245, its mirror, with it).
+-- Not stopped: delete_indoor_job() (an owner's function that removes a whole
+-- job made in error with everything under it, 0336), a connection with no
+-- session, and a repair in the SQL editor.
+-- In the indoor module, last.
+-- ===========================================================================
+
+do $cols$
+declare t text;
+begin
+  foreach t in array array['indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks'] loop
+    execute format('alter table public.%I add column if not exists voided_at timestamptz', t);
+    execute format('alter table public.%I add column if not exists voided_by uuid', t);
+    execute format('alter table public.%I add column if not exists void_reason text not null default %L', t, '');
+  end loop;
+end $cols$;
+
+create or replace function public.indoor_child_kept()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return old; end if;
+  if current_user <> 'authenticated' then return old; end if;
+  raise exception '% is kept -- void it with a reason instead',
+    case tg_table_name when 'indoor_job_parts' then 'A harvested part'
+                       when 'indoor_job_accessories' then 'An accessory'
+                       else 'A check' end
+    using errcode = '23514';
+end $$;
+revoke execute on function public.indoor_child_kept() from public, anon, authenticated;
+
+create or replace function public.indoor_child_void_stamp()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if tg_op = 'INSERT' then
+    new.voided_at := null; new.voided_by := null; new.void_reason := '';
+    return new;
+  end if;
+  if old.voided_at is not null then
+    raise exception 'This entry was voided on % and is kept as it was', to_char(old.voided_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI')
+      using errcode = '23514';
+  end if;
+  if new.voided_at is null then
+    new.voided_by := null; new.void_reason := '';
+    return new;
+  end if;
+  if btrim(coalesce(new.void_reason, '')) = '' then
+    raise exception 'Give the reason for voiding this entry' using errcode = '23514';
+  end if;
+  new.voided_at := now(); new.voided_by := auth.uid(); new.void_reason := btrim(new.void_reason);
+  return new;
+end $$;
+revoke execute on function public.indoor_child_void_stamp() from public, anon, authenticated;
+
+do $trg$
+declare t text;
+begin
+  foreach t in array array['indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks'] loop
+    execute format('drop trigger if exists indoor_child_kept on public.%I', t);
+    execute format('create trigger indoor_child_kept before delete on public.%I for each row execute function public.indoor_child_kept()', t);
+    execute format('drop trigger if exists zzx_indoor_child_void_stamp on public.%I', t);
+    execute format('create trigger zzx_indoor_child_void_stamp before insert or update on public.%I for each row execute function public.indoor_child_void_stamp()', t);
+  end loop;
+end $trg$;
+
+-- ---- the Indoor DC leaves a voided accessory behind (0374's body, read from the
+-- database there, + one condition -- 0374 is the current definition, and its
+-- New device rule must survive) ----
+CREATE OR REPLACE FUNCTION public.create_indoor_dc(p_job_ids bigint[], p_consignee text, p_customer_ref text DEFAULT ''::text, p_customer_ref_date date DEFAULT NULL::date, p_mode text DEFAULT ''::text, p_purpose text DEFAULT ''::text, p_line_purposes jsonb DEFAULT '[]'::jsonb, p_authorised_by text DEFAULT ''::text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ids   bigint[];
+  v_date  date := (now() at time zone 'Asia/Kolkata')::date;
+  v_dc    bigint;
+  v_no    text;
+  v_line  integer := 0;
+  v_state text;
+  v_msg   text;
+  v_keys  text;
+  v_auth  text;
+  j       record;
+  a       record;
+  v_ov    jsonb;
+begin
+  if not public.has_perm('indoor.dispatch') then
+    raise exception 'indoor.dispatch is required to issue an Indoor DC'
+      using errcode = '42501';
+  end if;
+
+  select array_agg(x order by o) into v_ids
+    from (select x, min(o) as o from unnest(p_job_ids) with ordinality u(x, o)
+           where x is not null group by x) d;
+  if coalesce(cardinality(v_ids), 0) = 0 then
+    raise exception 'choose at least one Ready unit for the Indoor DC'
+      using errcode = '22023';
+  end if;
+  if coalesce(btrim(p_consignee), '') = '' then
+    raise exception 'an Indoor DC needs its consignee (To)'
+      using errcode = '23514';
+  end if;
+
+  -- AUTHORISED BY: one of the issuer's choices, matched without regard to case
+  -- and stored as the list spells it. REQUIRED -- it names who approves.
+  if coalesce(btrim(p_authorised_by), '') = '' then
+    raise exception 'choose who AUTHORISES this Indoor DC (your Reporting Manager, Regional Manager or an NSM) -- they approve it'
+      using errcode = '23514';
+  end if;
+  select au.name into v_auth from public.indoor_dc_authorisers() au
+   where upper(btrim(au.name)) = upper(btrim(p_authorised_by))
+   limit 1;
+  if v_auth is null then
+    raise exception 'AUTHORISED BY must be your Reporting Manager, your Regional Manager or an NSM -- % is none of them', btrim(p_authorised_by)
+      using errcode = '23514';
+  end if;
+
+  -- Every job must exist, and is locked for the rest of the transaction so two
+  -- people cannot put one unit on two challans at once.
+  perform 1 from public.indoor_jobs where id = any (v_ids) order by id for update;
+  if (select count(*) from public.indoor_jobs where id = any (v_ids)) <> cardinality(v_ids) then
+    raise exception 'an Indoor Service job on this DC was not found'
+      using errcode = '23503';
+  end if;
+
+  -- ONE DC, ONE CONSIGNEE: a customer unit goes to its party, a DEMO unit to
+  -- its "going to" party.
+  select string_agg(distinct coalesce(nullif(btrim(k), ''), '(none)'), ' / ') into v_keys
+    from (select case when kind in ('DEMO unit', 'New device') then demo_for_party else party_name end as k
+            from public.indoor_jobs where id = any (v_ids)) s;
+  if (select count(distinct upper(btrim(coalesce(case when kind in ('DEMO unit', 'New device') then demo_for_party
+                                                       else party_name end, ''))))
+        from public.indoor_jobs where id = any (v_ids)) > 1 then
+    raise exception 'one Indoor DC goes to one consignee -- these units go to %', v_keys
+      using errcode = '23514';
+  end if;
+
+  for j in
+    select ij.*, u.o from public.indoor_jobs ij
+      join unnest(v_ids) with ordinality u(x, o) on u.x = ij.id
+     order by u.o
+  loop
+    if j.status <> 'Ready' then
+      raise exception '%: only a Ready unit goes on an Indoor DC -- this one is %', j.job_no, j.status
+        using errcode = '23514';
+    end if;
+    if btrim(j.dispatch_ref) <> '' then
+      raise exception '%: already carries DC No. % -- one unit, one DC', j.job_no, j.dispatch_ref
+        using errcode = '23514';
+    end if;
+    -- 0323: THE REPORT BEFORE THE DC, AND THE VISIT WITH IT.
+    if btrim(coalesce(j.report_file_url, '')) = '' then
+      raise exception '%: the Indoor Service Report has not been uploaded -- a unit goes on an Indoor DC after its report', j.job_no
+        using errcode = '23514';
+    end if;
+
+    -- THE TRIAL. Would the guard let this unit leave? Asked by moving it to
+    -- Dispatched and always rolling the move back.
+    begin
+      update public.indoor_jobs set status = 'Dispatched' where id = j.id;
+      raise exception using errcode = 'P0001', message = 'indoor_dc_trial_passed';
+    exception when others then
+      get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text;
+      if v_msg <> 'indoor_dc_trial_passed' then
+        raise exception '%: %', j.job_no, v_msg using errcode = v_state;
+      end if;
+    end;
+  end loop;
+
+  -- Overrides must name a job on this DC (a purpose for a unit that is not
+  -- here is a mistake, said rather than dropped).
+  for v_ov in select * from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) loop
+    if not coalesce((v_ov ->> 'job_id')::bigint = any (v_ids), false) then
+      raise exception 'a line purpose names job %, which is not on this DC', v_ov ->> 'job_id'
+        using errcode = '22023';
+    end if;
+  end loop;
+
+  insert into public.indoor_dcs (dc_no, dc_date, consignee, customer_ref, customer_ref_date,
+                                 mode_of_despatch, purpose, authorised_by_name, approval_status)
+  values ('auto', v_date, btrim(p_consignee), btrim(coalesce(p_customer_ref, '')), p_customer_ref_date,
+          btrim(coalesce(p_mode, '')), btrim(coalesce(p_purpose, '')), v_auth, 'Pending approval')
+  returning id, dc_no into v_dc, v_no;
+
+  for j in
+    select ij.*, u.o from public.indoor_jobs ij
+      join unnest(v_ids) with ordinality u(x, o) on u.x = ij.id
+     order by u.o
+  loop
+    v_line := v_line + 1;
+    insert into public.indoor_dc_lines (dc_id, line_no, job_id, accessory_id, part_no, description, qty, purpose)
+    values (v_dc, v_line, j.id, null,
+            coalesce(public.indoor_job_product_code(j.product_name, j.serial), ''),
+            btrim(btrim(j.product_name) || case when btrim(j.serial) <> '' then ' Sl.No ' || btrim(j.serial) else '' end),
+            1,
+            coalesce((select e ->> 'purpose' from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) e
+                       where (e ->> 'job_id')::bigint = j.id
+                         and nullif(e ->> 'accessory_id', '') is null
+                       limit 1), btrim(coalesce(p_purpose, ''))));
+    for a in
+      select * from public.indoor_job_accessories
+       where job_id = j.id and (btrim(name) <> '' or btrim(serial) <> '')
+         and voided_at is null   -- 0453 (D-039): a voided accessory does not travel
+       order by id
+    loop
+      v_line := v_line + 1;
+      insert into public.indoor_dc_lines (dc_id, line_no, job_id, accessory_id, part_no, description, qty, purpose)
+      values (v_dc, v_line, j.id, a.id, '',
+              btrim(btrim(a.name) || case when btrim(a.serial) <> '' then ' Sl.No ' || btrim(a.serial) else '' end),
+              a.qty,
+              coalesce((select e ->> 'purpose' from jsonb_array_elements(coalesce(p_line_purposes, '[]'::jsonb)) e
+                         where (e ->> 'job_id')::bigint = j.id
+                           and (e ->> 'accessory_id')::bigint = a.id
+                         limit 1), btrim(coalesce(p_purpose, ''))));
+    end loop;
+  end loop;
+
+  -- THE STAMP ON EACH JOB. Through the guard, as the caller: it asks
+  -- indoor.dispatch for a change of dispatch_ref and stamps dispatched_at /
+  -- dispatched_by, exactly as a reference typed on the job does.
+  update public.indoor_jobs
+     set dispatch_ref = v_no, dc_date = v_date
+   where id = any (v_ids);
+
+  return v_no;
+end $function$;
+
+-- ---- the list counts only what is not voided (0323 + the same condition) ----
+drop view if exists public.indoor_job_list;
+create view public.indoor_job_list as
+  select j.*,
+         coalesce(rb.name, '') as received_by_name,
+         coalesce(cb.name, '') as cleaned_by_name,
+         coalesce(qb.name, '') as qc_by_name,
+         coalesce(db.name, '') as dispatched_by_name,
+         coalesce(xb.name, '') as condemned_by_name,
+         coalesce(ub.name, '') as updated_by_name,
+         (j.status in ('Closed', 'Dispatched', 'Condemned')) as is_closed,
+         -- A DEMO unit out past its due date, which is the one figure nothing
+         -- else in this system produces. NULL rather than false where there is
+         -- no due date: "not overdue" and "nobody said when" are different facts.
+         (case when j.activity = 'Demo' and j.actual_return is null
+                    and j.expected_return is not null
+               then (j.expected_return < (now() at time zone 'Asia/Kolkata')::date)
+          end) as demo_overdue,
+         (select count(*) from public.indoor_job_accessories a where a.job_id = j.id and a.voided_at is null)
+           as accessory_count,
+         (select count(*) from public.indoor_job_accessories a
+           where a.job_id = j.id and not a.returned and a.voided_at is null) as accessories_outstanding,
+         coalesce(vb.name, '') as verified_by_name,
+         (select string_agg(btrim(a.name) || case when a.qty <> 1 then ' x' || trim_scale(a.qty)::text else '' end,
+                            ', ' order by a.id) from public.indoor_job_accessories a
+           where a.job_id = j.id and btrim(a.name) <> '' and a.voided_at is null) as accessories_received,
+         public.indoor_job_is_imported(j.product_name, j.serial) as product_imported,
+         coalesce(rpb.name, '') as report_uploaded_by_name
+    from public.indoor_jobs j
+    left join public.app_user_names rb on rb.id = j.received_by
+    left join public.app_user_names cb on cb.id = j.cleaned_by
+    left join public.app_user_names qb on qb.id = j.qc_by
+    left join public.app_user_names db on db.id = j.dispatched_by
+    left join public.app_user_names xb on xb.id = j.condemned_by
+    left join public.app_user_names ub on ub.id = j.updated_by
+    left join public.app_user_names vb on vb.id = j.verified_by
+    left join public.app_user_names rpb on rpb.id = j.report_uploaded_by;
+alter view public.indoor_job_list set (security_invoker = on);
+grant select on public.indoor_job_list to authenticated;
+
+-- ------------------------------------------------------------------------
 -- 0355_spare_recycling.sql
 -- ------------------------------------------------------------------------
 
@@ -14620,6 +15500,354 @@ update public.parties p
                 where lower(btrim(e.key)) = 'country' and coalesce(btrim(e.value), '') <> '');
 
 -- ------------------------------------------------------------------------
+-- 0366_masters_required_kyc_and_line_names.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0366 — THE MASTERS' OWN RULES IN THE DATABASE: required fields, a code that
+--        differs only in case, the KYC verifier, and a product line's NAME
+--        (second re-review D-058, D-138, D-140)
+--
+-- D-140 -- the masters' required fields and unique codes were the forms' alone.
+-- Measured as a signed-in user, each accepted: a party with no city or state,
+-- a party named only spaces, a part with blank code and description, a
+-- product line with blank code and name, a product line 'c-named' beside
+-- 'C-NAMED' (product_line_sellable('C-NAMED') then fails with "more than one
+-- row returned by a subquery") and a part 'cp-r' beside 'CP-R'.
+-- Now, for a signed-in caller who is not an importer:
+--   * a NEW party needs a name, a city and a state (the Add form's three --
+--     the user, 2026-10-03); an edit may not blank one that has a value, and
+--     leaves a row that never had one alone, so an old incomplete party can
+--     still be edited;
+--   * a part needs a code and a description; a product line a code and a
+--     name -- on insert, and an edit may not blank them;
+--   * a part code or a product code that matches an EXISTING one ignoring case
+--     and outer spaces, but is spelled differently, is refused: the exact
+--     spelling is already unique (parts_item_detail_key_uniq, the product
+--     master's primary key), so the case variant is the only duplicate left.
+--     Not a unique index: one would fail this migration on a project that
+--     already holds a pair, and a pair already there is not this file's to
+--     choose between.
+-- Imports load history as it was and are not stopped. The rule is
+-- stock_import_allowed()'s (0339), written out: that function is created by a
+-- LATER module, and this trigger may fire before it exists on a fresh apply.
+--
+-- D-058 -- parties_kyc_stamp() (0201) stamps kyc_verified_by / _at only when
+-- the KYC status changes, so an UPDATE writing the verifier without changing
+-- the status kept the caller's value (measured). A signed-in UPDATE that leaves
+-- the status alone now keeps the verifier and time as they were. (The other
+-- half of D-058, renaming a party, is refused since 0325's
+-- master_key_changes_only_by_rename.)
+--
+-- D-138 -- a product line is matched by NAME as well as code:
+-- indoor_job_product_code() (0321) and indoor_job_is_imported() (0320) read
+-- product_master.product_name, and the delete guard counted only the code.
+-- Measured: a line whose name indoor jobs carry, and whose code no machine
+-- carries, was deleted, and the jobs lost their code. Now:
+--   * product_line_name_uses(name) counts the indoor jobs naming a line by
+--     that name -- 0 where another line keeps the name, since the match then
+--     still resolves -- for the Product Master's rename warning;
+--   * deleting a line those jobs still name is refused, in the delete guard's
+--     words, by a trigger of its own (master_delete_guard is 0350's and is
+--     left as it is).
+-- In the masters module, after 0326.
+-- ===========================================================================
+
+-- ---- D-140 -------------------------------------------------------------------
+create or replace function public.master_required_fields()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_missing text[] := '{}';
+  v_other   text;
+begin
+  -- On INSERT a blank is refused; on UPDATE only a value being BLANKED is.
+  if auth.uid() is null or public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;     -- no session, or an importer
+
+  if tg_table_name = 'parties' then
+    if btrim(coalesce(new.party_name, '')) = ''
+       and (tg_op = 'INSERT' or btrim(coalesce(old.party_name, '')) <> '') then
+      v_missing := v_missing || 'Party Name'::text;
+    end if;
+    if btrim(coalesce(new.city, '')) = ''
+       and (tg_op = 'INSERT' or btrim(coalesce(old.city, '')) <> '') then
+      v_missing := v_missing || 'City'::text;
+    end if;
+    if btrim(coalesce(new.state, '')) = ''
+       and (tg_op = 'INSERT' or btrim(coalesce(old.state, '')) <> '') then
+      v_missing := v_missing || 'State'::text;
+    end if;
+
+  elsif tg_table_name = 'parts' then
+    if btrim(coalesce(new.code, '')) = ''
+       and (tg_op = 'INSERT' or btrim(coalesce(old.code, '')) <> '') then
+      v_missing := v_missing || 'Part Code'::text;
+    end if;
+    if btrim(coalesce(new.description, '')) = ''
+       and (tg_op = 'INSERT' or btrim(coalesce(old.description, '')) <> '') then
+      v_missing := v_missing || 'Description'::text;
+    end if;
+    if btrim(coalesce(new.code, '')) <> ''
+       and (tg_op = 'INSERT' or new.code is distinct from old.code) then
+      select p.code into v_other from public.parts p
+       where p.id is distinct from new.id
+         and lower(btrim(p.code)) = lower(btrim(new.code))
+         and p.code is distinct from new.code
+       limit 1;
+      if found then
+        raise exception 'Part code % is already on the Part Master as % -- the same code spelled differently would be counted as two parts',
+          btrim(new.code), v_other using errcode = '23505';
+      end if;
+    end if;
+
+  elsif tg_table_name = 'product_master' then
+    if btrim(coalesce(new.product_code, '')) = ''
+       and (tg_op = 'INSERT' or btrim(coalesce(old.product_code, '')) <> '') then
+      v_missing := v_missing || 'Product Code'::text;
+    end if;
+    if btrim(coalesce(new.product_name, '')) = ''
+       and (tg_op = 'INSERT' or btrim(coalesce(old.product_name, '')) <> '') then
+      v_missing := v_missing || 'Product Name'::text;
+    end if;
+    if btrim(coalesce(new.product_code, '')) <> ''
+       and (tg_op = 'INSERT' or new.product_code is distinct from old.product_code) then
+      select m.product_code into v_other from public.product_master m
+       where m.product_code is distinct from new.product_code
+         and lower(btrim(m.product_code)) = lower(btrim(new.product_code))
+       limit 1;
+      if found then
+        raise exception 'Product code % is already on the Product Master as % -- the same code spelled differently would be two product lines',
+          btrim(new.product_code), v_other using errcode = '23505';
+      end if;
+    end if;
+  end if;
+
+  if array_length(v_missing, 1) > 0 then
+    raise exception '% cannot be blank', array_to_string(v_missing, ', ') using errcode = '23502';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.master_required_fields() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['parties', 'parts', 'product_master'] loop
+    execute format('drop trigger if exists master_required_fields on public.%I', t);
+    execute format('create trigger master_required_fields before insert or update on public.%I '
+                   'for each row execute function public.master_required_fields()', t);
+  end loop;
+end $$;
+
+-- ---- D-058: the KYC verifier is the database's -------------------------------
+-- Runs after parties_kyc_stamp (the name sorts after it), so a status change
+-- has already been stamped and is left alone.
+create or replace function public.parties_kyc_stamp_kept()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;                 -- the SQL editor, a restore
+  if new.kyc_status is not distinct from old.kyc_status then
+    new.kyc_verified_by := old.kyc_verified_by;
+    new.kyc_verified_at := old.kyc_verified_at;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.parties_kyc_stamp_kept() from public, anon, authenticated;
+drop trigger if exists parties_kyc_stamp_kept on public.parties;
+create trigger parties_kyc_stamp_kept
+  before update on public.parties
+  for each row execute function public.parties_kyc_stamp_kept();
+
+-- ---- D-138: a product line named by indoor jobs -------------------------------
+-- How many indoor jobs would lose their match if no line carried this name any
+-- more. 0 when another line (other than p_except_code) still has the name.
+create or replace function public.product_line_name_uses(p_name text, p_except_code text default null)
+returns bigint language plpgsql stable security definer set search_path = public as $$
+declare n bigint := 0;
+begin
+  if btrim(coalesce(p_name, '')) = '' then return 0; end if;
+  if exists (select 1 from public.product_master m
+              where lower(btrim(m.product_name)) = lower(btrim(p_name))
+                and (p_except_code is null or m.product_code is distinct from p_except_code)) then
+    return 0;
+  end if;
+  if to_regclass('public.indoor_jobs') is not null then
+    execute 'select count(*) from public.indoor_jobs where lower(btrim(product_name)) = lower(btrim($1))'
+      into n using p_name;
+  end if;
+  return n;
+end $$;
+revoke execute on function public.product_line_name_uses(text, text) from public, anon;
+grant execute on function public.product_line_name_uses(text, text) to authenticated;
+
+create or replace function public.product_line_delete_by_name_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare n bigint;
+begin
+  n := public.product_line_name_uses(old.product_name, old.product_code);
+  if n > 0 then
+    raise exception 'This product line is still named on % record(s) — % indoor jobs (by product name). It cannot be deleted while they name it.',
+      n, n using errcode = '23503';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.product_line_delete_by_name_guard() from public, anon, authenticated;
+drop trigger if exists product_line_delete_by_name_guard on public.product_master;
+create trigger product_line_delete_by_name_guard
+  before delete on public.product_master
+  for each row execute function public.product_line_delete_by_name_guard();
+
+-- ------------------------------------------------------------------------
+-- 0371_master_list_delete_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0371 — DELETING A VALUE FROM A MASTER LIST NEEDS THAT LIST'S DELETE KEY,
+--        NOT "ADD / EDIT MASTER RECORDS"
+--        (second re-review D-086)
+--
+-- masters_delete (0290, re-asserted by 0121's tail) admitted
+-- masters.edit.records -- labelled "Add / edit master records (parties, parts,
+-- products, lists)" -- while the list screen offers Delete only to
+-- master.<list>.delete, whose parent is masters.edit. Measured: a role holding
+-- masters.edit.records alone deleted a value (DELETE 1) through the API that no
+-- screen offered it. A key named add / edit does not delete: the policy now
+-- asks the list's own delete key or masters.edit, exactly whom the screen
+-- offers it to. Add and Edit are unchanged in the database; the screen now also
+-- offers Edit to masters.edit.records, as masters_update already admits.
+-- 0121's guarded tail carries the same text (it is checked word for word).
+-- In the masters module, after 0366.
+-- ===========================================================================
+
+drop policy if exists masters_delete on public.masters;
+create policy masters_delete on public.masters for delete
+    using      (public.has_perm('masters.edit')
+             or public.has_perm('master.' || coalesce(name, '') || '.delete'));
+
+-- ------------------------------------------------------------------------
+-- 0448_master_value_in_use_kept.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0448 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
+--        (second re-review D-056, FRS-015, FRS-180.6)
+--
+-- Master Lists offered Delete to a holder of master.<list>.delete, and
+-- masters_delete checked only the permission: a Standard Complaint carried by
+-- thousands of calls could be erased, and every record kept a word no list
+-- holds -- every count, filter and frequent-failure match downstream runs on
+-- that word. FRS-015: a value in use SHALL be deactivated rather than deleted,
+-- and the database SHALL refuse the deletion of a value any record carries.
+-- Deactivate already exists on the screen (masters.active): the value stays on
+-- every record and stops being offered.
+--
+-- WHICH RECORDS CARRY WHICH LIST -- read from the columns that hold each one's
+-- values, compared trimmed and case-insensitive:
+--   calltype       call_requests, field/installation/pm calls, feedback,
+--                  field_failure_reports, pending_registrations  .call_type
+--   complaint      call_requests, field/installation/pm calls, indoor_jobs
+--                  .standard_complaint
+--   pendingreason  reports.pending_reason, indoor_jobs.call_pending_reason
+--   cancelreason   call_requests, field/installation/pm calls .cancel_reason
+--   dccrgrouping   call_reviews.complaint_grouping
+--   rootcause      call_reviews.root_cause_keyword
+--   department     user_directory.department
+--   feedbackrating the answers of feedback (a rating is an answer's value)
+--   orapproval     nothing reads it today, so nothing carries it
+-- A value is "carried" only where no OTHER row of the same list holds the same
+-- word: deleting one of two duplicates (a complaint listed for two products)
+-- leaves the word on the list, so nothing is orphaned and it is allowed.
+-- master_value_uses() COUNTS AS ITS OWNER: run as the caller, row-level
+-- security would hide the records the person deleting cannot see, the count
+-- would read low and a value in use elsewhere would be deleted. It returns a
+-- number and nothing else.
+-- Not stopped: a connection with no session and a function running as its
+-- owner. In the masters module, last.
+-- ===========================================================================
+
+-- One list under two names: Standard Complaint rows are named `complaint`
+-- since 0021 and may still be named `standardComplaint` (0233 can write it),
+-- and the screen reads both as one list -- so does this.
+create or replace function public.master_list_family(p_name text)
+returns text language sql immutable set search_path = public as $$
+  select case lower(btrim(coalesce(p_name, '')))
+           when 'standardcomplaint' then 'complaint'
+           else lower(btrim(coalesce(p_name, ''))) end
+$$;
+revoke execute on function public.master_list_family(text) from public, anon;
+grant execute on function public.master_list_family(text) to authenticated;
+
+create or replace function public.master_value_uses(p_name text, p_value text)
+returns bigint language plpgsql stable security definer set search_path = public as $$
+declare
+  v    text := lower(btrim(coalesce(p_value, '')));
+  n    bigint := 0;
+  c    bigint;
+  pair text[];
+  cols text[][];
+begin
+  if v = '' then return 0; end if;
+  cols := case public.master_list_family(p_name)
+    when 'calltype' then array[['call_requests','call_type'], ['field_calls','call_type'], ['installation_calls','call_type'],
+                               ['pm_calls','call_type'], ['feedback','call_type'], ['field_failure_reports','call_type'],
+                               ['pending_registrations','call_type']]
+    when 'complaint' then array[['call_requests','standard_complaint'], ['field_calls','standard_complaint'],
+                                ['installation_calls','standard_complaint'], ['pm_calls','standard_complaint'],
+                                ['indoor_jobs','standard_complaint']]
+    when 'pendingreason' then array[['reports','pending_reason'], ['indoor_jobs','call_pending_reason']]
+    when 'cancelreason' then array[['call_requests','cancel_reason'], ['field_calls','cancel_reason'],
+                                   ['installation_calls','cancel_reason'], ['pm_calls','cancel_reason']]
+    when 'dccrgrouping' then array[['call_reviews','complaint_grouping']]
+    when 'rootcause' then array[['call_reviews','root_cause_keyword']]
+    when 'department' then array[['user_directory','department']]
+    else null end;
+  if cols is not null then
+    foreach pair slice 1 in array cols loop
+      if to_regclass('public.' || pair[1]) is not null
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = pair[1] and column_name = pair[2]) then
+        execute format('select count(*) from public.%I where lower(btrim(%I)) = $1', pair[1], pair[2]) into c using v;
+        n := n + c;
+      end if;
+    end loop;
+  end if;
+  if public.master_list_family(p_name) = 'feedbackrating' and to_regclass('public.feedback') is not null then
+    select count(*) into c
+      from public.feedback f
+     where jsonb_typeof(f.answers) = 'object'
+       and exists (select 1 from jsonb_each_text(f.answers) a where lower(btrim(a.value)) = v);
+    n := n + c;
+  end if;
+  return n;
+end $$;
+revoke execute on function public.master_value_uses(text, text) from public, anon;
+grant execute on function public.master_value_uses(text, text) to authenticated;
+
+create or replace function public.master_value_in_use_kept()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare n bigint;
+begin
+  if auth.uid() is null then return old; end if;
+  if current_user <> 'authenticated' then return old; end if;
+  -- Another row of the same list still holds the word: nothing is orphaned.
+  if exists (select 1 from public.masters m
+              where public.master_list_family(m.name) = public.master_list_family(old.name) and m.id <> old.id
+                and lower(btrim(m.value)) = lower(btrim(coalesce(old.value, '')))) then
+    return old;
+  end if;
+  n := public.master_value_uses(old.name, old.value);
+  if n > 0 then
+    raise exception '"%" is on % record(s) and cannot be deleted -- deactivate it instead, so it stays on those records and is no longer offered',
+      old.value, n using errcode = '23514';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.master_value_in_use_kept() from public, anon, authenticated;
+drop trigger if exists master_value_in_use_kept on public.masters;
+create trigger master_value_in_use_kept
+  before delete on public.masters
+  for each row execute function public.master_value_in_use_kept();
+
+-- ------------------------------------------------------------------------
 -- 0070_documents.sql
 -- ------------------------------------------------------------------------
 
@@ -15099,6 +16327,92 @@ comment on function public.save_service_notes(jsonb) is
   'Technical / Service Notes Beta Edit: writes every edited note in one transaction under the caller''s own rights (documents_update), all or nothing (0356).';
 
 -- ------------------------------------------------------------------------
+-- 0368_qms_revision_is_a_new_entry.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0368 — A QMS DOCUMENT'S REVISION IS A NEW ENTRY, NOT AN EDIT, AND A QMS
+--        DOCUMENT IS RETIRED, NEVER DELETED
+--        (second re-review D-061)
+--
+-- documents_update (0070) let any holder of qms.manage save number, revision,
+-- effective date and link over an existing QMS row, and documents_delete let
+-- them delete it. Measured: revision 01 changed to 02 in place, effective
+-- date cleared, link replaced -- UPDATE 1. What was in force on a date was
+-- replaced rather than retired; the screen's own guidance says to publish a
+-- new revision as a new entry, and nothing held it.
+--
+-- For a QMS document (kind = 'qms'), signed in and not an importer:
+--   * a NEW one needs its document number, revision and effective date;
+--   * on an existing one, Document No, Revision, Effective date and the file
+--     (url) may be FILLED where blank and are otherwise fixed -- a new revision
+--     is added as a new entry and the old one retired (Retire sets active);
+--     title, tags, notes, Live / Retired stay editable;
+--   * it is not deleted: a quality record is retired (the 0049 rule);
+--   * a document cannot be moved into or out of the QMS shelf.
+-- Service manuals and technical notes are untouched. Imports (bulk.upload /
+-- import.panel) and a connection with no session load history as it was --
+-- stock_import_allowed()'s rule (0339), written out because that function is
+-- created by a later module.
+-- In the documents module, after 0356.
+-- ===========================================================================
+
+create or replace function public.qms_document_controlled()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_changed text[] := '{}';
+begin
+  if auth.uid() is null or public.has_perm('bulk.upload') or public.has_perm('import.panel') then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
+
+  if tg_op = 'DELETE' then
+    if old.kind = 'qms' then
+      raise exception 'A QMS document is a quality record: it is retired (Retire), not deleted'
+        using errcode = '42501';
+    end if;
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' and (old.kind = 'qms') is distinct from (new.kind = 'qms') then
+    raise exception 'A document is not moved into or out of the QMS shelf -- add it there as a new entry'
+      using errcode = '42501';
+  end if;
+  if new.kind is distinct from 'qms' then return new; end if;
+
+  if tg_op = 'INSERT' then
+    if btrim(coalesce(new.doc_no, '')) = '' or btrim(coalesce(new.revision, '')) = '' or new.effective_date is null then
+      raise exception 'A QMS document needs its Document No, Revision and Effective date'
+        using errcode = '23502';
+    end if;
+    return new;
+  end if;
+
+  -- UPDATE: a controlled field may be filled where blank, never changed.
+  if btrim(coalesce(old.doc_no, '')) <> '' and btrim(coalesce(new.doc_no, '')) is distinct from btrim(old.doc_no) then
+    v_changed := v_changed || 'Document No'::text;
+  end if;
+  if btrim(coalesce(old.revision, '')) <> '' and btrim(coalesce(new.revision, '')) is distinct from btrim(old.revision) then
+    v_changed := v_changed || 'Revision'::text;
+  end if;
+  if old.effective_date is not null and new.effective_date is distinct from old.effective_date then
+    v_changed := v_changed || 'Effective date'::text;
+  end if;
+  if btrim(coalesce(old.url, '')) <> '' and btrim(coalesce(new.url, '')) is distinct from btrim(old.url) then
+    v_changed := v_changed || 'the file'::text;
+  end if;
+  if array_length(v_changed, 1) > 0 then
+    raise exception 'A QMS document''s % is fixed once recorded -- add the new revision as a new entry and retire this one',
+      array_to_string(v_changed, ', ') using errcode = '42501';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.qms_document_controlled() from public, anon, authenticated;
+drop trigger if exists qms_document_controlled on public.documents;
+create trigger qms_document_controlled
+  before insert or update or delete on public.documents
+  for each row execute function public.qms_document_controlled();
+
+-- ------------------------------------------------------------------------
 -- 0264_people_and_training.sql
 -- ------------------------------------------------------------------------
 
@@ -15543,6 +16857,110 @@ AS $function$
                  or (btrim(coalesce(d.gmail, '')) <> '' and lower(d.gmail) = lower(auth.email()))
                  or d.name in (select public.visible_engineer_names()) ));
 $function$;
+
+-- ------------------------------------------------------------------------
+-- 0444_user_master_keeps_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0444 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+--        (second re-review D-059)
+--
+-- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
+-- deleting a User Master row took the person's profile and every Roles &
+-- Responsibilities period with it -- measured: the row, its R&R periods and
+-- its profile all went -- while the screen's confirmation says "all history
+-- are kept", FRS-093 says nothing in the person's record is deletable and
+-- URS-079 says a new R&R period ends the previous one without deleting it.
+-- (Training attendance and assignments already refuse the delete: their keys
+-- do not cascade.)
+-- A signed-in delete of a row that has a profile or an R&R period is now
+-- refused, saying to mark the person inactive (Active = No) instead; a row with
+-- neither -- an entry made by mistake -- can still be deleted. A connection
+-- with no session (a repair) is not stopped.
+-- In the training module, after 0295.
+-- ===========================================================================
+
+create or replace function public.user_directory_keeps_history()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_what text[] := '{}';
+begin
+  if auth.uid() is null then return old; end if;
+  if to_regclass('public.user_profile') is not null
+     and exists (select 1 from public.user_profile p where p.dir_id = old.id) then
+    v_what := v_what || 'a profile'::text;
+  end if;
+  if to_regclass('public.user_rr') is not null
+     and exists (select 1 from public.user_rr r where r.dir_id = old.id) then
+    v_what := v_what || 'Roles & Responsibilities history'::text;
+  end if;
+  if array_length(v_what, 1) > 0 then
+    raise exception '% has % on the User Master, which is kept: set Active to No instead of deleting the entry',
+      coalesce(nullif(btrim(old.name), ''), 'This person'), array_to_string(v_what, ' and ')
+      using errcode = '23503';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.user_directory_keeps_history() from public, anon, authenticated;
+drop trigger if exists user_directory_keeps_history on public.user_directory;
+create trigger user_directory_keeps_history
+  before delete on public.user_directory
+  for each row execute function public.user_directory_keeps_history();
+
+-- ------------------------------------------------------------------------
+-- 0464_training_acknowledged_by_the_trainee.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-176 (re-review 5, 2026-10-12): "read and understood" is the trainee's to
+-- say, and a training assignment is imaged.
+--
+-- tg_update lets a holder of training.manage write every column of
+-- training_assignments, acknowledged_at and dir_id included; training_touch()
+-- protects only assigned_at and assigned_by; training_status reads Completed
+-- as soon as acknowledged_at is set; and the table is not under record_audit.
+-- Measured: a role holding only training.manage set acknowledged_at to a
+-- month ago (UPDATE 1), the trainee read Completed back-dated, and nothing
+-- recorded it.
+--
+-- 1. A trigger running AS THE CALLER keeps acknowledged_at and dir_id as they
+--    were on a direct signed-in update (current_user = authenticated), for
+--    everybody but an importer. acknowledge_training() -- the trainee's own
+--    acknowledgement, checked against their own email -- runs as the owner and
+--    is unaffected; so is cancelling, which stays the manager's action.
+-- 2. record_audit on training_assignments: who, when, before and after.
+-- ===========================================================================
+create or replace function public.training_ack_by_trainee()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user <> 'authenticated' or auth.uid() is null
+     or public.has_perm('bulk.upload') or public.has_perm('import.panel') then
+    return new;
+  end if;
+  new.acknowledged_at := old.acknowledged_at;
+  new.dir_id := old.dir_id;
+  return new;
+end $$;
+revoke execute on function public.training_ack_by_trainee() from public, anon;
+
+drop trigger if exists a_training_ack_by_trainee on public.training_assignments;
+create trigger a_training_ack_by_trainee
+  before update on public.training_assignments
+  for each row execute function public.training_ack_by_trainee();
+
+do $on$
+begin
+  if to_regprocedure('public.record_audit_fn()') is null then return; end if;
+  drop trigger if exists record_audit_i on public.training_assignments;
+  drop trigger if exists record_audit_u on public.training_assignments;
+  drop trigger if exists record_audit_d on public.training_assignments;
+  create trigger record_audit_i after insert on public.training_assignments
+    referencing new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_u after update on public.training_assignments
+    referencing old table as old_rows new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_d after delete on public.training_assignments
+    referencing old table as old_rows for each statement execute function public.record_audit_fn();
+end $on$;
 
 -- ------------------------------------------------------------------------
 -- 0008_calls_creator_read.sql
@@ -19882,6 +21300,191 @@ begin
   get diagnostics n = row_count;
   raise notice '0406: % pending installation request(s) registered against their machine''s existing installation call', n;
 end $once$;
+
+-- ------------------------------------------------------------------------
+-- 0452_field_call_vigilance_answered.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0452 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+--        (second re-review D-033; the user's decision, 2026-10-05)
+--
+-- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
+-- on the call form, so a call saved without anybody reading that section
+-- recorded three answers nobody gave -- and Review 1 of the Daily Complaint
+-- Review reads as done the moment the three are filled (review1Done, dccr.ts).
+-- THE USER'S DECISION: "Blank, must be answered" -- the form has no default
+-- and will not save until all three are YES or NO, and the database refuses a
+-- signed-in registration of a FIELD call without them, however it is sent.
+--
+-- Scope, read from every writer: the Field Call register and Pending
+-- Registrations both insert through the `calls` view, whose INSTEAD OF trigger
+-- (calls_view_insert) runs as the caller and routes a field call into
+-- field_calls -- so this trigger on field_calls sees them as `authenticated`.
+-- Installation and PM calls are other tables and keep their default; calls
+-- raised from a Sale Entry or a transfer are installation calls and record NO
+-- by design (FRS-085.5). Not stopped: an import (bulk.upload / import.panel),
+-- a connection with no session, a function running as its owner, and an
+-- UPDATE (a call registered before this keeps what it has).
+-- In the call_requests module, after 0341.
+-- ===========================================================================
+
+create or replace function public.field_call_vigilance_answered()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare v_missing text[] := '{}';
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if upper(btrim(coalesce(new.public_health_threat, ''))) not in ('YES', 'NO') then
+    v_missing := v_missing || 'Public Health Threat?'::text;
+  end if;
+  if upper(btrim(coalesce(new.death, ''))) not in ('YES', 'NO') then
+    v_missing := v_missing || 'Death?'::text;
+  end if;
+  if upper(btrim(coalesce(new.serious_incident, ''))) not in ('YES', 'NO') then
+    v_missing := v_missing || 'Serious Incident?'::text;
+  end if;
+  if array_length(v_missing, 1) > 0 then
+    raise exception 'Answer the vigilance questions before registering the call: %', array_to_string(v_missing, ', ')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.field_call_vigilance_answered() from public, anon, authenticated;
+drop trigger if exists field_call_vigilance_answered on public.field_calls;
+create trigger field_call_vigilance_answered
+  before insert on public.field_calls
+  for each row execute function public.field_call_vigilance_answered();
+
+-- ------------------------------------------------------------------------
+-- 0447_call_request_attended_not_future.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0447 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+--        (second re-review D-030, part 3)
+--
+-- The Attended Date on Request Registration had no upper bound, and it becomes
+-- the complaint date of the call registered from the request -- so a call
+-- could be dated days ahead, and every age and SLA measured from it starts in
+-- the future. The form now stops at today; the database refuses the same for a
+-- signed-in write, measured in India time (the day the engineer is living in,
+-- not UTC's, which is still yesterday until 05:30).
+-- On UPDATE only when attended_date itself changes, so a request recorded
+-- before this is never refused for an unrelated edit.
+-- Not stopped: an import (bulk.upload / import.panel), a connection with no
+-- session, and a function running as its owner.
+-- In the call_requests module, before the cr_read tail (0164).
+-- ===========================================================================
+
+create or replace function public.call_request_attended_not_future()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if new.attended_date is null then return new; end if;
+  if tg_op = 'UPDATE' and new.attended_date is not distinct from old.attended_date then return new; end if;
+  if new.attended_date > (now() at time zone 'Asia/Kolkata')::date then
+    raise exception 'The Attended Date cannot be in the future (%)', to_char(new.attended_date, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.call_request_attended_not_future() from public, anon, authenticated;
+drop trigger if exists call_request_attended_not_future on public.call_requests;
+create trigger call_request_attended_not_future
+  before insert or update of attended_date on public.call_requests
+  for each row execute function public.call_request_attended_not_future();
+
+-- ------------------------------------------------------------------------
+-- 0450_call_reopen_reason_recorded.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0450 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+--        (second re-review D-035, FRS-133.4, FRS-120.9)
+--
+-- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
+-- reopen_count: the reason was stored nowhere and no person was recorded,
+-- while the Call Review tells the reviewer "the reason goes on the call"
+-- (FRS-064). And it accepted an empty reason, which FRS-120.9 refuses.
+--
+-- public.call_reopens keeps one row per re-open -- the UCN, when, who (the
+-- session, by id and name) and why -- so a call re-opened twice keeps both.
+-- A history table rather than columns on the three call tables: a second
+-- re-open would overwrite the first reason in a column, and the calls view is
+-- a `t.*` view mirrored in 0245 that new columns would not reach.
+-- It is written only by reopen_call() (no insert, update or delete policy),
+-- and read by whoever may see the call.
+--
+-- reopen_call() is 0341's body unchanged, plus: an empty reason is refused,
+-- and the row above is written. In the call_requests module, after 0341 and
+-- before the cr_read tail.
+-- ===========================================================================
+
+create table if not exists public.call_reopens (
+  id               bigint generated always as identity primary key,
+  ucn              text not null,
+  reopened_at      timestamptz not null default now(),
+  reopened_by      uuid,
+  reopened_by_name text not null default '',
+  reason           text not null,
+  created_at       timestamptz not null default now(),
+  created_by       uuid
+);
+create index if not exists call_reopens_ucn_idx on public.call_reopens (ucn, reopened_at desc);
+alter table public.call_reopens enable row level security;
+revoke all on public.call_reopens from anon;
+grant select on public.call_reopens to authenticated;
+drop policy if exists call_reopens_read on public.call_reopens;
+-- "May this person see the call" is asked of the calls view itself: it is
+-- security_invoker, so the caller's own call policies decide, exactly as on
+-- every register (call_visible_to_me() is not executable by a signed-in user).
+create policy call_reopens_read on public.call_reopens for select
+  using (exists (select 1 from public.calls c where c.ucn = call_reopens.ucn));
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.call_reopens'::regclass);
+  end if;
+end $$;
+
+create or replace function public.reopen_call(p_ucn text, p_reason text default '')
+returns text language plpgsql security definer set search_path = public as $$
+declare v_solved boolean; v_reopened timestamptz;
+begin
+  if not public.call_perm(p_ucn, 'reopen') then
+    raise exception 'RBAC: your role cannot re-open a call';
+  end if;
+  -- 0333 (D-128): and only on a call the caller can see -- the read rule, so
+  -- every call a screen shows passes and a call outside it is refused.
+  if public.call_visible_to_me(p_ucn) is false then
+    raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
+  end if;
+  -- 0450 (D-035, FRS-120.9): a re-open says why.
+  if btrim(coalesce(p_reason, '')) = '' then
+    raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
+  end if;
+
+  select open_state = 'Solved', reopened_at into v_solved, v_reopened
+    from public.calls where ucn = p_ucn;
+  if v_solved is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_reopened is not null then raise exception 'Call % is already re-opened', p_ucn; end if;
+  if not v_solved then raise exception 'Call % is not closed, so there is nothing to re-open', p_ucn; end if;
+
+  update public.calls
+     set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
+   where ucn = p_ucn;
+
+  -- 0450 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
+  values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
+
+  return p_ucn;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0164_cr_read_initplan.sql
@@ -26933,6 +28536,166 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0455_review_answers_read_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0455 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+--        (second re-review D-129, the open half; the user, 2026-10-05)
+--
+-- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
+-- user read every call's review -- the risk-to-patient answer and the root
+-- cause -- including calls they cannot otherwise see.
+-- THE USER'S DECISION: "It should be visible only to a selected few as set
+-- through roles & permissions", by "a new key, given to today's editors":
+--   * review.view ("Read Daily Complaint Review answers") is the read key;
+--     review.edit is its parent (an editor reads what they edit);
+--   * ONCE, it is merged into every role whose stored permissions hold
+--     review.edit, so nobody who works the register loses it on the day; the
+--     administrator then ticks or unticks it per role, or per person in Extra
+--     Access. A role with an EMPTY set (not configured) is left alone.
+-- The views over the table (field_call_review, field_call_review_summary,
+-- field_failure_register) are security_invoker, so for a reader without the
+-- key the review columns come back empty -- the screens say so.
+-- In the daily_review module, after 0353.
+-- ===========================================================================
+
+insert into public.perm_parents (child, parent) values ('review.view', 'review.edit')
+on conflict do nothing;
+
+drop policy if exists call_reviews_read on public.call_reviews;
+create policy call_reviews_read on public.call_reviews for select
+  using ((select public.has_perm('review.view')));
+
+-- 0318's definition VERBATIM (see 0369).
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare n bigint;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0455_review_view_to_editors') then return; end if;
+  update public.app_roles
+     set permissions = permissions || '["review.view"]'::jsonb
+   where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
+     and permissions ? 'review.edit'
+     and not (permissions ? 'review.view');
+  get diagnostics n = row_count;
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0455_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0455: % role(s) holding review.edit given review.view', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0446_ffr_customer_and_problem_required.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0446 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+--        (second re-review D-027)
+--
+-- The Field Failure Report form refuses a report without Customer Name or
+-- Problem reported, but field_failure_reports defaults both to empty text, so
+-- an insert through the data interface without them succeeded. The rule is now
+-- the database's as well:
+--   * a signed-in INSERT needs both;
+--   * a signed-in UPDATE may not BLANK either -- a report recorded before this
+--     with one of them empty can still be edited (its weekly review recorded),
+--     it is only never emptied.
+-- Not stopped: an import (bulk.upload / import.panel), a connection with no
+-- session, and a function running as its owner (ffr_from_review raises a
+-- report from the Daily Complaint Review and fills both from the call).
+-- In the daily_review module, after 0455.
+-- ===========================================================================
+
+create or replace function public.ffr_customer_and_problem_required()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare v_missing text[] := '{}';
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  if btrim(coalesce(new.customer_name, '')) = ''
+     and (tg_op = 'INSERT' or btrim(coalesce(old.customer_name, '')) <> '') then
+    v_missing := v_missing || 'Customer Name'::text;
+  end if;
+  if btrim(coalesce(new.problem_reported, '')) = ''
+     and (tg_op = 'INSERT' or btrim(coalesce(old.problem_reported, '')) <> '') then
+    v_missing := v_missing || 'Problem Reported'::text;
+  end if;
+  if array_length(v_missing, 1) > 0 then
+    raise exception 'A Field Failure Report needs the Customer Name and the Problem Reported (missing: %)',
+      array_to_string(v_missing, ', ') using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.ffr_customer_and_problem_required() from public, anon, authenticated;
+drop trigger if exists ffr_customer_and_problem_required on public.field_failure_reports;
+create trigger ffr_customer_and_problem_required
+  before insert or update of customer_name, problem_reported on public.field_failure_reports
+  for each row execute function public.ffr_customer_and_problem_required();
+
+-- ------------------------------------------------------------------------
+-- 0463_ffr_caller_rules.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-175 (re-review 5, 2026-10-12): an FFR's number, its imported marker and
+-- its raiser's name are not the caller's to choose.
+--
+-- ffr_stamp() kept a caller-supplied ffr_no on insert and blanked raised_by
+-- whenever imported_from was non-blank, with no check that the caller is an
+-- importer; ffr_history_created() then dated the "Report raised" entry at the
+-- FFR Date under the caller's raised_by_name -- and for an ordinary raise the
+-- log's "Who" was also the client's raised_by_name. Measured: an RM holding
+-- ffr.manage and not bulk.upload raised FFR - 001/20 dated 2020, marked
+-- imported under SOMEBODY ELSE, and the same number again on another machine.
+--
+-- A trigger running AS THE CALLER (not as the owner) applies three rules to a
+-- signed-in caller writing DIRECTLY (current_user = authenticated) who is not
+-- an importer (bulk.upload / import.panel):
+--   * on insert the number is the database's: a supplied ffr_no is discarded,
+--     so ffr_stamp issues the next one;
+--   * imported_from is cleared on insert and kept as it was on an update, so
+--     the import treatment (raised_by blank, the log dated at the FFR Date)
+--     applies to imports alone;
+--   * raised_by_name is the session's own name (my_display_name()), so the
+--     log's "Who" is the person who raised it.
+-- The reviewer's Raise FFR (ffr_from_review / raise_ffr) runs as the owner, so
+-- current_user is not authenticated there and nothing it writes changes; the
+-- FFR Register upload is an importer's. Named a_* so it fires before
+-- ffr_customer_and_problem_required and zz_ffr_stamp (triggers fire by name).
+-- ===========================================================================
+create or replace function public.ffr_caller_rules()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user <> 'authenticated' or auth.uid() is null
+     or public.has_perm('bulk.upload') or public.has_perm('import.panel') then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    new.ffr_no := null;
+    new.imported_from := '';
+    new.raised_by_name := coalesce(nullif(btrim(public.my_display_name()), ''), new.raised_by_name);
+  else
+    new.imported_from := old.imported_from;
+    new.raised_by_name := old.raised_by_name;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.ffr_caller_rules() from public, anon;
+
+drop trigger if exists a_ffr_caller_rules on public.field_failure_reports;
+create trigger a_ffr_caller_rules
+  before insert or update on public.field_failure_reports
+  for each row execute function public.ffr_caller_rules();
+
+-- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
 -- ------------------------------------------------------------------------
 
@@ -31236,6 +32999,80 @@ grant execute on function public.file_visit_for_spare_request(text) to authentic
 
 comment on function public.file_visit_for_spare_request(text) is
   'Called by the Spare Request form after a call-based request and its lines are saved: when the call has no visit yet, files one -- Unsolved, the requesting engineer, the request date, pending reason "spare not available" from the master, Update Visit Work Details = No (0333).';
+
+-- ------------------------------------------------------------------------
+-- 0393_spare_line_people_from_session.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0393 — WHO APPROVED, DISPATCHED OR RECEIVED A SPARE IS THE SESSION, NOT
+--        WHATEVER THE SCREEN SENT (second re-review D-041)
+--
+-- buildPatch() (spareflow.ts) wrote rm_by / commercial_by / nsm_by from the
+-- screen's own actor string; decide_spare_lines() takes coalesce(p_actor, ...)
+-- preferring the caller's; receive_spare_shipments() writes received_by from
+-- p_actor; dispatch_spare_lines() writes dispatched_by from p_actor. No trigger
+-- stamped any of them -- the fault 0211 fixed for spare_dispatches.dispatched_by
+-- after the Delivery Challan named the wrong person, still standing on the
+-- five names the approval trail SHOWS (the login was recoverable from
+-- sys_updated_by, 0244; what the reader is shown was not attested).
+--
+-- Now, whenever a signed-in write sets or changes one of rm_by, commercial_by,
+-- nsm_by, dispatched_by or received_by on a spare line, the database writes the
+-- signed-in person's name (my_display_name(), the name 0211 stamps) instead of
+-- the value sent -- DISCARDED, not refused, the 0211 rule: refusing makes an
+-- honest client fail, discarding makes a buggy one harmless. Not changed:
+--   * a value cleared to blank (an approval taken back keeps that meaning);
+--   * a User Master rename carrying the name (engineer_rename_in_progress());
+--   * an import (bulk.upload / import.panel) and a connection with no session,
+--     which load history as it was;
+--   * "Auto-Approved", which writes no name and so is not touched.
+-- In the spare_requests module, before its replay tail.
+-- ===========================================================================
+
+create or replace function public.spare_line_people_from_session()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare me text := public.my_display_name();
+begin
+  if me is null then return new; end if;                                   -- no session
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+
+  if tg_op = 'INSERT' then
+    if nullif(btrim(coalesce(new.rm_by, '')), '') is not null then new.rm_by := me; end if;
+    if nullif(btrim(coalesce(new.commercial_by, '')), '') is not null then new.commercial_by := me; end if;
+    if nullif(btrim(coalesce(new.nsm_by, '')), '') is not null then new.nsm_by := me; end if;
+    if nullif(btrim(coalesce(new.dispatched_by, '')), '') is not null then new.dispatched_by := me; end if;
+    if nullif(btrim(coalesce(new.received_by, '')), '') is not null then new.received_by := me; end if;
+    return new;
+  end if;
+
+  if new.rm_by is distinct from old.rm_by and nullif(btrim(coalesce(new.rm_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.rm_by, new.rm_by) then
+    new.rm_by := me;
+  end if;
+  if new.commercial_by is distinct from old.commercial_by and nullif(btrim(coalesce(new.commercial_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.commercial_by, new.commercial_by) then
+    new.commercial_by := me;
+  end if;
+  if new.nsm_by is distinct from old.nsm_by and nullif(btrim(coalesce(new.nsm_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.nsm_by, new.nsm_by) then
+    new.nsm_by := me;
+  end if;
+  if new.dispatched_by is distinct from old.dispatched_by and nullif(btrim(coalesce(new.dispatched_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.dispatched_by, new.dispatched_by) then
+    new.dispatched_by := me;
+  end if;
+  if new.received_by is distinct from old.received_by and nullif(btrim(coalesce(new.received_by, '')), '') is not null
+     and not public.engineer_rename_in_progress(old.received_by, new.received_by) then
+    new.received_by := me;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.spare_line_people_from_session() from public, anon, authenticated;
+drop trigger if exists zzy_spare_line_people_from_session on public.spare_request_lines;
+create trigger zzy_spare_line_people_from_session
+  before insert or update on public.spare_request_lines
+  for each row execute function public.spare_line_people_from_session();
 
 -- ------------------------------------------------------------------------
 -- 0122_spare_requests_replay_tail.sql
@@ -36706,8 +38543,12 @@ begin
   -- A PART RENAME (0310): only the part changed, exactly as the ticket that
   -- rename_part_records() filed in this transaction says. Nothing else on a
   -- return may change, by anybody but an administrator.
-  if (to_jsonb(new) - 'part' - 'sys_updated_by' - 'sys_updated_on')
-       = (to_jsonb(old) - 'part' - 'sys_updated_by' - 'sys_updated_on')
+  -- 'part_key' (0458, D-071) is the part code, generated from `part` and not
+  -- yet computed in a BEFORE trigger, so it would never compare equal; left
+  -- out here too, so a replay of this file alone does not refuse every rename
+  -- once 0458 has added the column. A no-op where the column is absent.
+  if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
      and exists (select 1 from public.part_rename_ticket t
                   where t.txid = txid_current()
                     and t.old_key = lower(btrim(old.part))
@@ -37692,6 +39533,531 @@ begin
                      'for each row execute function public.master_key_changes_only_by_rename()', t);
     end if;
   end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0369_filed_under_own_name_unless_granted.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0369 — A VISIT, ITS SPARES AND A SPARE REQUEST ARE FILED UNDER YOUR OWN
+--        NAME, YOUR TEAM'S, OR ANYBODY'S ONLY WITH A KEY GIVEN FOR IT
+--        (second re-review D-125; the user's decision, 2026-10-04)
+--
+-- D-125: nothing compared the ENGINEER on a visit, a consumption line or a
+-- spare request with the person filing it. Measured: an engineer booked 2 off
+-- a third engineer's stock on a call allocated to somebody else (INSERT 1).
+-- And consumption_before_insert kept a created_by the caller sent, while
+-- created_by decides who may READ the line (cons_read) -- the same on
+-- material_returns and stock_transfers.
+--
+-- THE USER'S DECISION (2026-10-04):
+--   * A VISIT and its SPARES -- under your own name; an RM / RGM also for the
+--     engineers under them in the User Master ("Yes -- RM/RGM for their
+--     team"); anybody else only when given it per person in Extra Access
+--     ("Office Role Yes but not a generic one, i will add it for those Specific
+--     Ppl in the Extra Access. SAme for Consumption as well, reco is already
+--     controlled.") -> key visit.others, granted to NOBODY here.
+--   * A SPARE REQUEST -- "RM / RGM / NSM can add for their Subordinates +
+--     Admins + Technical Support" -> your own name, your team, or the key
+--     spare.request.others, given once to technical_support here (an
+--     administrator passes has_perm() for every key).
+--   "Your team" is visible_engineer_names(): the User Master tree below you
+--   by Reporting Manager and Regional Manager, yourself included. An NSM has
+--   a team where the directory names them as somebody's manager.
+--
+-- WHAT IS NOT STOPPED -- read from every writer first, not assumed:
+--   * RECONCILIATION consumption: already needs consumption.reconcile (cons_write).
+--   * IMPORTS: a holder of bulk.upload or import.panel loads history as filed.
+--   * FUNCTIONS THAT FILE FOR SOMEBODY BY DESIGN and check their own rights:
+--     approve_indoor_dc (the authoriser files the unit's drafted visit and
+--     spares), file_visit_for_spare_request (the request's visit), the rename
+--     carry and reassign_spare_request. They run as their owner, so
+--     current_user is not `authenticated` inside them -- measured on a built
+--     database: a direct INSERT sees `authenticated`, the same INSERT inside a
+--     SECURITY DEFINER function sees `postgres`. That is the test used here,
+--     which is why the guard function itself is SECURITY INVOKER.
+--   * An UPDATE that leaves the engineer as it was, and a blank engineer.
+--   * A connection with no session (the SQL editor, a restore).
+-- A spare request's engineer is checked on INSERT only: changing it is
+-- already Change engineer / a rename alone (0340).
+--
+-- created_by on spare_consumption, material_returns and stock_transfers is
+-- stamped from the session on INSERT -- the value sent is DISCARDED, the 0211
+-- rule -- except for an importer, whose history keeps what it says. No screen
+-- sends it today (read: supabase.ts, uploads.ts).
+--
+-- In the handstock module: every table it guards exists by then, and it sits
+-- beside stock_import_allowed()'s own rules (0339).
+-- ===========================================================================
+
+-- ---- 1. "is this name me?" ---------------------------------------------------
+-- The name as the profile carries it (what the screens default to) or as any
+-- User Master row with my email or gmail carries it (what the pickers list).
+create or replace function public.is_me(p_name text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(btrim(p_name), '') <> ''
+     and (exists (select 1 from public.profiles p
+                   where p.id = auth.uid()
+                     and lower(btrim(p_name)) in (lower(btrim(coalesce(p.full_name, ''))),
+                                                  lower(btrim(coalesce(p.email, '')))))
+          or exists (select 1 from public.user_directory d
+                      where lower(btrim(d.name)) = lower(btrim(p_name))
+                        and (lower(coalesce(d.email, '')) = lower(coalesce(auth.email(), '-'))
+                             or lower(coalesce(d.gmail, '')) = lower(coalesce(auth.email(), '-')))))
+$$;
+revoke execute on function public.is_me(text) from public, anon;
+grant execute on function public.is_me(text) to authenticated;
+
+-- ---- 2. the guard -------------------------------------------------------------
+create or replace function public.filed_under_own_name()
+returns trigger language plpgsql security invoker set search_path = public as $$
+declare
+  v_key text;
+begin
+  if auth.uid() is null then return new; end if;                 -- no session
+  if current_user <> 'authenticated' then return new; end if;    -- a function filing by design
+  if btrim(coalesce(new.engineer, '')) = '' then return new; end if;
+  if tg_op = 'UPDATE' and lower(btrim(coalesce(new.engineer, '')))
+                          = lower(btrim(coalesce(old.engineer, ''))) then
+    return new;
+  end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+
+  if tg_table_name = 'spare_consumption' then
+    if coalesce(new.source, 'Report') = 'Reconciliation' then return new; end if;  -- cons_write's
+    v_key := 'visit.others';
+  elsif tg_table_name = 'reports' then
+    v_key := 'visit.others';
+  elsif tg_table_name = 'spare_requests' then
+    v_key := 'spare.request.others';
+  else
+    return new;
+  end if;
+
+  if public.is_me(new.engineer)
+     or lower(btrim(new.engineer)) in (select lower(btrim(v.n)) from public.visible_engineer_names() v(n))
+     or public.has_perm(v_key) then
+    return new;
+  end if;
+
+  raise exception '% is not you or an engineer in your team, so this % cannot be filed in their name (it needs "%", given per person in Extra Access)',
+    btrim(new.engineer),
+    case tg_table_name when 'spare_requests' then 'spare request'
+                       when 'reports' then 'visit' else 'spare consumption' end,
+    case v_key when 'visit.others' then 'Report a visit and its spares in another engineer''s name'
+               else 'Raise a spare request in any engineer''s name' end
+    using errcode = '42501';
+end $$;
+revoke execute on function public.filed_under_own_name() from public, anon, authenticated;
+
+drop trigger if exists filed_under_own_name on public.reports;
+create trigger filed_under_own_name
+  before insert or update of engineer on public.reports
+  for each row execute function public.filed_under_own_name();
+drop trigger if exists filed_under_own_name on public.spare_consumption;
+create trigger filed_under_own_name
+  before insert or update of engineer on public.spare_consumption
+  for each row execute function public.filed_under_own_name();
+drop trigger if exists filed_under_own_name on public.spare_requests;
+create trigger filed_under_own_name
+  before insert on public.spare_requests
+  for each row execute function public.filed_under_own_name();
+
+-- ---- 3. created_by is the session --------------------------------------------
+create or replace function public.created_by_is_the_session()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+  new.created_by := auth.uid();
+  return new;
+end $$;
+revoke execute on function public.created_by_is_the_session() from public, anon, authenticated;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['spare_consumption', 'material_returns', 'stock_transfers'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists a_created_by_is_the_session on public.%I', t);
+      execute format('create trigger a_created_by_is_the_session before insert on public.%I '
+                     'for each row execute function public.created_by_is_the_session()', t);
+    end if;
+  end loop;
+end $$;
+
+-- ---- 4. the keys --------------------------------------------------------------
+-- visit.others is given to nobody: the user ticks it per person. spare.request.
+-- others goes to Technical Support ONCE (the user named it); a re-run never
+-- hands it back to a role an administrator has taken it from.
+-- 0318's definition VERBATIM: on a fresh apply this bundle runs before
+-- sales_contracts, so whichever creates the table first must create the same one.
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+begin
+  if not exists (select 1 from public.one_time_fixes_done where name = '0369_spare_request_others_to_technical_support') then
+    update public.app_roles
+       set permissions = coalesce(permissions, '[]'::jsonb) || '["spare.request.others"]'::jsonb
+     where role = 'technical_support'
+       and jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
+       and not (coalesce(permissions, '[]'::jsonb) ? 'spare.request.others');
+    insert into public.one_time_fixes_done (name, detail)
+    values ('0369_spare_request_others_to_technical_support', 'spare.request.others given to technical_support once');
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0373_stock_movement_dates.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0373 — A STOCK TRANSFER OR RETURN IS NOT DATED INTO A CLOSED PERIOD OR THE
+--        FUTURE (second re-review D-050)
+--
+-- handstock_movements (0096) dates a transfer by transfer_date and a return by
+-- mrn_date, both typed on the form, and drops every movement dated before
+-- handstock_cutoff() -- right for a movement recorded BEFORE the period was
+-- closed, which the closing figure holds; but a movement recorded AFTER the
+-- close and dated before it is held by neither, so it moves stock that is then
+-- counted nowhere. Nothing refused such a date, nor one in the future.
+-- Now, for a signed-in caller who is not an importer (stock_import_allowed()'s
+-- rule, 0339): a transfer_date or mrn_date on or before the last closed day
+-- (handstock_period.closed_through, which handstock_cutoff() reads) or after
+-- today (India) is refused, on insert and on a change of the date. Imports
+-- load history as it was; with no period closed only the future is refused.
+-- In the handstock module, after 0369.
+-- ===========================================================================
+
+create or replace function public.stock_movement_date_open()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_date  date;
+  v_old   date;
+  v_closed date;
+  v_today date := (now() at time zone 'Asia/Kolkata')::date;
+  v_what  text;
+begin
+  if public.stock_import_allowed() then return new; end if;
+  -- The last closed day, as handstock_cutoff() reads it (its day after is the
+  -- first open one). No row, no period closed.
+  select hp.closed_through into v_closed from public.handstock_period hp limit 1;
+  if tg_table_name = 'stock_transfers' then
+    v_date := new.transfer_date; v_what := 'A stock transfer';
+    if tg_op = 'UPDATE' then v_old := old.transfer_date; end if;
+  else
+    v_date := new.mrn_date; v_what := 'A material return';
+    if tg_op = 'UPDATE' then v_old := old.mrn_date; end if;
+  end if;
+  if v_date is null or (tg_op = 'UPDATE' and v_date is not distinct from v_old) then return new; end if;
+  if v_date > v_today then
+    raise exception '% cannot be dated in the future (%)', v_what, to_char(v_date, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  if v_closed is not null and v_date <= v_closed then
+    raise exception '% cannot be dated % -- hand stock is closed through %, so it would be counted nowhere',
+      v_what, to_char(v_date, 'DD-Mon-YYYY'), to_char(v_closed, 'DD-Mon-YYYY')
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.stock_movement_date_open() from public, anon, authenticated;
+
+drop trigger if exists stock_movement_date_open on public.stock_transfers;
+create trigger stock_movement_date_open
+  before insert or update of transfer_date on public.stock_transfers
+  for each row execute function public.stock_movement_date_open();
+drop trigger if exists stock_movement_date_open on public.material_returns;
+create trigger stock_movement_date_open
+  before insert or update of mrn_date on public.material_returns
+  for each row execute function public.stock_movement_date_open();
+
+-- ------------------------------------------------------------------------
+-- 0375_stock_transfer_own_or_team.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0375 — STOCK IS TRANSFERRED FROM YOUR OWN HAND STOCK OR YOUR TEAM'S, TO A
+--        PERSON ON THE USER MASTER (second re-review D-049; the user, 2026-10-05)
+--
+-- st_insert (0020) is has_perm('stock.transfer') and nothing else, and From and
+-- To were free text: measured, an engineer holding the permission moved
+-- another engineer's stock to "NOBODY AT ALL" (INSERT 1); the stock guard
+-- checks only the From balance.
+-- THE USER'S DECISION: "Same rule as spares" (D-125, 0369) --
+--   * From: your own name, or an engineer below you in the User Master (by
+--     Reporting / Regional Manager, visible_engineer_names()); anybody else's
+--     only with the new key stock.transfer.others, given to NOBODY here (an
+--     administrator holds every key; tick it per role or per person);
+--   * To: a name on the User Master.
+-- Checked on INSERT; the header's engineers cannot change afterwards
+-- (stock_transfer_header_fixed). Not stopped: an import (bulk.upload /
+-- import.panel), a connection with no session, a function running as its
+-- owner (a User Master rename carries transfers by design).
+-- In the handstock module, after 0373 (is_me() is 0369's).
+-- ===========================================================================
+
+create or replace function public.stock_transfer_own_or_team()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if current_user <> 'authenticated' then return new; end if;
+  if public.has_perm('bulk.upload') or public.has_perm('import.panel') then return new; end if;
+
+  if not (public.is_me(new.from_engineer)
+          or lower(btrim(coalesce(new.from_engineer, ''))) in
+             (select lower(btrim(v.n)) from public.visible_engineer_names() v(n))
+          or public.has_perm('stock.transfer.others')) then
+    raise exception '% is not you or an engineer in your team, so their stock cannot be transferred by you (it needs "Transfer stock from any engineer")',
+      coalesce(nullif(btrim(new.from_engineer), ''), 'The From engineer') using errcode = '42501';
+  end if;
+
+  if not exists (select 1 from public.user_directory d
+                  where lower(btrim(d.name)) = lower(btrim(coalesce(new.to_engineer, '')))
+                    and btrim(coalesce(d.name, '')) <> '') then
+    raise exception '% is not a person on the User Master -- stock is transferred to somebody who is',
+      coalesce(nullif(btrim(new.to_engineer), ''), 'The To engineer') using errcode = '23503';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.stock_transfer_own_or_team() from public, anon, authenticated;
+drop trigger if exists stock_transfer_own_or_team on public.stock_transfers;
+create trigger stock_transfer_own_or_team
+  before insert on public.stock_transfers
+  for each row execute function public.stock_transfer_own_or_team();
+
+-- ------------------------------------------------------------------------
+-- 0392_save_records_whole.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0392 — A SPARE REQUEST, A STOCK TRANSFER AND A MATERIAL RETURN ARE SAVED
+--        WHOLE OR NOT AT ALL (second re-review D-044)
+--
+-- addSpareRequest, addStockTransfer and addMaterialReturn (supabase.ts) wrote a
+-- header (or the first row), then the lines in a second request, and on a
+-- failed line DELETED what they had written without checking the result.
+-- Measured on a database:
+--   * the engineer's own spare request delete is refused by the retention
+--     guard (0049), so a request with no lines stayed, its OR number consumed;
+--   * mr_delete admits only an administrator, so for anybody else the first
+--     return row stayed -- and it had already taken the stock off the engineer;
+--   * stock_transfers has no delete policy, so an empty transfer header stayed;
+-- and each screen reported the line error as though nothing had been saved.
+--
+-- The cure is not a delete that works: it is one transaction. Each function
+-- below writes the header and every line in ONE call, so a refused line rolls
+-- the header back with it and nothing is left half-saved. They are SECURITY
+-- INVOKER: they run as the caller, so every row-level policy, guard and stamp
+-- that applied to the two requests applies unchanged -- they add no right.
+-- Only the keys the caller sends are written; every other column keeps its
+-- default, and the numbers (uid, OR number, row numbers) are still the
+-- database's. The screens call these instead of the two requests.
+-- In the handstock module, before 0385 / 0384 (which must stay last).
+-- ===========================================================================
+
+-- The columns of a public table that a jsonb row names, quoted, for an insert
+-- that writes exactly those and leaves the rest to their defaults.
+create or replace function public.jsonb_columns_of(p_table text, p_row jsonb)
+returns text language sql stable security invoker set search_path = public as $$
+  select string_agg(quote_ident(k), ', ' order by k)
+    from jsonb_object_keys(coalesce(p_row, '{}'::jsonb)) k
+   where exists (select 1 from information_schema.columns c
+                  where c.table_schema = 'public' and c.table_name = p_table
+                    and c.column_name = k and c.is_generated = 'NEVER'
+                    and coalesce(c.identity_generation, '') <> 'ALWAYS')
+$$;
+revoke execute on function public.jsonb_columns_of(text, jsonb) from public, anon;
+grant execute on function public.jsonb_columns_of(text, jsonb) to authenticated;
+
+-- ---- a spare request and its lines ---------------------------------------------
+create or replace function public.save_spare_request(p_req jsonb, p_lines jsonb)
+returns jsonb language plpgsql security invoker set search_path = public as $$
+declare v_cols text; v_uid text; v_or text;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A spare request needs at least one part' using errcode = '23514';
+  end if;
+  v_cols := public.jsonb_columns_of('spare_requests', p_req);
+  if v_cols is null then
+    raise exception 'A spare request needs its details' using errcode = '23514';
+  end if;
+  execute format('insert into public.spare_requests (%1$s) select %1$s from jsonb_populate_record(null::public.spare_requests, $1) returning uid, or_no', v_cols)
+    into v_uid, v_or using p_req;
+  -- RowNo is sent explicitly, as the screen did: every row of one insert fires
+  -- the numbering trigger against the same snapshot.
+  insert into public.spare_request_lines (request_uid, row_no, part, qty)
+  select v_uid, t.n, r.part, coalesce(r.qty, 1)
+    from jsonb_array_elements(p_lines) with ordinality t(x, n),
+         jsonb_populate_record(null::public.spare_request_lines, t.x) r;
+  return jsonb_build_object('uid', v_uid, 'or_no', v_or);
+end $$;
+revoke execute on function public.save_spare_request(jsonb, jsonb) from public, anon;
+grant execute on function public.save_spare_request(jsonb, jsonb) to authenticated;
+
+-- ---- a stock transfer and its lines ---------------------------------------------
+create or replace function public.save_stock_transfer(p_header jsonb, p_lines jsonb)
+returns text language plpgsql security invoker set search_path = public as $$
+declare v_cols text; v_uid text;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A stock transfer needs at least one part' using errcode = '23514';
+  end if;
+  v_cols := public.jsonb_columns_of('stock_transfers', p_header);
+  if v_cols is null then
+    raise exception 'A stock transfer needs its engineers' using errcode = '23514';
+  end if;
+  execute format('insert into public.stock_transfers (%1$s) select %1$s from jsonb_populate_record(null::public.stock_transfers, $1) returning uid', v_cols)
+    into v_uid using p_header;
+  insert into public.stock_transfer_lines (transfer_uid, row_no, part, qty, reason)
+  select v_uid, t.n, r.part, r.qty, btrim(coalesce(r.reason, ''))
+    from jsonb_array_elements(p_lines) with ordinality t(x, n),
+         jsonb_populate_record(null::public.stock_transfer_lines, t.x) r;
+  return v_uid;
+end $$;
+revoke execute on function public.save_stock_transfer(jsonb, jsonb) from public, anon;
+grant execute on function public.save_stock_transfer(jsonb, jsonb) to authenticated;
+
+-- ---- a material return: one row per part, sharing the first row's uid -----------
+create or replace function public.save_material_return(p_header jsonb, p_lines jsonb)
+returns text language plpgsql security invoker set search_path = public as $$
+declare v_row jsonb; v_cols text; v_uid text; t record;
+begin
+  if jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) = 0 then
+    raise exception 'A material return needs at least one part' using errcode = '23514';
+  end if;
+  for t in select x, n from jsonb_array_elements(p_lines) with ordinality u(x, n) order by n loop
+    v_row := coalesce(p_header, '{}'::jsonb) || t.x || jsonb_build_object('source', 'app');
+    if t.n > 1 then
+      v_row := v_row || jsonb_build_object('uid', v_uid, 'row_no', t.n);
+    end if;
+    v_cols := public.jsonb_columns_of('material_returns', v_row);
+    execute format('insert into public.material_returns (%1$s) select %1$s from jsonb_populate_record(null::public.material_returns, $1) returning uid', v_cols)
+      into v_uid using v_row;
+  end loop;
+  return v_uid;
+end $$;
+revoke execute on function public.save_material_return(jsonb, jsonb) from public, anon;
+grant execute on function public.save_material_return(jsonb, jsonb) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0458_stock_loads_overwrite_on_reload.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-071 (the user's decision, 2026-10-12: "Overwrite with the file").
+--
+-- The MRN Register and the Stock Transfer Lines uploads had no key the upload
+-- could name, so they were INSERTED, and a second run of the same file moved
+-- the stock again -- an engineer holding parts that do not exist (URS-153).
+-- A line the database numbered itself (max + 1 within its submission) never
+-- collided, which is how a file WITHOUT row numbers went in twice even where a
+-- unique index existed.
+--
+-- From here a re-loaded line takes the file's values instead:
+--
+--   1. MRN Register: keyed on SI Number + part code + line number. The part
+--      CODE is what a return is counted by (material_returns_uid_part_idx, 0039,
+--      already makes it unique), so it becomes a column, part_key, that the
+--      upload can name -- PostgREST cannot infer an expression index.
+--   2. Stock Transfer Lines: keyed on transfer + line number -- IF NO TWO LINES
+--      ALREADY SHARE ONE. A file loaded twice before this fix left exactly such
+--      pairs, and a unique index cannot be built over them; the migration then
+--      says so and leaves the key off rather than failing whole.
+--      supabase/apply/_stock_transfer_lines_repeated.sql lists them.
+--   3. An UPDATE policy on each, for an IMPORTED row and an importer only
+--      (bulk.upload, or import.panel for the legacy importer): giving a table a
+--      conflict target turns a repeated row into an UPDATE, and neither table
+--      had an UPDATE policy at all.
+--   4. "A material return cannot be edited" now lets an importer overwrite an
+--      IMPORTED return with the file's values. A return raised in the app is
+--      untouched -- it is still corrected by a correcting entry. The upload
+--      numbers the lines in file order where the file has none, so the same
+--      file lands on the same rows (src/lib/uploads.ts, numberLines).
+--
+-- Every overwrite is imaged before and after by record_audit (0314).
+-- ===========================================================================
+
+-- 1. The MRN key. A STORED generated column: part_code() is immutable.
+alter table public.material_returns
+  add column if not exists part_key text generated always as (public.part_code(part)) stored;
+comment on column public.material_returns.part_key is
+  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0458).';
+-- Cannot collide with existing rows: material_returns_uid_part_idx is unique
+-- on (uid, part_code(part), coalesce(row_no, 0)), and row_no is always set.
+create unique index if not exists material_returns_natural_key
+  on public.material_returns (uid, part_key, row_no);
+
+-- 2. The transfer-line key, where the data allows it.
+do $$
+declare d int;
+begin
+  select count(*) into d from (
+    select 1 from public.stock_transfer_lines
+     where row_no is not null
+     group by transfer_uid, row_no having count(*) > 1) x;
+  if d = 0 then
+    create unique index if not exists stock_transfer_lines_natural_key
+      on public.stock_transfer_lines (transfer_uid, row_no);
+  else
+    raise notice 'D-071: % transfer line number(s) are held by more than one line, so the Stock Transfer Lines key was NOT created and a re-run of that upload is refused until they are resolved. supabase/apply/_stock_transfer_lines_repeated.sql lists them; then re-run this migration.', d;
+  end if;
+end $$;
+
+-- 3. The UPDATE policies a conflict target needs. TO authenticated: the public
+-- key holds no permission, and has_perm() answers FALSE for a login with no
+-- profile (0300).
+drop policy if exists mr_import_update on public.material_returns;
+create policy mr_import_update on public.material_returns for update to authenticated
+  using (source = 'import'
+         and ((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel'))))
+  with check (source = 'import'
+         and ((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel'))));
+
+drop policy if exists stl_import_update on public.stock_transfer_lines;
+create policy stl_import_update on public.stock_transfer_lines for update to authenticated
+  using (((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel')))
+         and exists (select 1 from public.stock_transfers t
+                      where t.uid = stock_transfer_lines.transfer_uid and t.source = 'import'))
+  with check (((select public.has_perm('bulk.upload')) or (select public.has_perm('import.panel')))
+         and exists (select 1 from public.stock_transfers t
+                      where t.uid = stock_transfer_lines.transfer_uid and t.source = 'import'));
+
+-- 4. The return guard, restated from 0310 with the import overwrite added and
+-- part_key left out of the rename comparison: a generated column is not yet
+-- computed in a BEFORE trigger, so NEW and OLD would never compare equal.
+create or replace function public.material_returns_immutable()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  -- D-071 (0458): an IMPORTED return re-loaded from its file takes the file's
+  -- values, by an importer only. It stays imported -- a return raised in the
+  -- app is never reached by this.
+  if old.source = 'import' and new.source = 'import'
+     and auth.uid() is not null
+     and (public.has_perm('bulk.upload') or public.has_perm('import.panel')) then
+    return new;
+  end if;
+  -- A PART RENAME (0310): only the part changed, exactly as the ticket that
+  -- rename_part_records() filed in this transaction says. Nothing else on a
+  -- return may change, by anybody but an administrator.
+  if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+     and exists (select 1 from public.part_rename_ticket t
+                  where t.txid = txid_current()
+                    and t.old_key = lower(btrim(old.part))
+                    and t.new_detail = new.part) then
+    return new;
+  end if;
+  raise exception 'A material return cannot be edited — raise a correcting entry instead';
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -39357,6 +41723,230 @@ begin
     perform public.sys_columns_attach('public.stock_record_files'::regclass);
   end if;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0462_spare_receipt_by_the_raiser.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-174 (re-review 5, 2026-10-12): a shipment is acknowledged by the engineer
+-- who raised the request, under the session's own name.
+--
+-- receive_spare_shipments() is SECURITY DEFINER and asked only spare.receive.
+-- It updated spare_dispatch_lines by line id with no requester check, and on a
+-- PARTIAL shipment it leaves the request line's received_* columns alone -- so
+-- the requester rule in spare_request_lines_guard, which fires on those
+-- columns, never ran. The receiver's name was the caller's p_actor. Measured:
+-- an engineer holding spare.receive who could not even see the line
+-- acknowledged its shipment as "The Real Engineer".
+--
+-- Now, for every line asked about, the function applies the line guard's own
+-- receipt rule before it writes anything: the caller is the raiser
+-- (is_spare_requester) or an administrator, and a shipment of the line exists
+-- (a partial dispatch leaves the line's status at Pending, so the status is not
+-- the test).
+-- A signed-in caller's name is the session's (my_display_name(), as 0393 does
+-- for the request lines); p_actor is used only with nobody signed in (an owner
+-- run). Restated from 0056 (the latest definition); the arithmetic is unchanged.
+-- ===========================================================================
+create or replace function public.receive_spare_shipments(p_line_ids bigint[], p_actor text default '', p_remarks text default '')
+returns integer
+language plpgsql security definer set search_path = public as $$
+declare n integer := 0; lid bigint; got numeric; v_name text; r public.spare_requests;
+begin
+  if not (public.is_admin() or public.has_perm('spare.receive')) then
+    raise exception 'RBAC: acknowledging a receipt requires the spare.receive permission';
+  end if;
+  if p_line_ids is null or array_length(p_line_ids, 1) is null then
+    raise exception 'Nothing to acknowledge: no spares selected';
+  end if;
+  v_name := case when auth.uid() is not null then coalesce(nullif(btrim(public.my_display_name()), ''), btrim(coalesce(p_actor, '')))
+                 else btrim(coalesce(p_actor, '')) end;
+
+  -- 0462: the receipt rule of spare_request_lines_guard, for every line,
+  -- before anything is written.
+  foreach lid in array p_line_ids loop
+    select q.* into r
+      from public.spare_request_lines l join public.spare_requests q on q.uid = l.request_uid
+     where l.id = lid;
+    if not found then
+      raise exception 'Spare line % does not exist', lid;
+    end if;
+    if auth.uid() is not null and not public.is_admin() and not coalesce(public.is_spare_requester(r), false) then
+      raise exception 'RBAC: only the engineer who raised the request may acknowledge it (line %)', lid;
+    end if;
+    -- A shipment is the proof of dispatch: a PARTIAL dispatch leaves the line's
+    -- stores_status at Pending, so the status cannot be the test here.
+    if not exists (select 1 from public.spare_dispatch_lines d where d.line_id = lid) then
+      raise exception 'RBAC: a spare can only be acknowledged after it is dispatched (line %)', lid;
+    end if;
+  end loop;
+
+  foreach lid in array p_line_ids loop
+    update public.spare_dispatch_lines d
+       set received_at     = now(),
+           received_by     = v_name,
+           receipt_remarks = coalesce(p_remarks, '')
+     where d.line_id = lid and d.received_at is null;
+    get diagnostics got = row_count;
+    n := n + got;
+
+    -- how much of this line has now been acknowledged
+    select coalesce(sum(d.qty), 0) into got
+      from public.spare_dispatch_lines d
+     where d.line_id = lid and d.received_at is not null;
+
+    update public.spare_request_lines l
+       set received_qty = got,
+           -- only a fully acknowledged line becomes Received
+           received_at     = case when got >= coalesce(l.qty, 0) then now() else l.received_at end,
+           received_by     = case when got >= coalesce(l.qty, 0) then v_name else l.received_by end,
+           receipt_remarks = case when got >= coalesce(l.qty, 0)
+                                  then coalesce(p_remarks, '') else l.receipt_remarks end
+     where l.id = lid;
+  end loop;
+
+  return n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0465_stock_reload_replaces_the_group.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-177 (re-review 5; the user's decision, 2026-10-14: "Replace the whole SI /
+-- transfer"), D-178 (part), D-195, D-200.
+--
+-- D-071's fix (0458) matched a re-loaded MRN or transfer line on its SI Number
+-- (or transfer) and its LINE NUMBER -- the file's, or its position. A corrected
+-- file that drops or reorders a line shifts every later line's number, so a
+-- re-load doubled or dropped stock (measured: a transfer loaded A, B, C and
+-- re-loaded B, C read B, C, C). The user's rule now: an SI Number (or a
+-- transfer) is loaded AS A WHOLE. Its imported lines are replaced by the
+-- file's; a line the file no longer carries is removed.
+--
+--   1. reload_imported_stock_lines(p_kind, p_rows): for each SI Number ('mrn')
+--      or transfer ('stl') the rows name, in ONE transaction: refuse if any
+--      line under it was entered in RITHI (source <> import) -- a file never
+--      replaces a return or transfer somebody recorded; remove the imported
+--      lines under it; insert the file's. Only an importer (bulk.upload, or
+--      import.panel for the legacy importer) may call it. It runs as the owner,
+--      so a second importer may re-load what somebody else loaded (D-195), and
+--      every statement is per group, so record_audit keeps every row's image
+--      (a >150-row statement keeps none -- D-178 (3)).
+--   2. The direct-overwrite door 0458 opened is closed again (D-200): the
+--      importer UPDATE policies go, and material_returns_immutable is 0310's
+--      rule again (part_key left out of its comparison, as 0310 now does).
+--   3. stock_transfer_lines is put under record_audit (D-178 (2)); 0458's header
+--      claimed it already was.
+-- The natural-key indexes of 0458 stay: a line number is still one line.
+-- ===========================================================================
+
+create or replace function public.reload_imported_stock_lines(p_kind text, p_rows jsonb)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_tab   text;
+  v_key   text;
+  g       text;
+  r       jsonb;
+  v_cols  text;
+  n_rem   int := 0;
+  n_ins   int := 0;
+  n_grp   int := 0;
+  k       int;
+begin
+  if auth.uid() is not null and not (public.has_perm('bulk.upload') or public.has_perm('import.panel')) then
+    raise exception 'RBAC: re-loading imported stock lines needs Bulk Uploads (bulk.upload) or the Data Import panel (import.panel)'
+      using errcode = '42501';
+  end if;
+  if p_kind = 'mrn' then v_tab := 'material_returns'; v_key := 'uid';
+  elsif p_kind = 'stl' then v_tab := 'stock_transfer_lines'; v_key := 'transfer_uid';
+  else raise exception 'Unknown kind %: expected mrn or stl', p_kind;
+  end if;
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 then
+    return jsonb_build_object('groups', 0, 'removed', 0, 'written', 0);
+  end if;
+
+  for g in select distinct btrim(e->>v_key) from jsonb_array_elements(p_rows) e loop
+    if coalesce(g, '') = '' then
+      raise exception 'A row names no % -- it could never be matched again, so nothing was loaded', v_key;
+    end if;
+    n_grp := n_grp + 1;
+    if p_kind = 'mrn' then
+      if exists (select 1 from public.material_returns m where m.uid = g and coalesce(m.source, '') <> 'import') then
+        raise exception 'SI Number % holds a return entered in RITHI; a file does not replace it -- nothing was loaded', g;
+      end if;
+      delete from public.material_returns m where m.uid = g;
+    else
+      if not exists (select 1 from public.stock_transfers t where t.uid = g and coalesce(t.source, '') = 'import') then
+        raise exception 'Transfer % is not an imported transfer (or is not loaded); its lines are not replaced by a file -- nothing was loaded', g;
+      end if;
+      delete from public.stock_transfer_lines l where l.transfer_uid = g;
+    end if;
+    get diagnostics k = row_count; n_rem := n_rem + k;
+
+    for r in select e from jsonb_array_elements(p_rows) e where btrim(e->>v_key) = g loop
+      if p_kind = 'mrn' then r := r || jsonb_build_object('source', 'import'); end if;
+      -- Only the columns the row carries, so every other one keeps its default.
+      select string_agg(quote_ident(c.column_name), ', ' order by c.ordinal_position) into v_cols
+        from information_schema.columns c
+       where c.table_schema = 'public' and c.table_name = v_tab
+         and c.column_name <> 'id' and c.column_name not like 'sys\_%'
+         and c.is_generated = 'NEVER' and c.is_identity = 'NO'
+         and r ? c.column_name;
+      execute format('insert into public.%I (%s) select %s from jsonb_populate_record(null::public.%I, $1)',
+                     v_tab, v_cols, v_cols, v_tab) using r;
+      n_ins := n_ins + 1;
+    end loop;
+  end loop;
+  return jsonb_build_object('groups', n_grp, 'removed', n_rem, 'written', n_ins);
+end $$;
+revoke execute on function public.reload_imported_stock_lines(text, jsonb) from public;
+do $$ begin
+  revoke execute on function public.reload_imported_stock_lines(text, jsonb) from anon;
+exception when undefined_object then null; end $$;
+grant execute on function public.reload_imported_stock_lines(text, jsonb) to authenticated;
+
+-- 2. The direct-overwrite door closed again.
+drop policy if exists mr_import_update on public.material_returns;
+drop policy if exists stl_import_update on public.stock_transfer_lines;
+
+create or replace function public.material_returns_immutable()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  -- A PART RENAME (0310): only the part changed, exactly as the ticket that
+  -- rename_part_records() filed in this transaction says. Nothing else on a
+  -- return may change, by anybody but an administrator. part_key is generated
+  -- from part and not yet computed in a BEFORE trigger, so it is left out.
+  -- (0465: a re-loaded imported return is REPLACED, not edited, so 0458's
+  -- import exemption is gone.)
+  if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+     and exists (select 1 from public.part_rename_ticket t
+                  where t.txid = txid_current()
+                    and t.old_key = lower(btrim(old.part))
+                    and t.new_detail = new.part) then
+    return new;
+  end if;
+  raise exception 'A material return cannot be edited — raise a correcting entry instead';
+end $$;
+
+-- 3. Transfer lines imaged.
+do $on$
+begin
+  if to_regprocedure('public.record_audit_fn()') is null then return; end if;
+  drop trigger if exists record_audit_i on public.stock_transfer_lines;
+  drop trigger if exists record_audit_u on public.stock_transfer_lines;
+  drop trigger if exists record_audit_d on public.stock_transfer_lines;
+  create trigger record_audit_i after insert on public.stock_transfer_lines
+    referencing new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_u after update on public.stock_transfer_lines
+    referencing old table as old_rows new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_d after delete on public.stock_transfer_lines
+    referencing old table as old_rows for each statement execute function public.record_audit_fn();
+end $on$;
 
 -- ------------------------------------------------------------------------
 -- 0384_handstock_balance_all.sql
@@ -43997,6 +46587,262 @@ end $$;
 revoke execute on function public.installation_call_not_for_dealer() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0361_sold_through_cleared_only_if_a_transfer_set_it.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0361 — A MACHINE'S SOLD THROUGH IS CLEARED ONLY WHERE A TRANSFER SET IT, AND
+--        A CORRECTED TRANSFER'S OLD MACHINE IS RE-READ TOO
+--        (second re-review D-149; the user's decision, 2026-10-04)
+--
+-- On a machine with NO sale entry, transfer_to_product writes
+--   sold_through = coalesce(machine_sold_through(...), p.sold_through)
+-- reading "no dealer transfer left" as "keep what is there". Measured: a
+-- dealer -> clinic transfer set Sold Through to the dealer; correcting the
+-- From party left the machine on the dealer. And on an UPDATE only NEW's
+-- machine was re-derived, so changing a transfer's serial left the old one.
+--
+-- THE USER'S DECISION: "Blank it only if a transfer set it" -- a Sold Through
+-- that came from a Product Database upload (or an edit, or a sale) is left
+-- alone. That needs to know WHERE the value came from, so:
+--   * products.sold_through_from_transfer -- true when the transfer path
+--     wrote the value; any other change of sold_through sets it false
+--     (products_sold_through_source, a BEFORE UPDATE trigger that reads a
+--     transaction-local ticket only transfer_resync_machine() raises);
+--   * the transfer path, finding no dealer transfer left, blanks Sold Through
+--     only where the flag is true; otherwise it keeps the value, as before;
+--   * ONCE, existing machines whose Sold Through equals their current dealer
+--     transfer's are marked as set by a transfer -- the only ones that provably
+--     were. Everything else starts false, i.e. kept: an unknown origin is not
+--     guessed to be a transfer.
+--   * transfer_to_product re-reads OLD's machine as well when an UPDATE moves
+--     a transfer to another machine.
+--
+-- transfer_to_product's body is the DATABASE'S definition (pg_get_functiondef
+-- on a database built from every migration), moved into
+-- transfer_resync_machine(item, serial) with the Sold Through line changed.
+-- In the sales_contracts module, after 0329 / 0330.
+-- ===========================================================================
+
+alter table public.products add column if not exists sold_through_from_transfer boolean not null default false;
+comment on column public.products.sold_through_from_transfer is
+  'True when the Sold Through was written by an ownership transfer (0361); a transfer correction that leaves no dealer transfer blanks it only then.';
+
+-- ---- 1. any other change of sold_through says it is not the transfer's --------
+create or replace function public.products_sold_through_source()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.sold_through is distinct from old.sold_through
+     and coalesce(current_setting('rithi.sold_through_by_transfer', true), '') <> 'on' then
+    new.sold_through_from_transfer := false;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.products_sold_through_source() from public, anon, authenticated;
+drop trigger if exists products_sold_through_source on public.products;
+create trigger products_sold_through_source
+  before update on public.products
+  for each row execute function public.products_sold_through_source();
+
+-- ---- 2. one machine, re-read from its sales and transfers -----------------------
+create or replace function public.transfer_resync_machine(p_item text, p_serial text)
+returns void language plpgsql security definer set search_path = public as $$
+declare r record; v_st text;
+begin
+  for r in select i.id from public.sale_items i
+            where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(p_item, '')))
+              and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(p_serial, ''))) loop
+    perform public.upsert_product_from_sale(r.id);
+  end loop;
+
+  -- A machine with NO sale entry still changes hands, and the transfer is then
+  -- the only thing that knows who owns it -- and, since 0328, which dealer it
+  -- came through; since 0329, it takes that owner's Party Master address, city,
+  -- state and Service Engineer, a blank there keeping what the row has.
+  -- Since 0361: with no dealer transfer left, Sold Through is blanked only if
+  -- a transfer had set it; a value from anywhere else is kept.
+  v_st := public.machine_sold_through(p_item, p_serial);
+  perform set_config('rithi.sold_through_by_transfer', 'on', true);
+  update public.products p
+     set party_name       = c.party,
+         sold_through     = case when v_st is not null then v_st
+                                 when p.sold_through_from_transfer then ''
+                                 else p.sold_through end,
+         sold_through_from_transfer = (v_st is not null),
+         address          = coalesce(nullif(btrim(pm.address), ''), p.address),
+         city             = coalesce(nullif(btrim(pm.city), ''), p.city),
+         state            = coalesce(nullif(btrim(pm.state), ''), p.state),
+         service_engineer = coalesce(nullif(btrim(pm.service_engineer), ''), p.service_engineer)
+    from (select public.machine_current_party(p_item, p_serial) as party) c
+    left join public.parties pm on pm.name_key = lower(btrim(coalesce(c.party, '')))
+   where p.machine_key = lower(btrim(coalesce(p_item, ''))) || '|' || lower(btrim(coalesce(p_serial, '')))
+     and not exists (select 1 from public.sale_items i
+                      where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(p_item, '')))
+                        and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(p_serial, ''))));
+  perform set_config('rithi.sold_through_by_transfer', 'off', true);
+  -- THE TRANSFER'S REF AND DATE (0330), and the rest of the machine.
+  perform public.sync_product_machine(p_item, p_serial);
+end $$;
+revoke execute on function public.transfer_resync_machine(text, text) from public, anon, authenticated;
+
+-- ---- 3. the trigger: NEW's machine, and OLD's when the transfer moved -----------
+create or replace function public.transfer_to_product()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare m record;
+begin
+  m := case when tg_op = 'DELETE' then old else new end;
+  perform public.transfer_resync_machine(m.item_name, m.serial_number);
+  if tg_op = 'UPDATE'
+     and (lower(btrim(coalesce(old.item_name, ''))) is distinct from lower(btrim(coalesce(new.item_name, '')))
+          or lower(btrim(coalesce(old.serial_number, ''))) is distinct from lower(btrim(coalesce(new.serial_number, '')))) then
+    perform public.transfer_resync_machine(old.item_name, old.serial_number);
+  end if;
+  return null;
+end $$;
+revoke execute on function public.transfer_to_product() from public, anon, authenticated;
+
+-- ---- 4. once: the machines whose Sold Through a transfer provably set ----------
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare n bigint;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0361_sold_through_from_transfer_marked') then return; end if;
+  perform set_config('rithi.sold_through_by_transfer', 'on', true);
+  update public.products p
+     set sold_through_from_transfer = true
+   where btrim(coalesce(p.sold_through, '')) <> ''
+     and not exists (select 1 from public.sale_items i
+                      where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(p.item_name, '')))
+                        and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(p.serial_number, ''))))
+     and lower(btrim(p.sold_through)) = lower(btrim(coalesce(public.machine_sold_through(p.item_name, p.serial_number), '')));
+  get diagnostics n = row_count;
+  perform set_config('rithi.sold_through_by_transfer', 'off', true);
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0361_sold_through_from_transfer_marked', n || ' machine(s) marked as having their Sold Through from a transfer');
+  raise notice '0361: % machine(s) marked as having their Sold Through from a transfer', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0362_installation_once_and_no_dealer_request.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0362 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
+--        INSTALLATION REQUEST FOR A DEALER
+--        (second re-review D-150, D-154; the user's decisions, 2026-10-04)
+--
+-- D-150 -- "+ Installation call" is offered on every transfer and only the
+-- browser stopped a second call: measured, two OT- installation calls with the
+-- same call number were both registered. THE USER'S DECISION: the button only
+-- on dealer transfers (the screen), AND the database refuses (a) a second
+-- installation call with the same call number and (b) a second installation
+-- call for a machine (product + serial) that already has one. A CANCELLED call
+-- does not count (it installed nothing); the same call re-loaded (same UCN) is
+-- not a second one; a connection with no session (a repair) is not stopped.
+-- Existing duplicates are left as they are and listed by
+-- _review_findings_on_live_data.sql row 8.
+--
+-- D-151 (the Party Master decides who is a dealer) needs no SQL: party_is_dealer()
+-- already reads the Party Master, and the screens now ask the Party Master's
+-- dealer list instead of the sale's own Type. A column on sale_entries was
+-- tried and dropped: every update of a sale re-syncs its machines, so keeping
+-- one in step would have re-written the Product Database for every dealer
+-- sale, and the details view cannot gain a column a re-run of 0036 removes.
+--
+-- D-154 -- the dealer rule was on installation_calls alone; an installation
+-- CALL REQUEST for a dealer was accepted and refused only at registration.
+-- THE USER'S DECISION: refuse it when the request is raised. Same message as
+-- 0328; a re-load of the same request line (reqid + product + serial) under the
+-- same party stands aside, as 0351 does for the Installation Calls upload.
+--
+-- In the sales_contracts module, after 0361: party_is_dealer() is 0328's.
+-- ===========================================================================
+
+-- ---- D-150 ------------------------------------------------------------------
+create or replace function public.installation_call_once()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_other record;
+begin
+  if auth.uid() is null then return new; end if;                -- a migration, a repair
+  if new.cancelled_at is not null then return new; end if;
+  if tg_op = 'UPDATE'
+     and lower(btrim(coalesce(new.call_number, ''))) = lower(btrim(coalesce(old.call_number, '')))
+     and lower(btrim(coalesce(new.product_name, ''))) = lower(btrim(coalesce(old.product_name, '')))
+     and lower(btrim(coalesce(new.serial, ''))) = lower(btrim(coalesce(old.serial, ''))) then
+    return new;
+  end if;
+
+  if btrim(coalesce(new.call_number, '')) <> '' then
+    select ic.ucn, ic.call_number into v_other from public.installation_calls ic
+     where ic.ucn is distinct from new.ucn and ic.cancelled_at is null
+       and lower(btrim(coalesce(ic.call_number, ''))) = lower(btrim(new.call_number))
+     limit 1;
+    if found then
+      raise exception 'Installation call % already carries call number % -- an installation call is raised once',
+        v_other.ucn, btrim(new.call_number) using errcode = '23505';
+    end if;
+  end if;
+
+  if btrim(coalesce(new.serial, '')) <> '' and btrim(coalesce(new.product_name, '')) <> '' then
+    select ic.ucn, ic.call_number into v_other from public.installation_calls ic
+     where ic.ucn is distinct from new.ucn and ic.cancelled_at is null
+       and lower(btrim(coalesce(ic.product_name, ''))) = lower(btrim(new.product_name))
+       and lower(btrim(coalesce(ic.serial, ''))) = lower(btrim(new.serial))
+     limit 1;
+    if found then
+      raise exception '% % already has installation call % (%) -- a machine is installed once',
+        btrim(new.product_name), btrim(new.serial), v_other.ucn, coalesce(nullif(btrim(v_other.call_number), ''), 'no call number')
+        using errcode = '23505';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.installation_call_once() from public, anon, authenticated;
+drop trigger if exists installation_call_once on public.installation_calls;
+create trigger installation_call_once
+  before insert or update of call_number, product_name, serial on public.installation_calls
+  for each row execute function public.installation_call_once();
+
+-- ---- D-154 ------------------------------------------------------------------
+create or replace function public.call_request_not_installation_for_dealer()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;                -- a migration, a repair
+  if public.call_table_for(new.call_type) <> 'installation' then return new; end if;
+  if tg_op = 'UPDATE'
+     and lower(btrim(coalesce(new.party_name, ''))) = lower(btrim(coalesce(old.party_name, '')))
+     and public.call_table_for(old.call_type) = 'installation' then
+    return new;
+  end if;
+  -- A re-load of the same request line, party unchanged (the 0351 rule).
+  if tg_op = 'INSERT' and exists (
+       select 1 from public.call_requests cr
+        where cr.reqid is not distinct from new.reqid
+          and lower(btrim(coalesce(cr.product, ''))) = lower(btrim(coalesce(new.product, '')))
+          and lower(btrim(coalesce(cr.serial_no, ''))) = lower(btrim(coalesce(new.serial_no, '')))
+          and lower(btrim(coalesce(cr.party_name, ''))) = lower(btrim(coalesce(new.party_name, '')))) then
+    return new;
+  end if;
+  if public.party_is_dealer(new.party_name) then
+    raise exception '% is a dealer: an installation call is not raised for a dealer -- it is raised from the Ownership Transfer when the dealer sells the machine (OT-PRODUCT-SERIAL)', btrim(new.party_name)
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.call_request_not_installation_for_dealer() from public, anon, authenticated;
+drop trigger if exists call_request_not_installation_for_dealer on public.call_requests;
+create trigger call_request_not_installation_for_dealer
+  before insert or update of party_name, call_type on public.call_requests
+  for each row execute function public.call_request_not_installation_for_dealer();
+
+-- ------------------------------------------------------------------------
 -- 0383_transfer_fresh_warranty.sql
 -- ------------------------------------------------------------------------
 
@@ -45389,6 +48235,207 @@ comment on function public.pm_schedule(text, text) is
 
 revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0454_pm_calls_in_month.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0454 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
+--        PM CALL (second re-review D-038, FRS-142.11 as the user decided)
+--
+-- The user's decision (2026-10-12): when a PM upload names a machine that
+-- already has a PM call in that due month -- an earlier load, or one generated
+-- from PM Due -- the row is SKIPPED and NAMED with that call's UCN; no second
+-- call, and the existing call is left as it is. The upload asks this before it
+-- writes. Read through the uploader's own row-level security it would see only
+-- the PM calls that person may see, and a machine whose call belongs to
+-- somebody else's team would be loaded twice -- so, like PM Due's own reads
+-- (pm_visits_due, 0402), this runs as its owner and asks pm.bulk_upload (or
+-- pm.generate) itself. It returns the machine and the UCN, nothing more.
+-- A cancelled PM call is not counted, as PM Due does not count one: a machine
+-- whose call was cancelled still has its PM to do this month.
+-- In the sales_contracts module, after the PM Due migrations.
+-- ===========================================================================
+
+create or replace function public.pm_calls_in_month(p_month date)
+returns table (ucn text, product_name text, serial text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not (public.has_perm('pm.bulk_upload') or public.has_perm('pm.generate')) then
+    raise exception 'pm.bulk_upload is required to check a PM upload against the month''s calls'
+      using errcode = '42501';
+  end if;
+  return query
+    select p.ucn, coalesce(p.product_name, ''), coalesce(p.serial, '')
+      from public.pm_calls p
+     where p.reg_date >= date_trunc('month', p_month)::date
+       and p.reg_date <  (date_trunc('month', p_month) + interval '1 month')::date
+       and p.cancelled_at is null
+     order by p.ucn;
+end $$;
+revoke execute on function public.pm_calls_in_month(date) from public, anon;
+grant execute on function public.pm_calls_in_month(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0459_cover_normalise_says_first.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-071, URS-072 / FRS-201.7: Normalise cover says what it will hand back
+-- BEFORE it runs.
+--
+-- Normalise cover (cover_unpin_inherited) clears every machine-line value that
+-- repeats its entry's, so the line follows the entry from then on. Nothing shown
+-- changes on the day -- the value equals the entry's -- but a value somebody
+-- pinned on one machine stops being that machine's own, and the next change to
+-- the entry overrides it. The legacy importer ran it automatically after a
+-- cover import with no statement and no confirmation, and reported "Normalised
+-- N item rows" where N was every line that HAS an entry, changed or not.
+--
+--   1. cover_unpin_preview(): how many values it would hand back, per register
+--      and field, read-only. The importer shows it and runs Normalise only on
+--      confirmation.
+--   2. cover_unpin_inherited(), restated from 0291, now touches only the lines
+--      that have a value to hand back, so the count it returns is the count it
+--      changed. Its fields and its permission are 0291's, unchanged.
+-- ===========================================================================
+
+create or replace function public.cover_unpin_preview()
+returns table (register text, field text, n bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  -- The same audience as cover_unpin_inherited (0247 / 0291): whoever may edit
+  -- cover. Nobody signed in (the SQL editor) passes.
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  return query
+  select x.reg, x.f, count(*)::bigint
+    from (
+      select 'Warranty'::text as reg, v.f
+        from public.sale_items i
+        join public.sale_entries h on h.sa_number = i.sa_number
+        cross join lateral (values
+          ('invoice_no',      i.invoice_no      is not null and i.invoice_no      is not distinct from h.invoice_no),
+          ('invoice_date',    i.invoice_date    is not null and i.invoice_date    is not distinct from h.invoice_date),
+          ('sold_through',    i.sold_through    is not null and i.sold_through    is not distinct from h.sold_through),
+          ('warranty_start',  i.warranty_start  is not null and i.warranty_start  is not distinct from h.warranty_start),
+          ('warranty_end',    i.warranty_end    is not null and i.warranty_end    is not distinct from h.warranty_end),
+          ('warranty_years',  i.warranty_years  is not null and i.warranty_years  is not distinct from h.warranty_years),
+          ('warranty_months', i.warranty_months is not null and i.warranty_months is not distinct from h.warranty_months),
+          ('pm_visits',       i.pm_visits       is not null and i.pm_visits       is not distinct from h.pm_visits),
+          ('warranty_status', i.warranty_status is not null and i.warranty_status is not distinct from h.warranty_status),
+          ('other_details',   i.other_details   is not null and i.other_details   is not distinct from h.other_details),
+          ('state',           i.state           is not null and i.state           is not distinct from h.state),
+          ('city',            i.city            is not null and i.city            is not distinct from h.city),
+          ('engineer',        i.engineer        is not null and i.engineer        is not distinct from h.engineer)
+        ) v(f, hit)
+       where v.hit
+      union all
+      select 'Contract'::text, v.f
+        from public.contract_items i
+        join public.contract_entries h on h.mc_number = i.mc_number
+        cross join lateral (values
+          ('entry_at',         i.entry_at         is not null and i.entry_at         is not distinct from h.entry_at),
+          ('party_name',       i.party_name       is not null and i.party_name       is not distinct from h.party_name),
+          ('payment_schedule', i.payment_schedule is not null and i.payment_schedule is not distinct from h.payment_schedule),
+          ('bill_generate_at', i.bill_generate_at is not null and i.bill_generate_at is not distinct from h.bill_generate_at),
+          ('contract_type',    i.contract_type    is not null and i.contract_type    is not distinct from h.contract_type),
+          ('contract_start',   i.contract_start   is not null and i.contract_start   is not distinct from h.contract_start),
+          ('contract_end',     i.contract_end     is not null and i.contract_end     is not distinct from h.contract_end),
+          ('contract_years',   i.contract_years   is not null and i.contract_years   is not distinct from h.contract_years),
+          ('contract_months',  i.contract_months  is not null and i.contract_months  is not distinct from h.contract_months),
+          ('pm_visits_total',  i.pm_visits_total  is not null and i.pm_visits_total  is not distinct from h.pm_visits_total),
+          ('status',           i.status           is not null and i.status           is not distinct from h.status)
+        ) v(f, hit)
+       where v.hit
+    ) x
+   group by x.reg, x.f
+   order by x.reg, x.f;
+end $$;
+revoke execute on function public.cover_unpin_preview() from public;
+do $$ begin
+  revoke execute on function public.cover_unpin_preview() from anon;
+exception when undefined_object then null; end $$;
+grant execute on function public.cover_unpin_preview() to authenticated;
+
+CREATE OR REPLACE FUNCTION public.cover_unpin_inherited()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET statement_timeout TO '180s'
+AS $function$
+declare n integer := 0; m integer;
+begin
+  -- 0247: THE COVER ADMIN ACTION IS FOR WHOEVER MAY EDIT COVER. This runs with
+  -- the owner's rights over every sale, contract and machine, so it checks the
+  -- caller itself. A call with nobody signed in (the SQL editor, a scheduled
+  -- job) passes;
+  -- the not-signed-in role cannot call it at all (0248 withdraws it).
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  -- 0459: only the lines with a value to hand back, so the count is the count
+  -- changed -- the same test cover_unpin_preview() counts by.
+  update public.sale_items i set
+    invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
+    invoice_date    = case when i.invoice_date    is not distinct from h.invoice_date    then null else i.invoice_date end,
+    sold_through    = case when i.sold_through    is not distinct from h.sold_through    then null else i.sold_through end,
+    warranty_start  = case when i.warranty_start  is not distinct from h.warranty_start  then null else i.warranty_start end,
+    warranty_end    = case when i.warranty_end    is not distinct from h.warranty_end    then null else i.warranty_end end,
+    warranty_years  = case when i.warranty_years  is not distinct from h.warranty_years  then null else i.warranty_years end,
+    warranty_months = case when i.warranty_months is not distinct from h.warranty_months then null else i.warranty_months end,
+    pm_visits       = case when i.pm_visits       is not distinct from h.pm_visits       then null else i.pm_visits end,
+    warranty_status = case when i.warranty_status is not distinct from h.warranty_status then null else i.warranty_status end,
+    other_details   = case when i.other_details   is not distinct from h.other_details   then null else i.other_details end,
+    state           = case when i.state           is not distinct from h.state           then null else i.state end,
+    city            = case when i.city            is not distinct from h.city            then null else i.city end,
+    engineer        = case when i.engineer        is not distinct from h.engineer        then null else i.engineer end
+  from public.sale_entries h where h.sa_number = i.sa_number
+    and ((i.invoice_no      is not null and i.invoice_no      is not distinct from h.invoice_no)
+      or (i.invoice_date    is not null and i.invoice_date    is not distinct from h.invoice_date)
+      or (i.sold_through    is not null and i.sold_through    is not distinct from h.sold_through)
+      or (i.warranty_start  is not null and i.warranty_start  is not distinct from h.warranty_start)
+      or (i.warranty_end    is not null and i.warranty_end    is not distinct from h.warranty_end)
+      or (i.warranty_years  is not null and i.warranty_years  is not distinct from h.warranty_years)
+      or (i.warranty_months is not null and i.warranty_months is not distinct from h.warranty_months)
+      or (i.pm_visits       is not null and i.pm_visits       is not distinct from h.pm_visits)
+      or (i.warranty_status is not null and i.warranty_status is not distinct from h.warranty_status)
+      or (i.other_details   is not null and i.other_details   is not distinct from h.other_details)
+      or (i.state           is not null and i.state           is not distinct from h.state)
+      or (i.city            is not null and i.city            is not distinct from h.city)
+      or (i.engineer        is not null and i.engineer        is not distinct from h.engineer));
+  get diagnostics m = row_count; n := n + m;
+
+  update public.contract_items i set
+    entry_at         = case when i.entry_at         is not distinct from h.entry_at         then null else i.entry_at end,
+    party_name       = case when i.party_name       is not distinct from h.party_name       then null else i.party_name end,
+    payment_schedule = case when i.payment_schedule is not distinct from h.payment_schedule then null else i.payment_schedule end,
+    bill_generate_at = case when i.bill_generate_at is not distinct from h.bill_generate_at then null else i.bill_generate_at end,
+    contract_type    = case when i.contract_type    is not distinct from h.contract_type    then null else i.contract_type end,
+    contract_start   = case when i.contract_start   is not distinct from h.contract_start   then null else i.contract_start end,
+    contract_end     = case when i.contract_end     is not distinct from h.contract_end     then null else i.contract_end end,
+    contract_years   = case when i.contract_years   is not distinct from h.contract_years   then null else i.contract_years end,
+    contract_months  = case when i.contract_months  is not distinct from h.contract_months  then null else i.contract_months end,
+    pm_visits_total  = case when i.pm_visits_total  is not distinct from h.pm_visits_total  then null else i.pm_visits_total end,
+    status           = case when i.status           is not distinct from h.status           then null else i.status end
+  from public.contract_entries h where h.mc_number = i.mc_number
+    and ((i.entry_at         is not null and i.entry_at         is not distinct from h.entry_at)
+      or (i.party_name       is not null and i.party_name       is not distinct from h.party_name)
+      or (i.payment_schedule is not null and i.payment_schedule is not distinct from h.payment_schedule)
+      or (i.bill_generate_at is not null and i.bill_generate_at is not distinct from h.bill_generate_at)
+      or (i.contract_type    is not null and i.contract_type    is not distinct from h.contract_type)
+      or (i.contract_start   is not null and i.contract_start   is not distinct from h.contract_start)
+      or (i.contract_end     is not null and i.contract_end     is not distinct from h.contract_end)
+      or (i.contract_years   is not null and i.contract_years   is not distinct from h.contract_years)
+      or (i.contract_months  is not null and i.contract_months  is not distinct from h.contract_months)
+      or (i.pm_visits_total  is not null and i.pm_visits_total  is not distinct from h.pm_visits_total)
+      or (i.status           is not null and i.status           is not distinct from h.status));
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end $function$;
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql
@@ -55378,6 +58425,345 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0456_objective_with_figures_kept.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0456 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+--        (second re-review D-021, FRS-121.7)
+--
+-- Quality Objectives deleted an objective with its twelve figures after a
+-- browser confirm, and qo_write (FOR ALL) allowed it to objective.manage. A
+-- monthly figure is the record that the objective was measured; deleting the
+-- row erased the measurement with it. FRS-121.7: the database shall refuse to
+-- delete an objective that carries any recorded figure -- a month m01..m12 or
+-- the Total. An objective added in error, with nothing recorded yet, can still
+-- be deleted. 0445 images every change and delete in record_audit.
+-- Not stopped: a connection with no session and a function running as its
+-- owner (a repair in the SQL editor).
+-- In the objective module, last.
+-- ===========================================================================
+
+create or replace function public.quality_objective_keeps_figures()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if auth.uid() is null then return old; end if;
+  if current_user <> 'authenticated' then return old; end if;
+  if num_nonnulls(old.m01, old.m02, old.m03, old.m04, old.m05, old.m06,
+                  old.m07, old.m08, old.m09, old.m10, old.m11, old.m12, old.total) > 0 then
+    raise exception '% (%) carries recorded figures and is kept -- clear the figures first if it was added in error',
+      old.parameter, old.year using errcode = '23514';
+  end if;
+  return old;
+end $$;
+revoke execute on function public.quality_objective_keeps_figures() from public, anon, authenticated;
+drop trigger if exists quality_objective_keeps_figures on public.quality_objectives;
+create trigger quality_objective_keeps_figures
+  before delete on public.quality_objectives
+  for each row execute function public.quality_objective_keeps_figures();
+
+-- ------------------------------------------------------------------------
+-- 0460_objective_feedback_evidence_gate.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-173 (re-review 5, 2026-10-12): the Customer feedback objective's evidence
+-- follows the FEEDBACK register's read rule.
+--
+-- objective_evidence() admitted every objective but the FFR one on calls.view
+-- or reports.view -- including feedback_satisfaction, whose evidence returns
+-- every answer, the party, the UCN and the engineer. Measured: a calls.view
+-- holder who reads 0 feedback rows directly read them here, and a feedback.view
+-- holder who reads them directly was refused here. The function's own comment
+-- states the rule this breaks: the gate follows the register the figure is
+-- counted from.
+--
+-- The body below is the DATABASE'S definition (pg_get_functiondef on a database
+-- built from every migration, latest 0441), with the one branch added to the
+-- gate; nothing else changes.
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)
+ RETURNS TABLE(role text, ucn text, call_number text, reg_date date, product_name text, serial text, party_name text, call_type text, status text, allocated_to text, warranty_number text, warranty_start date, warranty_end date, contract_number text, contract_start date, contract_end date, contract_type text, closure_date date, closure_recorded_on date, after_cutoff text, details jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_type   text;
+  v_days   integer;
+  v_from   date;
+  v_upto   date;
+  v_win    integer;
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found then return; end if;
+  -- THE GATE FOLLOWS THE REGISTER THE FIGURE IS COUNTED FROM. An FFR objective
+  -- reads the Field Failure Register, which has had its own right since 0176
+  -- (`ffr.view`); asking for `calls.view` instead would let somebody who may
+  -- not open that register read every report through this door, and refuse
+  -- somebody who may.
+  if o.calc_key = 'ffr_count_monthly' then
+    if not (public.has_perm('ffr.view') or public.has_perm('ffr.manage')) then
+      raise exception 'RBAC: you cannot read the Field Failure Reports behind this figure';
+    end if;
+  -- 0460 (D-173): the Customer feedback objective is counted from the FEEDBACK
+  -- register, so its evidence -- every answer, party and engineer -- follows
+  -- that register's read rule (fb_read: feedback.view or visit.feedback), not
+  -- the calls' rule.
+  elsif o.calc_key = 'feedback_satisfaction' then
+    if not (public.has_perm('feedback.view') or public.has_perm('visit.feedback')) then
+      raise exception 'RBAC: you cannot read the customer feedback behind this figure';
+    end if;
+  elsif not (public.has_perm('calls.view') or public.has_perm('reports.view')) then
+    raise exception 'RBAC: you cannot read the calls behind this figure';
+  end if;
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return; end if;
+  v_type := coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%');
+
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    v_upto   := p.period_end;
+    v_from   := (v_upto - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date;
+    v_win    := public.objective_setting('failure_window_months', 3);
+
+    -- (The outer alias is `c`, as on every call branch, so _status.sql row
+    -- 193's tiebreak check -- `reg_date desc, c.ucn` -- reads it.)
+    -- SHEET 1: ONE ROW PER FAILED MACHINE -- its FIRST field call inside the
+    -- window -- so the sheet counts to the numerator. `details` says when the
+    -- machine was installed, how many days later it failed, and how many calls
+    -- fell inside the window.
+    -- EXECUTE for the same reason as objective_value: the app pages this
+    -- function, re-running it per thousand rows, and the sixth page would get
+    -- the generic plan.
+    return query execute $q$
+      with base as (
+        select pr.*
+          from public.products pr
+         where pr.item_name ilike $1
+           and coalesce(pr.serial_number, '') ilike $2
+           and btrim(coalesce(pr.serial_number, '')) <> ''
+           and pr.warranty_start > $3
+           and pr.warranty_start <= $4
+      ),
+      hits as (
+        select b.id as machine_id, b.warranty_start as installed_on, c.*,
+               count(*) over (partition by b.id) as calls_in_window,
+               row_number() over (partition by b.id order by c.reg_date, c.ucn) as rn
+          from base b
+          join public.field_calls c
+            on upper(btrim(coalesce(c.serial, ''))) = upper(btrim(b.serial_number))
+         where c.cancelled_at is null
+           and c.product_name ilike $1
+           and c.reg_date > $3
+           and c.reg_date <= $4
+           and c.reg_date >= b.warranty_start
+           and c.reg_date <= (b.warranty_start + make_interval(months => $5))::date
+      )
+      select 'failure'::text, c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text,
+             jsonb_build_object(
+               'Installed (warranty start)', c.installed_on,
+               'Days after installation', (c.reg_date - c.installed_on),
+               'Field calls in the window', c.calls_in_window)
+        from hits c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.rn = 1
+       order by c.reg_date desc, c.ucn
+    $q$ using v_prod, v_serial, v_from, v_upto, v_win;
+
+    return query
+      select 'filter'::text, ''::text, ''::text, p.period_end,
+             'Product Master, Product like ' || v_prod,
+             case when v_serial = '%' then '(no serial filter -- product only)'
+                  else 'Serial like ' || v_serial end,
+             p.label, 'Field calls'::text, ''::text, ''::text,
+             ''::text, null::date, null::date, ''::text, null::date, null::date, ''::text,
+             null::date, null::date,
+             'Installed (warranty start) in the '
+               || public.objective_setting('failure_rolling_months', 12)
+               || ' months to ' || p.period_end
+               || '; failed = a field call within '
+               || public.objective_setting('failure_window_months', 3)
+               || ' months of installation',
+             null::jsonb;
+
+    -- SHEET 2: THE MACHINES INSTALLED IN THE WINDOW -- the denominator -- each
+    -- carrying its whole Product Master row.
+    return query
+      select 'machine'::text, ''::text, ''::text, null::date,
+             pr.item_name, pr.serial_number, pr.party_name, ''::text,
+             coalesce(pr.item_status, ''), ''::text,
+             pr.warranty_number, pr.warranty_start, pr.warranty_end,
+             pr.contract_number, pr.contract_start, pr.contract_end, pr.contract_type,
+             null::date, null::date, ''::text,
+             coalesce(pr.extra, '{}'::jsonb)
+        from public.products pr
+       where pr.item_name ilike v_prod
+         and coalesce(pr.serial_number, '') ilike v_serial
+         and btrim(coalesce(pr.serial_number, '')) <> ''
+         and pr.warranty_start > v_from
+         and pr.warranty_start <= v_upto
+       order by pr.serial_number, pr.item_name, pr.id;
+    return;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    return query execute format($q$
+      select case when cl.counts_on is not null and cl.counts_on <= $4
+                  then 'closed' else 'open' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on,
+             concat_ws(' ',
+               case when cl.counts_on is not null and cl.counts_on > $4
+                    then 'YES -- solved on ' || cl.counts_on
+                         || ', after the cut-off of ' || $4 || ', so it is counted as OPEN'
+               end,
+               case when cl.counts_on is not null and cl.closed_on is null
+                    then 'NOTE -- no visit date on the solving report; the date it was '
+                         'ENTERED (' || cl.recorded_on || ') was used instead'
+               end),
+             null::jsonb
+        from %s c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on,
+                     coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date) as counts_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+         -- A MISSED PM (0418) is left out of the evidence exactly as it is
+         -- left out of the figure, unless the objective counts it.
+         and ($5 or c.added_on is null
+              or c.added_on <= (date_trunc('month', c.reg_date) + interval '1 month - 1 day')::date)
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, p.solve_cutoff,
+            (lower(btrim(coalesce(o.calc_params->>'family', ''))) <> 'pm'
+                or lower(btrim(coalesce(o.calc_params->>'missed_pm', ''))) = 'include');
+    return;
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    return query execute format($q$
+      with c as (
+        select cc.*, coalesce((cc.reg_at at time zone 'Asia/Kolkata')::date, cc.reg_date) as reg_day
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min((visit_at at time zone 'Asia/Kolkata')::date) as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, (created_at at time zone 'Asia/Kolkata')::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select case when public.call_days(c.complaint_date, c.breakdown_date, c.reg_day, least(fv.on_date, fs.on_date)) <= $4
+                  then 'attended' else 'late' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             case when least(fv.on_date, fs.on_date) is null then 'never attended'
+                  else 'attended on ' || least(fv.on_date, fs.on_date)
+                       || ' -- ' || public.call_days(c.complaint_date, c.breakdown_date, c.reg_day, least(fv.on_date, fs.on_date))
+                       || ' day(s), the lower of from complaint ' || coalesce(c.complaint_date::text, '-')
+                       || ' and from breakdown ' || coalesce(c.breakdown_date::text, '-') end,
+             coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text, null::jsonb
+        from c
+        left join fv on fv.ucn = c.ucn
+        left join fs on fs.ucn = c.ucn
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, v_days;
+    return;
+  end if;
+
+  -- CUSTOMER FEEDBACK SATISFACTION (0422): one row per feedback counted --
+  -- the call, its visit date (reg_date column), and in `details` each
+  -- question's score and the call's Satisfaction %, so the sheet adds up to
+  -- the figure.
+  if o.calc_key = 'feedback_satisfaction' then
+    return query
+      select 'feedback'::text, f.ucn, f.call_number, (f.visit_at at time zone 'Asia/Kolkata')::date,
+             f.product_name, f.serial, f.party_name, f.call_type, ''::text, coalesce(f.engineer, ''),
+             null::text, null::date, null::date, null::text, null::date, null::date, null::text,
+             null::date, null::date, null::text,
+             jsonb_build_object('Satisfaction %', public.feedback_satisfaction(f.answers, f.call_type),
+                                'Scored on', case when upper(coalesce(f.call_type, '')) like '%INSTALLATION%'
+                                                  then 'Installation questions (out of 20)' else 'PM / Field questions (out of 24)' end)
+               || coalesce((select jsonb_object_agg(q, public.feedback_score(f.answers ->> q))
+                              from unnest(public.feedback_questions(f.call_type)) q), '{}'::jsonb)
+        from public.feedback f
+       where (f.visit_at at time zone 'Asia/Kolkata')::date >= p.period_start
+         and (f.visit_at at time zone 'Asia/Kolkata')::date <= p.period_end
+         and public.feedback_satisfaction(f.answers, f.call_type) is not null
+       order by f.visit_at, f.ucn;
+    return;
+  end if;
+
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+
+    -- ONE ROW PER MACHINE, because that is how the register stores it -- so the
+    -- sheet has MORE rows than the figure and every row says which report it
+    -- belongs to. Collapsing to one row per report here would hide which
+    -- machines it covered, which is the thing 0181 exists to keep.
+    return query
+      select 'ffr'::text, f.ucn, f.ffr_no,
+             f.ffr_date,
+             f.product_name, f.product_serial, f.customer_name,
+             coalesce(f.call_type, ''), coalesce(f.ffr_status, ''),
+             coalesce(f.raised_by_name, ''),
+             ''::text, null::date, null::date, ''::text, null::date, null::date,
+             coalesce(f.cover, ''),
+             f.crn_date, (f.created_at at time zone 'Asia/Kolkata')::date,
+             ''::text,
+             jsonb_strip_nulls(jsonb_build_object(
+               'FFR No', f.ffr_no, 'Source', f.source,
+               'Problem Reported', f.problem_reported,
+               'Service Observation', f.service_observation,
+               'Problem Status', f.problem_status,
+               'CAPA No', f.capa_no, 'CAPA Status', f.capa_status,
+               'Item Code', f.item_code, 'Place', f.place))
+        from public.field_failure_reports f
+       where coalesce(f.product_name, '') ilike v_prod
+         and coalesce(f.product_serial, '') ilike v_serial
+         and f.ffr_date >= p.period_start
+         and f.ffr_date <= p.period_end
+       order by f.ffr_date, f.ffr_no, f.id;
+    return;
+  end if;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0048_record_audit.sql
 -- ------------------------------------------------------------------------
 
@@ -55840,6 +59226,188 @@ begin
     end if;
   end loop;
   raise notice '0314: record_audit armed on % of 5 tables.', n;
+end $on$;
+
+-- ------------------------------------------------------------------------
+-- 0445_record_audit_on_configuration_objectives_indoor.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0445 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
+--        (second re-review D-067, D-021, D-039)
+--
+-- record_audit (0225, 0314) images fifteen tables. Three groups that decide
+-- or record a quality answer were outside it, so an edit or a delete there
+-- left no before-and-after anywhere:
+--
+--   D-067  app_roles       what a role may do -- Roles & Permissions recorded
+--                          rbac.save with the role KEYS only
+--          app_settings    the Hotline desk, Audit Mode, the frequent-failure
+--                          rules, the objective lock
+--          sla_rules       the service-level targets
+--   D-021  quality_objectives, objective_cutoffs, objective_settings
+--                          a typed figure, a re-calculation, a cut-off, and
+--                          deleting an objective with its twelve figures
+--                          (objective_settings had UPDATE only, from 0357)
+--   D-039  indoor_jobs, indoor_job_parts, indoor_job_accessories,
+--          indoor_job_checks, indoor_pdt, indoor_dcs, indoor_dc_lines
+--                          the workshop record, saved field by field on blur
+--
+-- THE SAME TRIGGERS AS 0225 / 0314 -- statement-level with transition tables,
+-- so a bulk load is one event. Counters and release tickets are not records
+-- and are left out.
+--
+-- THE KEY. record_audit_fn() writes each row under, and pairs an update's
+-- before and after on, the first of ucn / uid / line_uid / call_number / id.
+-- app_roles, app_settings, sla_rules and objective_settings have none of
+-- them, so every row would be written under a NULL key and, in a statement
+-- touching several rows, each "after" paired with the FIRST "before". The key
+-- list gains `role` and `key` (the natural keys of those tables) and then
+-- `sys_id`, unique on every table since 0244 -- AFTER the five it had, so no
+-- table already imaged changes the key it is recorded under.
+-- Otherwise the function is 0103's, unchanged.
+--
+-- In data_integrity, after 0314: every table named here is created by a module
+-- earlier in ALL_ORDER. A project missing one simply arms the rest.
+-- ===========================================================================
+
+create or replace function public.record_audit_key(j jsonb)
+returns text language sql immutable set search_path = public as $$
+  select coalesce(j->>'ucn', j->>'uid', j->>'line_uid', j->>'call_number', j->>'id',
+                  j->>'role', j->>'key', j->>'sys_id')
+$$;
+revoke execute on function public.record_audit_key(jsonb) from public, anon, authenticated;
+
+create or replace function public.record_audit_fn()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  n     bigint;
+  bulk  boolean;
+begin
+  -- How many rows this ONE statement touched.
+  if tg_op = 'DELETE' then
+    select count(*) into n from old_rows;
+  else
+    select count(*) into n from new_rows;
+  end if;
+  if n = 0 then return null; end if;
+
+  bulk := n > 150;
+
+  if bulk then
+    -- One row for the whole statement: who, what table, how many, when.
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    values (tg_table_name, 'BULK ' || tg_op, null, auth.uid(), auth.email(), null,
+            jsonb_build_object('rows', n,
+                               'note', 'Bulk write — recorded as one event. The records are in ' || tg_table_name || '.'));
+    return null;
+  end if;
+
+  if tg_op = 'INSERT' then
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    select tg_table_name, tg_op, public.record_audit_key(j), auth.uid(), auth.email(), null, j
+      from (select to_jsonb(r) as j from new_rows r) x;
+  elsif tg_op = 'DELETE' then
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    select tg_table_name, tg_op, public.record_audit_key(j), auth.uid(), auth.email(), j, null
+      from (select to_jsonb(r) as j from old_rows r) x;
+  else
+    -- UPDATE: the before and after of the same record, paired on the key the
+    -- audit is written under.
+    insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+    select tg_table_name, tg_op, public.record_audit_key(nj), auth.uid(), auth.email(), oj, nj
+      from (
+        select to_jsonb(nr) as nj,
+               (select to_jsonb(orow) from old_rows orow
+                 where public.record_audit_key(to_jsonb(orow)) is not distinct from public.record_audit_key(to_jsonb(nr))
+                 limit 1) as oj
+          from new_rows nr
+      ) x;
+  end if;
+  return null;
+end $$;
+
+do $on$
+declare t text; n int := 0;
+begin
+  foreach t in array array[
+    'app_roles', 'app_settings', 'sla_rules',
+    'quality_objectives', 'objective_cutoffs', 'objective_settings',
+    'indoor_jobs', 'indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks',
+    'indoor_pdt', 'indoor_dcs', 'indoor_dc_lines'
+  ] loop
+    if to_regclass('public.' || t) is not null
+       and (select relkind from pg_class where oid = ('public.' || t)::regclass) = 'r' then
+      execute format('drop trigger if exists record_audit_i on public.%I', t);
+      execute format('drop trigger if exists record_audit_u on public.%I', t);
+      execute format('drop trigger if exists record_audit_d on public.%I', t);
+      execute format('create trigger record_audit_i after insert on public.%I '
+                     'referencing new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_u after update on public.%I '
+                     'referencing old table as old_rows new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_d after delete on public.%I '
+                     'referencing old table as old_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      n := n + 1;
+    end if;
+  end loop;
+  raise notice '0445: record_audit armed on % of 13 tables.', n;
+end $on$;
+
+-- ------------------------------------------------------------------------
+-- 0449_cover_registers_imaged.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0449 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
+--
+-- sale_entries, sale_items, contract_entries, contract_items,
+-- ownership_transfers and product_additional_entries were outside 0225's
+-- record_audit, so an edit to a machine's warranty or contract, a transfer
+-- corrected, or an entry deleted with every machine under it left no image of
+-- what was there. FRS-187.3: a correction shall be recorded with its before and
+-- after values by a trigger that cannot be bypassed. The same statement-level
+-- triggers as 0225 / 0314 / 0445, so a cover import is one event.
+--
+-- DELETION ITSELF STAYS -- the user's decision of 2026-10-06 ("Keep deleting,
+-- recorded"): an entry, a machine, a transfer or an additional entry may still
+-- be deleted by the holder of that register's delete authority, and what it
+-- removed is read back from record_audit. FRS-187 was rewritten to match.
+-- In data_integrity, after 0445: every cover table is created earlier in
+-- ALL_ORDER.
+-- ===========================================================================
+
+do $on$
+declare t text; n int := 0;
+begin
+  if to_regproc('public.record_audit_fn') is null then
+    raise notice '0449: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
+    return;
+  end if;
+  foreach t in array array[
+    'sale_entries', 'sale_items', 'contract_entries', 'contract_items',
+    'ownership_transfers', 'product_additional_entries'
+  ] loop
+    if to_regclass('public.' || t) is not null
+       and (select relkind from pg_class where oid = ('public.' || t)::regclass) = 'r' then
+      execute format('drop trigger if exists record_audit_i on public.%I', t);
+      execute format('drop trigger if exists record_audit_u on public.%I', t);
+      execute format('drop trigger if exists record_audit_d on public.%I', t);
+      execute format('create trigger record_audit_i after insert on public.%I '
+                     'referencing new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_u after update on public.%I '
+                     'referencing old table as old_rows new table as new_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      execute format('create trigger record_audit_d after delete on public.%I '
+                     'referencing old table as old_rows for each statement '
+                     'execute function public.record_audit_fn()', t);
+      n := n + 1;
+    end if;
+  end loop;
+  raise notice '0449: record_audit armed on % of 6 cover tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
@@ -63411,7 +66979,7 @@ end $$;
 --
 --   calls, pending_calls, calls_view_insert/update   <- 0114_call_registrant_split.sql
 --   field_failure_register                           <- 0197_review_actual_product.sql
---   indoor_job_list                                  <- 0323_indoor_stages.sql
+--   indoor_job_list                                  <- 0453_indoor_parts_accessories_checks_voided.sql
 --   tracker_list                                     <- 0143_tracker.sql
 --   export_schedule_state                            <- 0228_export_schedules.sql
 --
@@ -63559,8 +67127,9 @@ left join public.call_reviews r on r.ucn = f.ucn;
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
 
--- ---- indoor_job_list (0323, verbatim) --------------------------------------
--- GUARDED BY 0323's COLUMNS. Applied in FILE order (the test harness, a
+-- ---- indoor_job_list (0453, verbatim) --------------------------------------
+-- GUARDED BY 0323's AND 0453's COLUMNS (0453 restates 0323's definition with
+-- voided accessories left out, D-039). Applied in FILE order (the test harness, a
 -- rebuild from the migrations folder) this file runs BEFORE 0323, whose
 -- definition it copies, and the columns that definition names do not exist
 -- yet -- 0323 itself then rebuilds the view, sys_* included. Applied in BUNDLE
@@ -63571,6 +67140,11 @@ begin
   if not exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'indoor_jobs'
                     and column_name = 'report_uploaded_by') then
+    return;
+  end if;
+  if not exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'indoor_job_accessories'
+                    and column_name = 'voided_at') then
     return;
   end if;
 drop view if exists public.indoor_job_list;
@@ -63590,14 +67164,14 @@ create view public.indoor_job_list as
                     and j.expected_return is not null
                then (j.expected_return < (now() at time zone 'Asia/Kolkata')::date)
           end) as demo_overdue,
-         (select count(*) from public.indoor_job_accessories a where a.job_id = j.id)
+         (select count(*) from public.indoor_job_accessories a where a.job_id = j.id and a.voided_at is null)
            as accessory_count,
          (select count(*) from public.indoor_job_accessories a
-           where a.job_id = j.id and not a.returned) as accessories_outstanding,
+           where a.job_id = j.id and not a.returned and a.voided_at is null) as accessories_outstanding,
          coalesce(vb.name, '') as verified_by_name,
          (select string_agg(btrim(a.name) || case when a.qty <> 1 then ' x' || trim_scale(a.qty)::text else '' end,
                             ', ' order by a.id) from public.indoor_job_accessories a
-           where a.job_id = j.id and btrim(a.name) <> '') as accessories_received,
+           where a.job_id = j.id and btrim(a.name) <> '' and a.voided_at is null) as accessories_received,
          public.indoor_job_is_imported(j.product_name, j.serial) as product_imported,
          coalesce(rpb.name, '') as report_uploaded_by_name
     from public.indoor_jobs j
@@ -63774,6 +67348,38 @@ begin
     exception when undefined_object then null;   -- a plain Postgres has no service_role
     end;
   end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0466_unused_definers_revoked.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-185 and D-202 (re-review 5, 2026-10-12): two owner-rights functions the
+-- application never calls were callable through the API.
+--
+--   next_ffr_no(smallint) (0169) advances the FFR series and checks nothing; 0248
+--   revoked every other numbered-series generator and missed it. Measured: an
+--   engineer without ffr.manage drew FFR - 001/26 and 002/26, and the next
+--   report raised became 003/26 -- gaps in a controlled series.
+--   spare_request_rollup(text) (0025) rewrites a spare request's stage past the
+--   stage guard and checks nothing. Measured: the public key reset a request
+--   with no lines from Received to RM Approval.
+--
+-- Neither is called from src/; ffr_stamp, ffr_from_review and the spare
+-- triggers that use them run as the owner and are unaffected. The 0248 rule:
+-- a SECURITY DEFINER function the app does not call loses EXECUTE for public,
+-- anon and authenticated. Guarded, so a project without one skips it.
+-- ===========================================================================
+do $$
+declare fn text;
+begin
+  foreach fn in array array['public.next_ffr_no(smallint)', 'public.spare_request_rollup(text)'] loop
+    if to_regprocedure(fn) is null then continue; end if;
+    execute format('revoke execute on function %s from public', fn);
+    begin execute format('revoke execute on function %s from anon, authenticated', fn);
+    exception when undefined_object then null; end;
+  end loop;
 end $$;
 
 commit;

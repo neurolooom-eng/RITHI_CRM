@@ -61,7 +61,7 @@ export function Workload() {
       { needs: 'mod:/spare-requests', run: () => spareRequestSection(can, email, mayRmApprove) },
       { needs: 'mod:/spare-rm-approval', run: rmApprovalSection },
       { needs: 'mod:/spare-dispatch', run: dispatchSection },
-      { needs: 'mod:/daily-review', run: reviewSection },
+      { needs: 'mod:/daily-review', run: () => reviewSection(can('review.view')) },
       // WHAT COMMERCIAL IS WAITING ON (the user, 2026-09-22). Shown to
       // whoever can open the Call Request register, which is this page's
       // standing rule -- a count over a list somebody cannot read is both

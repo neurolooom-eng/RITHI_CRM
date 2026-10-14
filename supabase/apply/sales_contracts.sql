@@ -49,6 +49,8 @@
 --   0331_install_solved_date_starts_warranty.sql
 --   0332_installation_warranty_starts.sql
 --   0351_dealer_guard_stands_aside_on_reload.sql
+--   0361_sold_through_cleared_only_if_a_transfer_set_it.sql
+--   0362_installation_once_and_no_dealer_request.sql
 --   0383_transfer_fresh_warranty.sql
 --   0391_transfer_ot_number_invoice_files.sql
 --   0401_pm_due.sql
@@ -56,6 +58,8 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
+--   0454_pm_calls_in_month.sql
+--   0459_cover_normalise_says_first.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4668,6 +4672,262 @@ end $$;
 revoke execute on function public.installation_call_not_for_dealer() from public, anon, authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0361_sold_through_cleared_only_if_a_transfer_set_it.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0361 — A MACHINE'S SOLD THROUGH IS CLEARED ONLY WHERE A TRANSFER SET IT, AND
+--        A CORRECTED TRANSFER'S OLD MACHINE IS RE-READ TOO
+--        (second re-review D-149; the user's decision, 2026-10-04)
+--
+-- On a machine with NO sale entry, transfer_to_product writes
+--   sold_through = coalesce(machine_sold_through(...), p.sold_through)
+-- reading "no dealer transfer left" as "keep what is there". Measured: a
+-- dealer -> clinic transfer set Sold Through to the dealer; correcting the
+-- From party left the machine on the dealer. And on an UPDATE only NEW's
+-- machine was re-derived, so changing a transfer's serial left the old one.
+--
+-- THE USER'S DECISION: "Blank it only if a transfer set it" -- a Sold Through
+-- that came from a Product Database upload (or an edit, or a sale) is left
+-- alone. That needs to know WHERE the value came from, so:
+--   * products.sold_through_from_transfer -- true when the transfer path
+--     wrote the value; any other change of sold_through sets it false
+--     (products_sold_through_source, a BEFORE UPDATE trigger that reads a
+--     transaction-local ticket only transfer_resync_machine() raises);
+--   * the transfer path, finding no dealer transfer left, blanks Sold Through
+--     only where the flag is true; otherwise it keeps the value, as before;
+--   * ONCE, existing machines whose Sold Through equals their current dealer
+--     transfer's are marked as set by a transfer -- the only ones that provably
+--     were. Everything else starts false, i.e. kept: an unknown origin is not
+--     guessed to be a transfer.
+--   * transfer_to_product re-reads OLD's machine as well when an UPDATE moves
+--     a transfer to another machine.
+--
+-- transfer_to_product's body is the DATABASE'S definition (pg_get_functiondef
+-- on a database built from every migration), moved into
+-- transfer_resync_machine(item, serial) with the Sold Through line changed.
+-- In the sales_contracts module, after 0329 / 0330.
+-- ===========================================================================
+
+alter table public.products add column if not exists sold_through_from_transfer boolean not null default false;
+comment on column public.products.sold_through_from_transfer is
+  'True when the Sold Through was written by an ownership transfer (0361); a transfer correction that leaves no dealer transfer blanks it only then.';
+
+-- ---- 1. any other change of sold_through says it is not the transfer's --------
+create or replace function public.products_sold_through_source()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.sold_through is distinct from old.sold_through
+     and coalesce(current_setting('rithi.sold_through_by_transfer', true), '') <> 'on' then
+    new.sold_through_from_transfer := false;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.products_sold_through_source() from public, anon, authenticated;
+drop trigger if exists products_sold_through_source on public.products;
+create trigger products_sold_through_source
+  before update on public.products
+  for each row execute function public.products_sold_through_source();
+
+-- ---- 2. one machine, re-read from its sales and transfers -----------------------
+create or replace function public.transfer_resync_machine(p_item text, p_serial text)
+returns void language plpgsql security definer set search_path = public as $$
+declare r record; v_st text;
+begin
+  for r in select i.id from public.sale_items i
+            where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(p_item, '')))
+              and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(p_serial, ''))) loop
+    perform public.upsert_product_from_sale(r.id);
+  end loop;
+
+  -- A machine with NO sale entry still changes hands, and the transfer is then
+  -- the only thing that knows who owns it -- and, since 0328, which dealer it
+  -- came through; since 0329, it takes that owner's Party Master address, city,
+  -- state and Service Engineer, a blank there keeping what the row has.
+  -- Since 0361: with no dealer transfer left, Sold Through is blanked only if
+  -- a transfer had set it; a value from anywhere else is kept.
+  v_st := public.machine_sold_through(p_item, p_serial);
+  perform set_config('rithi.sold_through_by_transfer', 'on', true);
+  update public.products p
+     set party_name       = c.party,
+         sold_through     = case when v_st is not null then v_st
+                                 when p.sold_through_from_transfer then ''
+                                 else p.sold_through end,
+         sold_through_from_transfer = (v_st is not null),
+         address          = coalesce(nullif(btrim(pm.address), ''), p.address),
+         city             = coalesce(nullif(btrim(pm.city), ''), p.city),
+         state            = coalesce(nullif(btrim(pm.state), ''), p.state),
+         service_engineer = coalesce(nullif(btrim(pm.service_engineer), ''), p.service_engineer)
+    from (select public.machine_current_party(p_item, p_serial) as party) c
+    left join public.parties pm on pm.name_key = lower(btrim(coalesce(c.party, '')))
+   where p.machine_key = lower(btrim(coalesce(p_item, ''))) || '|' || lower(btrim(coalesce(p_serial, '')))
+     and not exists (select 1 from public.sale_items i
+                      where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(p_item, '')))
+                        and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(p_serial, ''))));
+  perform set_config('rithi.sold_through_by_transfer', 'off', true);
+  -- THE TRANSFER'S REF AND DATE (0330), and the rest of the machine.
+  perform public.sync_product_machine(p_item, p_serial);
+end $$;
+revoke execute on function public.transfer_resync_machine(text, text) from public, anon, authenticated;
+
+-- ---- 3. the trigger: NEW's machine, and OLD's when the transfer moved -----------
+create or replace function public.transfer_to_product()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare m record;
+begin
+  m := case when tg_op = 'DELETE' then old else new end;
+  perform public.transfer_resync_machine(m.item_name, m.serial_number);
+  if tg_op = 'UPDATE'
+     and (lower(btrim(coalesce(old.item_name, ''))) is distinct from lower(btrim(coalesce(new.item_name, '')))
+          or lower(btrim(coalesce(old.serial_number, ''))) is distinct from lower(btrim(coalesce(new.serial_number, '')))) then
+    perform public.transfer_resync_machine(old.item_name, old.serial_number);
+  end if;
+  return null;
+end $$;
+revoke execute on function public.transfer_to_product() from public, anon, authenticated;
+
+-- ---- 4. once: the machines whose Sold Through a transfer provably set ----------
+create table if not exists public.one_time_fixes_done (
+  name       text primary key,
+  applied_at timestamptz not null default now(),
+  detail     text
+);
+alter table public.one_time_fixes_done enable row level security;
+revoke all on public.one_time_fixes_done from anon, authenticated;
+
+do $$
+declare n bigint;
+begin
+  if exists (select 1 from public.one_time_fixes_done where name = '0361_sold_through_from_transfer_marked') then return; end if;
+  perform set_config('rithi.sold_through_by_transfer', 'on', true);
+  update public.products p
+     set sold_through_from_transfer = true
+   where btrim(coalesce(p.sold_through, '')) <> ''
+     and not exists (select 1 from public.sale_items i
+                      where lower(btrim(coalesce(i.product_name, ''))) = lower(btrim(coalesce(p.item_name, '')))
+                        and lower(btrim(coalesce(i.serial_number, ''))) = lower(btrim(coalesce(p.serial_number, ''))))
+     and lower(btrim(p.sold_through)) = lower(btrim(coalesce(public.machine_sold_through(p.item_name, p.serial_number), '')));
+  get diagnostics n = row_count;
+  perform set_config('rithi.sold_through_by_transfer', 'off', true);
+  insert into public.one_time_fixes_done (name, detail)
+  values ('0361_sold_through_from_transfer_marked', n || ' machine(s) marked as having their Sold Through from a transfer');
+  raise notice '0361: % machine(s) marked as having their Sold Through from a transfer', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0362_installation_once_and_no_dealer_request.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0362 — ONE INSTALLATION CALL PER MACHINE AND PER CALL NUMBER; NO
+--        INSTALLATION REQUEST FOR A DEALER
+--        (second re-review D-150, D-154; the user's decisions, 2026-10-04)
+--
+-- D-150 -- "+ Installation call" is offered on every transfer and only the
+-- browser stopped a second call: measured, two OT- installation calls with the
+-- same call number were both registered. THE USER'S DECISION: the button only
+-- on dealer transfers (the screen), AND the database refuses (a) a second
+-- installation call with the same call number and (b) a second installation
+-- call for a machine (product + serial) that already has one. A CANCELLED call
+-- does not count (it installed nothing); the same call re-loaded (same UCN) is
+-- not a second one; a connection with no session (a repair) is not stopped.
+-- Existing duplicates are left as they are and listed by
+-- _review_findings_on_live_data.sql row 8.
+--
+-- D-151 (the Party Master decides who is a dealer) needs no SQL: party_is_dealer()
+-- already reads the Party Master, and the screens now ask the Party Master's
+-- dealer list instead of the sale's own Type. A column on sale_entries was
+-- tried and dropped: every update of a sale re-syncs its machines, so keeping
+-- one in step would have re-written the Product Database for every dealer
+-- sale, and the details view cannot gain a column a re-run of 0036 removes.
+--
+-- D-154 -- the dealer rule was on installation_calls alone; an installation
+-- CALL REQUEST for a dealer was accepted and refused only at registration.
+-- THE USER'S DECISION: refuse it when the request is raised. Same message as
+-- 0328; a re-load of the same request line (reqid + product + serial) under the
+-- same party stands aside, as 0351 does for the Installation Calls upload.
+--
+-- In the sales_contracts module, after 0361: party_is_dealer() is 0328's.
+-- ===========================================================================
+
+-- ---- D-150 ------------------------------------------------------------------
+create or replace function public.installation_call_once()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_other record;
+begin
+  if auth.uid() is null then return new; end if;                -- a migration, a repair
+  if new.cancelled_at is not null then return new; end if;
+  if tg_op = 'UPDATE'
+     and lower(btrim(coalesce(new.call_number, ''))) = lower(btrim(coalesce(old.call_number, '')))
+     and lower(btrim(coalesce(new.product_name, ''))) = lower(btrim(coalesce(old.product_name, '')))
+     and lower(btrim(coalesce(new.serial, ''))) = lower(btrim(coalesce(old.serial, ''))) then
+    return new;
+  end if;
+
+  if btrim(coalesce(new.call_number, '')) <> '' then
+    select ic.ucn, ic.call_number into v_other from public.installation_calls ic
+     where ic.ucn is distinct from new.ucn and ic.cancelled_at is null
+       and lower(btrim(coalesce(ic.call_number, ''))) = lower(btrim(new.call_number))
+     limit 1;
+    if found then
+      raise exception 'Installation call % already carries call number % -- an installation call is raised once',
+        v_other.ucn, btrim(new.call_number) using errcode = '23505';
+    end if;
+  end if;
+
+  if btrim(coalesce(new.serial, '')) <> '' and btrim(coalesce(new.product_name, '')) <> '' then
+    select ic.ucn, ic.call_number into v_other from public.installation_calls ic
+     where ic.ucn is distinct from new.ucn and ic.cancelled_at is null
+       and lower(btrim(coalesce(ic.product_name, ''))) = lower(btrim(new.product_name))
+       and lower(btrim(coalesce(ic.serial, ''))) = lower(btrim(new.serial))
+     limit 1;
+    if found then
+      raise exception '% % already has installation call % (%) -- a machine is installed once',
+        btrim(new.product_name), btrim(new.serial), v_other.ucn, coalesce(nullif(btrim(v_other.call_number), ''), 'no call number')
+        using errcode = '23505';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.installation_call_once() from public, anon, authenticated;
+drop trigger if exists installation_call_once on public.installation_calls;
+create trigger installation_call_once
+  before insert or update of call_number, product_name, serial on public.installation_calls
+  for each row execute function public.installation_call_once();
+
+-- ---- D-154 ------------------------------------------------------------------
+create or replace function public.call_request_not_installation_for_dealer()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return new; end if;                -- a migration, a repair
+  if public.call_table_for(new.call_type) <> 'installation' then return new; end if;
+  if tg_op = 'UPDATE'
+     and lower(btrim(coalesce(new.party_name, ''))) = lower(btrim(coalesce(old.party_name, '')))
+     and public.call_table_for(old.call_type) = 'installation' then
+    return new;
+  end if;
+  -- A re-load of the same request line, party unchanged (the 0351 rule).
+  if tg_op = 'INSERT' and exists (
+       select 1 from public.call_requests cr
+        where cr.reqid is not distinct from new.reqid
+          and lower(btrim(coalesce(cr.product, ''))) = lower(btrim(coalesce(new.product, '')))
+          and lower(btrim(coalesce(cr.serial_no, ''))) = lower(btrim(coalesce(new.serial_no, '')))
+          and lower(btrim(coalesce(cr.party_name, ''))) = lower(btrim(coalesce(new.party_name, '')))) then
+    return new;
+  end if;
+  if public.party_is_dealer(new.party_name) then
+    raise exception '% is a dealer: an installation call is not raised for a dealer -- it is raised from the Ownership Transfer when the dealer sells the machine (OT-PRODUCT-SERIAL)', btrim(new.party_name)
+      using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.call_request_not_installation_for_dealer() from public, anon, authenticated;
+drop trigger if exists call_request_not_installation_for_dealer on public.call_requests;
+create trigger call_request_not_installation_for_dealer
+  before insert or update of party_name, call_type on public.call_requests
+  for each row execute function public.call_request_not_installation_for_dealer();
+
+-- ------------------------------------------------------------------------
 -- 0383_transfer_fresh_warranty.sql
 -- ------------------------------------------------------------------------
 
@@ -6060,5 +6320,206 @@ comment on function public.pm_schedule(text, text) is
 
 revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0454_pm_calls_in_month.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0454 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
+--        PM CALL (second re-review D-038, FRS-142.11 as the user decided)
+--
+-- The user's decision (2026-10-12): when a PM upload names a machine that
+-- already has a PM call in that due month -- an earlier load, or one generated
+-- from PM Due -- the row is SKIPPED and NAMED with that call's UCN; no second
+-- call, and the existing call is left as it is. The upload asks this before it
+-- writes. Read through the uploader's own row-level security it would see only
+-- the PM calls that person may see, and a machine whose call belongs to
+-- somebody else's team would be loaded twice -- so, like PM Due's own reads
+-- (pm_visits_due, 0402), this runs as its owner and asks pm.bulk_upload (or
+-- pm.generate) itself. It returns the machine and the UCN, nothing more.
+-- A cancelled PM call is not counted, as PM Due does not count one: a machine
+-- whose call was cancelled still has its PM to do this month.
+-- In the sales_contracts module, after the PM Due migrations.
+-- ===========================================================================
+
+create or replace function public.pm_calls_in_month(p_month date)
+returns table (ucn text, product_name text, serial text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not (public.has_perm('pm.bulk_upload') or public.has_perm('pm.generate')) then
+    raise exception 'pm.bulk_upload is required to check a PM upload against the month''s calls'
+      using errcode = '42501';
+  end if;
+  return query
+    select p.ucn, coalesce(p.product_name, ''), coalesce(p.serial, '')
+      from public.pm_calls p
+     where p.reg_date >= date_trunc('month', p_month)::date
+       and p.reg_date <  (date_trunc('month', p_month) + interval '1 month')::date
+       and p.cancelled_at is null
+     order by p.ucn;
+end $$;
+revoke execute on function public.pm_calls_in_month(date) from public, anon;
+grant execute on function public.pm_calls_in_month(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0459_cover_normalise_says_first.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-071, URS-072 / FRS-201.7: Normalise cover says what it will hand back
+-- BEFORE it runs.
+--
+-- Normalise cover (cover_unpin_inherited) clears every machine-line value that
+-- repeats its entry's, so the line follows the entry from then on. Nothing shown
+-- changes on the day -- the value equals the entry's -- but a value somebody
+-- pinned on one machine stops being that machine's own, and the next change to
+-- the entry overrides it. The legacy importer ran it automatically after a
+-- cover import with no statement and no confirmation, and reported "Normalised
+-- N item rows" where N was every line that HAS an entry, changed or not.
+--
+--   1. cover_unpin_preview(): how many values it would hand back, per register
+--      and field, read-only. The importer shows it and runs Normalise only on
+--      confirmation.
+--   2. cover_unpin_inherited(), restated from 0291, now touches only the lines
+--      that have a value to hand back, so the count it returns is the count it
+--      changed. Its fields and its permission are 0291's, unchanged.
+-- ===========================================================================
+
+create or replace function public.cover_unpin_preview()
+returns table (register text, field text, n bigint)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  -- The same audience as cover_unpin_inherited (0247 / 0291): whoever may edit
+  -- cover. Nobody signed in (the SQL editor) passes.
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  return query
+  select x.reg, x.f, count(*)::bigint
+    from (
+      select 'Warranty'::text as reg, v.f
+        from public.sale_items i
+        join public.sale_entries h on h.sa_number = i.sa_number
+        cross join lateral (values
+          ('invoice_no',      i.invoice_no      is not null and i.invoice_no      is not distinct from h.invoice_no),
+          ('invoice_date',    i.invoice_date    is not null and i.invoice_date    is not distinct from h.invoice_date),
+          ('sold_through',    i.sold_through    is not null and i.sold_through    is not distinct from h.sold_through),
+          ('warranty_start',  i.warranty_start  is not null and i.warranty_start  is not distinct from h.warranty_start),
+          ('warranty_end',    i.warranty_end    is not null and i.warranty_end    is not distinct from h.warranty_end),
+          ('warranty_years',  i.warranty_years  is not null and i.warranty_years  is not distinct from h.warranty_years),
+          ('warranty_months', i.warranty_months is not null and i.warranty_months is not distinct from h.warranty_months),
+          ('pm_visits',       i.pm_visits       is not null and i.pm_visits       is not distinct from h.pm_visits),
+          ('warranty_status', i.warranty_status is not null and i.warranty_status is not distinct from h.warranty_status),
+          ('other_details',   i.other_details   is not null and i.other_details   is not distinct from h.other_details),
+          ('state',           i.state           is not null and i.state           is not distinct from h.state),
+          ('city',            i.city            is not null and i.city            is not distinct from h.city),
+          ('engineer',        i.engineer        is not null and i.engineer        is not distinct from h.engineer)
+        ) v(f, hit)
+       where v.hit
+      union all
+      select 'Contract'::text, v.f
+        from public.contract_items i
+        join public.contract_entries h on h.mc_number = i.mc_number
+        cross join lateral (values
+          ('entry_at',         i.entry_at         is not null and i.entry_at         is not distinct from h.entry_at),
+          ('party_name',       i.party_name       is not null and i.party_name       is not distinct from h.party_name),
+          ('payment_schedule', i.payment_schedule is not null and i.payment_schedule is not distinct from h.payment_schedule),
+          ('bill_generate_at', i.bill_generate_at is not null and i.bill_generate_at is not distinct from h.bill_generate_at),
+          ('contract_type',    i.contract_type    is not null and i.contract_type    is not distinct from h.contract_type),
+          ('contract_start',   i.contract_start   is not null and i.contract_start   is not distinct from h.contract_start),
+          ('contract_end',     i.contract_end     is not null and i.contract_end     is not distinct from h.contract_end),
+          ('contract_years',   i.contract_years   is not null and i.contract_years   is not distinct from h.contract_years),
+          ('contract_months',  i.contract_months  is not null and i.contract_months  is not distinct from h.contract_months),
+          ('pm_visits_total',  i.pm_visits_total  is not null and i.pm_visits_total  is not distinct from h.pm_visits_total),
+          ('status',           i.status           is not null and i.status           is not distinct from h.status)
+        ) v(f, hit)
+       where v.hit
+    ) x
+   group by x.reg, x.f
+   order by x.reg, x.f;
+end $$;
+revoke execute on function public.cover_unpin_preview() from public;
+do $$ begin
+  revoke execute on function public.cover_unpin_preview() from anon;
+exception when undefined_object then null; end $$;
+grant execute on function public.cover_unpin_preview() to authenticated;
+
+CREATE OR REPLACE FUNCTION public.cover_unpin_inherited()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+ SET statement_timeout TO '180s'
+AS $function$
+declare n integer := 0; m integer;
+begin
+  -- 0247: THE COVER ADMIN ACTION IS FOR WHOEVER MAY EDIT COVER. This runs with
+  -- the owner's rights over every sale, contract and machine, so it checks the
+  -- caller itself. A call with nobody signed in (the SQL editor, a scheduled
+  -- job) passes;
+  -- the not-signed-in role cannot call it at all (0248 withdraws it).
+  if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
+    raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
+  end if;
+  -- 0459: only the lines with a value to hand back, so the count is the count
+  -- changed -- the same test cover_unpin_preview() counts by.
+  update public.sale_items i set
+    invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
+    invoice_date    = case when i.invoice_date    is not distinct from h.invoice_date    then null else i.invoice_date end,
+    sold_through    = case when i.sold_through    is not distinct from h.sold_through    then null else i.sold_through end,
+    warranty_start  = case when i.warranty_start  is not distinct from h.warranty_start  then null else i.warranty_start end,
+    warranty_end    = case when i.warranty_end    is not distinct from h.warranty_end    then null else i.warranty_end end,
+    warranty_years  = case when i.warranty_years  is not distinct from h.warranty_years  then null else i.warranty_years end,
+    warranty_months = case when i.warranty_months is not distinct from h.warranty_months then null else i.warranty_months end,
+    pm_visits       = case when i.pm_visits       is not distinct from h.pm_visits       then null else i.pm_visits end,
+    warranty_status = case when i.warranty_status is not distinct from h.warranty_status then null else i.warranty_status end,
+    other_details   = case when i.other_details   is not distinct from h.other_details   then null else i.other_details end,
+    state           = case when i.state           is not distinct from h.state           then null else i.state end,
+    city            = case when i.city            is not distinct from h.city            then null else i.city end,
+    engineer        = case when i.engineer        is not distinct from h.engineer        then null else i.engineer end
+  from public.sale_entries h where h.sa_number = i.sa_number
+    and ((i.invoice_no      is not null and i.invoice_no      is not distinct from h.invoice_no)
+      or (i.invoice_date    is not null and i.invoice_date    is not distinct from h.invoice_date)
+      or (i.sold_through    is not null and i.sold_through    is not distinct from h.sold_through)
+      or (i.warranty_start  is not null and i.warranty_start  is not distinct from h.warranty_start)
+      or (i.warranty_end    is not null and i.warranty_end    is not distinct from h.warranty_end)
+      or (i.warranty_years  is not null and i.warranty_years  is not distinct from h.warranty_years)
+      or (i.warranty_months is not null and i.warranty_months is not distinct from h.warranty_months)
+      or (i.pm_visits       is not null and i.pm_visits       is not distinct from h.pm_visits)
+      or (i.warranty_status is not null and i.warranty_status is not distinct from h.warranty_status)
+      or (i.other_details   is not null and i.other_details   is not distinct from h.other_details)
+      or (i.state           is not null and i.state           is not distinct from h.state)
+      or (i.city            is not null and i.city            is not distinct from h.city)
+      or (i.engineer        is not null and i.engineer        is not distinct from h.engineer));
+  get diagnostics m = row_count; n := n + m;
+
+  update public.contract_items i set
+    entry_at         = case when i.entry_at         is not distinct from h.entry_at         then null else i.entry_at end,
+    party_name       = case when i.party_name       is not distinct from h.party_name       then null else i.party_name end,
+    payment_schedule = case when i.payment_schedule is not distinct from h.payment_schedule then null else i.payment_schedule end,
+    bill_generate_at = case when i.bill_generate_at is not distinct from h.bill_generate_at then null else i.bill_generate_at end,
+    contract_type    = case when i.contract_type    is not distinct from h.contract_type    then null else i.contract_type end,
+    contract_start   = case when i.contract_start   is not distinct from h.contract_start   then null else i.contract_start end,
+    contract_end     = case when i.contract_end     is not distinct from h.contract_end     then null else i.contract_end end,
+    contract_years   = case when i.contract_years   is not distinct from h.contract_years   then null else i.contract_years end,
+    contract_months  = case when i.contract_months  is not distinct from h.contract_months  then null else i.contract_months end,
+    pm_visits_total  = case when i.pm_visits_total  is not distinct from h.pm_visits_total  then null else i.pm_visits_total end,
+    status           = case when i.status           is not distinct from h.status           then null else i.status end
+  from public.contract_entries h where h.mc_number = i.mc_number
+    and ((i.entry_at         is not null and i.entry_at         is not distinct from h.entry_at)
+      or (i.party_name       is not null and i.party_name       is not distinct from h.party_name)
+      or (i.payment_schedule is not null and i.payment_schedule is not distinct from h.payment_schedule)
+      or (i.bill_generate_at is not null and i.bill_generate_at is not distinct from h.bill_generate_at)
+      or (i.contract_type    is not null and i.contract_type    is not distinct from h.contract_type)
+      or (i.contract_start   is not null and i.contract_start   is not distinct from h.contract_start)
+      or (i.contract_end     is not null and i.contract_end     is not distinct from h.contract_end)
+      or (i.contract_years   is not null and i.contract_years   is not distinct from h.contract_years)
+      or (i.contract_months  is not null and i.contract_months  is not distinct from h.contract_months)
+      or (i.pm_visits_total  is not null and i.pm_visits_total  is not distinct from h.pm_visits_total)
+      or (i.status           is not null and i.status           is not distinct from h.status));
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end $function$;
 
 commit;

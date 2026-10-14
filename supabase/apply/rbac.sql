@@ -56,6 +56,7 @@
 --   0347_feedback_read_once_and_no_machine_delete.sql
 --   0350_delete_guard_counts_every_name.sql
 --   0381_master_reads_once_per_query.sql
+--   0461_unmatched_login_holds_nothing.sql
 --   0121_rbac_policy_tail.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -3361,7 +3362,9 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.add', 'masters.edit'),
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
-  ('masters.product_master.delete', 'masters.edit');
+  ('masters.product_master.delete', 'masters.edit'),
+  -- D-129 (0455, 2026-10-05): an editor of the review reads its answers.
+  ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
 -- my_extra_perms() is NULL, and several callers rely on `if not has_perm()`
@@ -4169,6 +4172,73 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0461_unmatched_login_holds_nothing.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-172 (re-review 5; the user's decision, 2026-10-14: "Nothing until added").
+-- A REGRESSION OF D-074: a sign-in whose email is on no User Master row was
+-- given an ENGINEER profile the first time it signed in.
+--
+-- sbCurrentProfile() calls ensure_my_profile() for every login with no
+-- profile, and the function (0033) inserted coalesce(<the User Master role>,
+-- 'engineer') whether or not a User Master row matched -- so D-074's "an
+-- unknown login holds nothing" path ran only when the call failed. Measured: a
+-- login with no profile and no User Master row went from has_perm(calls.report)
+-- = false to true on its first sign-in.
+--
+-- From here the function makes a profile ONLY from a User Master row that
+-- carries the login's email or gmail. With none it creates nothing and returns
+-- NULL; the client then shows the one "not set up" page and the database holds
+-- the login to nothing (0300) until an administrator adds the person to the
+-- User Master. Profiles already created this way are left as they are (the
+-- user's decision); supabase/apply/_profiles_without_a_user_master_row.sql
+-- lists them.
+--
+-- Restated from 0033 (the latest definition); only the early return is new.
+-- ===========================================================================
+create or replace function public.ensure_my_profile()
+returns public.profiles
+language plpgsql security definer set search_path = public as $$
+declare
+  me   uuid := auth.uid();
+  mail text := lower(coalesce(auth.email(), ''));
+  dir  public.user_directory;
+  p    public.profiles;
+  want text;
+begin
+  if me is null then return null; end if;
+
+  select * into p from public.profiles where id = me;
+  if found then return p; end if;
+
+  select * into dir from public.user_directory
+   where mail <> '' and (lower(email) = mail or lower(gmail) = mail)
+   limit 1;
+  -- 0461 (D-172): no User Master row, no profile -- and so no permission.
+  if not found then return null; end if;
+
+  want := nullif(btrim(coalesce(dir.role, '')), '');
+  if want is not null and not exists (select 1 from public.app_roles where role = want) then
+    want := null;  -- not a role the matrix knows: fall back rather than guess
+  end if;
+
+  insert into public.profiles (id, email, full_name, role, designation, active)
+  values (
+    me,
+    coalesce(auth.email(), ''),
+    coalesce(nullif(btrim(coalesce(dir.name, '')), ''), coalesce(auth.email(), '')),
+    coalesce(want, 'engineer'),
+    coalesce(dir.designation, ''),
+    coalesce(dir.validity, true)
+  )
+  on conflict do nothing;   -- id or email already taken: leave what is there
+
+  select * into p from public.profiles where id = me;
+  return p;   -- null if the email belongs to another profile; the caller copes
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -4348,8 +4418,10 @@ begin
     with check (public.has_perm('masters.edit.records')
              or public.has_perm('master.' || coalesce(name, '') || '.edit'));
 
+  -- masters_delete is 0371_master_list_delete_key's (a list's own delete key,
+  -- or masters.edit -- not "Add / edit master records", D-086).
   create policy masters_delete on public.masters for delete
-    using      (public.has_perm('masters.edit.records')
+    using      (public.has_perm('masters.edit')
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 end $$;
 

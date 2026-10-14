@@ -44,8 +44,10 @@ export function FieldFailureDesk({ rows, busy, onEdit }: {
   rows: Row[];
   busy: boolean;
   /** Opening the report for editing stays the register's job — the desk shows
-   *  and the drawer writes, so there is one save path rather than two. */
-  onEdit: (r: Row) => void;
+   *  and the drawer writes, so there is one save path rather than two.
+   *  UNDEFINED for a reader without ffr.manage, and then the button is not
+   *  offered at all (FRS-110.1): the register's banner already says why. */
+  onEdit?: (r: Row) => void;
 }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
@@ -214,9 +216,11 @@ export function FieldFailureDesk({ rows, busy, onEdit }: {
                   <Ucn ucn={current.ucn} state={callStateFor(current.ucn)} />
                 </div>
                 <div className="cr-btns">
-                  <button className="btn btn-primary btn-sm" onClick={() => onEdit(current as Row)}>
-                    ✎ Edit / weekly review
-                  </button>
+                  {onEdit && (
+                    <button className="btn btn-primary btn-sm" onClick={() => onEdit(current as Row)}>
+                      ✎ Edit / weekly review
+                    </button>
+                  )}
                   <button className="btn btn-sm"
                           onClick={() => navigate(`/ffr/${encodeURIComponent(g(current, 'ffr_no'))}`)}>
                     🖨 Print
@@ -240,6 +244,18 @@ export function FieldFailureDesk({ rows, busy, onEdit }: {
                 {FFR_COLUMNS.filter((c) => c.key !== 'ffr_no' && show(current, c.key)).map((c) => (
                   <div className="cr-dl-row" key={c.key}><dt>{c.header}</dt><dd>{show(current, c.key)}</dd></div>
                 ))}
+                {/* The weekly review, which is what "Due a review" reads. */}
+                <div className="cr-dl-row">
+                  <dt>Weekly review</dt>
+                  <dd>
+                    {show(current, 'reviewed_at') || <span className="muted">Not reviewed yet</span>}
+                    {g(current, 'reviewed_by_name') ? ` · ${g(current, 'reviewed_by_name')}` : ''}
+                    {g(current, 'attachment_url') && (
+                      <>{' · '}<a href={g(current, 'attachment_url')} target="_blank" rel="noreferrer">
+                        {g(current, 'attachment_name') || 'Attachment'}</a></>
+                    )}
+                  </dd>
+                </div>
               </dl>
 
               <div className="cr-h cr-h-gap"><b>The call, as it stands now</b></div>

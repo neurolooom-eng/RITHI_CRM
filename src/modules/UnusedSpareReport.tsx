@@ -81,14 +81,16 @@ export function UnusedSpareReport() {
       const stamp = todayLocal();
       const name = `not-consumed-against-call-${stamp}`;
       const cols = UNUSED_SPARE_COLUMNS.map((c) => ({ key: c, header: c }));
+      // Audited and announced only once the file was WRITTEN (D-018).
+      let written: boolean;
       if (kind === 'csv') {
-        csvExport(`${name}.csv`, cols, all, COMPLETE);
+        written = await csvExport(`${name}.csv`, cols, all, COMPLETE);
       } else {
         // THE FILE CARRIES ITS OWN SCOPE, like the consumption report: a report
         // whose filter is not written down is one somebody later mistakes for
         // the whole register — and this one exists to be sent to people who
         // were not here when it was made.
-        xlsxDownload(`${name}.xlsx`, [
+        written = await xlsxDownload(`${name}.xlsx`, [
           { name: 'Not Consumed', columns: UNUSED_SPARE_COLUMNS, rows: all },
           {
             name: 'About',
@@ -105,6 +107,7 @@ export function UnusedSpareReport() {
           },
         ], COMPLETE);
       }
+      if (!written) { setMsg('Nothing was downloaded.'); return; }
       logAudit({ action: 'report.unused_spares', meta: { rows: all.length, filter: describeUnusedFilter(filter), kind } });
       setMsg(`${all.length.toLocaleString()} row${all.length === 1 ? '' : 's'} downloaded.`);
     } catch (e) {

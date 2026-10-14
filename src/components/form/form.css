@@ -100,8 +100,9 @@
 /* ---------------------------------------------------------------------------
    A SECTION NOBODY MAY SKIM PAST.
    Used for the vigilance questions on a call — Public Health Threat, Death,
-   Serious Incident. They are a regulatory record, they default to NO, and a
-   default that is never read is the way one goes missing.
+   Serious Incident. They are a regulatory record. On a Field call they start
+   blank and must be answered (D-033); on Installation / PM they default to NO,
+   and a default that is never read is the way one goes missing.
 
    INVERTED AGAINST THE PAGE, not tinted. The project reached for a pale wash of
    the accent colour first and it did not read on screen; the standing rule is

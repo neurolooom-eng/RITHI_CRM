@@ -9,15 +9,32 @@ const rbacLabel = (roleKey?: string) => ROLES.find((r) => r.key === roleKey)?.la
 // The list is the real profiles (each carries its actual role), so previewing a
 // Hotline / Coordinator shows their access, not an engineer's. Picking a user
 // sets the auth context's viewAs identity, which every page honours (role-based
-// visibility, permissions, nav). Nothing is written — a read-only preview.
+// visibility, permissions, nav).
+//
+// NOTHING IS WRITTEN, and that is now enforced rather than claimed (D-069):
+// while a preview is up, the guard in src/lib/previewGuard.ts — passed to every
+// Supabase client as its fetch — refuses every insert, update, delete, upsert,
+// volatile function and upload with "View as is a read-only preview — nothing
+// is written", through each screen's own error path. Every start and end of a
+// preview is recorded in the audit log (viewas.start / viewas.end) with the
+// administrator and the person previewed (FRS-212.3).
 // ===========================================================================
 
 export function ViewAsControl() {
   const { isAdmin, viewAs, setViewAs, users } = useAuth();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [err, setErr] = useState('');
 
   if (!isAdmin) return null;
+
+  // A start that could not be recorded does not start, and says why.
+  const choose = async (u: Parameters<typeof setViewAs>[0]) => {
+    const r = await setViewAs(u);
+    setErr(r.error ?? '');
+    // Kept open when anything went wrong, so the message is read.
+    if (r.ok && !r.error) { setOpen(false); setQ(''); }
+  };
 
   const filtered = users
     .filter((u) => {
@@ -48,7 +65,7 @@ export function ViewAsControl() {
                 const active = viewAs?.email?.toLowerCase() === u.email.toLowerCase();
                 const roleLabel = rbacLabel(u.rbacRole);
                 return (
-                  <button key={u.id} className={`viewas-item ${active ? 'viewas-item-active' : ''}`} onClick={() => { setViewAs(u); setOpen(false); setQ(''); }}>
+                  <button key={u.id} className={`viewas-item ${active ? 'viewas-item-active' : ''}`} onClick={() => { void choose(u); }}>
                     <span className="viewas-item-name">{u.fullName || u.email}</span>
                     <span className="viewas-item-id">{u.email || '(no id)'}{roleLabel ? ` · ${roleLabel}` : ''}{u.region ? ` · ${u.region}` : ''}</span>
                   </button>
@@ -56,7 +73,8 @@ export function ViewAsControl() {
               })}
               {filtered.length === 0 && <div className="muted viewas-note">No users match.</div>}
             </div>
-            {viewAs && <button className="btn btn-sm viewas-exit" onClick={() => { setViewAs(null); setOpen(false); }}>Exit preview</button>}
+            {err && <div className="viewas-note" role="alert">{err}</div>}
+            {viewAs && <button className="btn btn-sm viewas-exit" onClick={() => { void choose(null); }}>Exit preview</button>}
           </div>
         </>
       )}
@@ -71,7 +89,7 @@ export function ViewAsBanner() {
   return (
     <div className="viewas-banner">
       <span>👁 Viewing as <b>{viewAs.fullName}</b><span className="muted">&nbsp;· {viewAs.email} · {roleLabel} view</span></span>
-      <button className="btn btn-sm" onClick={() => setViewAs(null)}>Exit preview</button>
+      <button className="btn btn-sm" onClick={() => { void setViewAs(null).then((r) => { if (r.error) window.alert(r.error); }); }}>Exit preview</button>
     </div>
   );
 }
