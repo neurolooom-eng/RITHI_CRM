@@ -172,6 +172,8 @@ different totals. An empty register usually means access, not emptiness.
   > the **KPI Export**'s day counts and the *Attended within N days* objective.
   > **Attending** is the earliest date among the call's visits and its spare
   > requests (a request counts on its Request Date).
+  > The **KPI Export** says which date each count came from, call by call, in
+  > **Attended Days From**, **Solved Days From** and **Pending Days From**.
   > **Opening a call** shows its **Call Status** at the top, highlighted, with
   > what it is pending on (or when and why it was cancelled). **▸ Collapse all
   > sections** folds the form; click a section's name to fold or open just that

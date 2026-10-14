@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-14T14:50:31.721Z
-- **Took** 296s
-- **Commit** `f4bd0034` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.194
+- **Run at** 2026-10-14T15:00:35.644Z
+- **Took** 316s
+- **Commit** `961ef2b9` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.195
 
 ## Result
 
@@ -29,13 +29,13 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `446 migrations applied to a fresh database` | ✅ pass |  |
+| `447 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
 | | Result | |
 | --- | --- | --- |
-| `check:bundles` | ✅ pass | no NEW object is split across modules (623 checked, 37 known and listed) |
+| `check:bundles` | ✅ pass | no NEW object is split across modules (624 checked, 37 known and listed) |
 | `check:columns` | ✅ pass | every column of all 38 registers exists |
 | `check:cover-party` | ✅ pass | all passed |
 | `check:dberror` | ✅ pass | all passed |
@@ -50,9 +50,9 @@ stopped working produces a suite that runs clean.
 | `check:picklist:open` | ✅ pass | all passed |
 | `check:replay` | ✅ pass | every bundle (31) replays with no change to the schema |
 | `check:reports` | ✅ pass | all passed |
-| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 365 functions |
+| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 366 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 354 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ✅ pass | every one of the 355 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |

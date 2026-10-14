@@ -102,8 +102,12 @@ export function KpiExport() {
         <li><b>Open/Close</b> — Close only when the call is Solved - Report Completed. Anything
           else is Open, <b>including Solved - Report Pending</b>.</li>
         <li><b>Attended in Days, Solved in Days, TTA, TTS and Failure Month</b> (AC–AG) are computed
-          here, by the workbook&rsquo;s own formulas — days from the LATER of complaint and
-          registration, never negative, and the band from the finer of its two lookup tables.</li>
+          here. Each day count is the <b>lower</b> of the days from the Complaint Date and the days from
+          the Breakdown Date that is not negative (0 when both are; from the registration when a call
+          has neither), and the band comes from the finer of the workbook&rsquo;s two lookup tables.</li>
+        <li><b>Attended Days From, Solved Days From, Pending Days From</b>, after Pending Days, say which
+          date each count was taken from, call by call: Complaint Date, Breakdown Date, Complaint &amp;
+          Breakdown Date (the same count), Registration Date, or <i>Neither — both after (0)</i>.</li>
         <li><b>Pending Days</b> is the workbook&rsquo;s missing column. Its own formula returns 0 for
           a call nobody has been to, so every unattended call reads as attended and solved the same
           day; this says how long it has actually been waiting.</li>

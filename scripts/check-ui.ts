@@ -1553,7 +1553,7 @@ console.log('\n-- the DCCR dropdowns are scoped to the product --');
 console.log('\n-- the KPI export matches the workbook --');
 {
   // A to AG as the workbook has them, then the one it does not have.
-  eq('columns A to AG, then Pending Days', KPI_FIELD_INST_COLUMNS.length, 34);
+  eq('columns A to AG, then Pending Days and the three "Days From"', KPI_FIELD_INST_COLUMNS.length, 37);
   eq('the first is UC Number', KPI_FIELD_INST_COLUMNS[0], 'UC Number');
   eq('AB is the solved date', KPI_FIELD_INST_COLUMNS[27], 'Call Solved Date & Time');
   eq('AA is the attended date', KPI_FIELD_INST_COLUMNS[26], 'Call Attended On');
@@ -1566,6 +1566,9 @@ console.log('\n-- the KPI export matches the workbook --');
   // Ours goes LAST, so A-AG still line up with the workbook exactly.
   eq('...and Pending Days is appended after them, not among them',
     KPI_FIELD_INST_COLUMNS[33], 'Pending Days');
+  // WHICH DATE EACH COUNT CAME FROM (0442), after it.
+  eq('...then which date each count came from',
+    KPI_FIELD_INST_COLUMNS.slice(34).join('|'), 'Attended Days From|Solved Days From|Pending Days From');
 
   // Dates in the register's own dd-mmm-yyyy, unambiguous wherever the file is
   // opened; the registration column is the only one carrying a time.
@@ -1596,8 +1599,11 @@ console.log('\n-- the KPI export matches the workbook --');
   // The page must say how each computed column is arrived at: a number nobody
   // can account for is not evidence.
   eq('...and says how the computed columns are worked out',
-    /LATER of complaint and\s*\n?\s*registration/.test(objPage)
-    && /finer of its two lookup tables/.test(objPage)
+    // The rule since 0440 (the user, 2026-10-14): the LOWER of the days from
+    // the complaint and from the breakdown -- and which one, per call (0442).
+    /<b>lower<\/b> of the days from the Complaint Date/.test(objPage)
+    && /Attended Days From, Solved Days From, Pending Days From/.test(objPage)
+    && /finer of the workbook&rsquo;s two lookup tables/.test(objPage)
     && /attended and solved the same\s*\n?\s*day/.test(objPage), true);
 }
 
@@ -1669,7 +1675,7 @@ console.log('\n-- the Objective page --');
   // which is worse than saying nothing -- it told the reader a column was
   // missing that was right there in the file.
   eq('...and the computed columns are explained, not promised',
-    /are computed\s*\n?\s*here, by the workbook/.test(kpiExport)
+    /are computed\s*\n?\s*here\./.test(kpiExport)
     && /not exported yet/.test(kpiExport) === false, true);
 
   // A month that was not measured is NOT zero. On a rate that is the difference

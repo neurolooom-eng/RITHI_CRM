@@ -62,6 +62,20 @@ select 'DY-2: attended on the EARLIEST visit date (08-Aug, entered later): 2 day
 select 'DY-3: neither date -> 2 days from the registration' as t,
   "Attended in Days" = 2 as ok from public.kpi_field_inst where "UC Number" = 'DY-3';
 
+\echo '--- 2b. the export says which date each count came from (0442) ---'
+select 'DY-1: Attended and Solved from the Complaint Date' as t,
+  ("Attended Days From", "Solved Days From") = ('Complaint Date', 'Complaint Date') as ok from public.kpi_field_inst where "UC Number" = 'DY-1';
+select 'DY-2: Attended from the Breakdown Date (the complaint count is negative)' as t,
+  "Attended Days From" = 'Breakdown Date' and "Solved Days From" is null as ok from public.kpi_field_inst where "UC Number" = 'DY-2';
+select 'DY-3: from the Registration Date' as t,
+  "Attended Days From" = 'Registration Date' as ok from public.kpi_field_inst where "UC Number" = 'DY-3';
+select 'Pending Days From is blank on a solved call' as t,
+  "Pending Days From" is null as ok from public.kpi_field_inst where "UC Number" = 'DY-1';
+select 'the same count from both reads Complaint & Breakdown Date' as t,
+  public.call_days_from(date '2026-08-07', date '2026-08-07', null, date '2026-08-09') = 'Complaint & Breakdown Date' as ok;
+select 'both negative reads Neither -- both after (0)' as t,
+  public.call_days_from(date '2026-08-07', date '2026-08-06', null, date '2026-08-01') = 'Neither -- both after (0)' as ok;
+
 \echo '--- 3. the objective ---'
 insert into public.quality_objectives (year, sort_order, process, parameter, yearly_target, frequency, calc_key, calc_params) values
  (2025, 440, 'TEST', 'DY attended', '>75%', 'Monthly', 'attended_within_days', '{"family":"field","days":2}');
