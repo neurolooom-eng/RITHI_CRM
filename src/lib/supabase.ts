@@ -173,13 +173,17 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   out.lastStatus = row.last_status ?? '';
   out.cancelledAt = row.cancelled_at ?? '';
   out.cancelReason = row.cancel_reason ?? '';
+  // WHO CANCELLED IT: the login (cancelled_by), or -- for a cancellation
+  // loaded from the old system (0439) -- the name the file gave.
+  out.cancelledBy = row.cancelled_by ?? '';
+  out.cancelledByName = String((row.extra as Record<string, unknown> | null)?.cancelled_by_name ?? '');
   out.reopenedAt = row.reopened_at ?? '';
   out.reopenCount = Number(row.reopen_count ?? 0);
   out.lastVisitAt = row.last_visit_at ?? '';
   // AGE, on the row rather than only in the cell, so the column sorts as a
   // NUMBER. Rendered text would sort "10 d" before "9 d", which on a register
   // people scan for the oldest call is worse than not offering the sort.
-  const age = callAging(out as { regDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
+  const age = callAging(out as { regDate?: unknown; breakdownDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
   out.agingDays = age.days;
   out.agingStopped = age.stopped;
   return out;
@@ -352,7 +356,7 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
  *  a second time. Read under the reader's row-level security. */
 export async function listPmCallsInMonth(month: string): Promise<{ ucn: string; product_name: string; serial: string }[]> {
   // Asked of EVERY PM call of the month, not the ones the uploader's row-level
-  // security shows (0435, D-038): a machine whose call is in somebody else's
+  // security shows (0451, D-038): a machine whose call is in somebody else's
   // team would otherwise be loaded twice. Cancelled calls are not counted, as
   // PM Due does not count them. Paged and ordered: a month can pass 1,000.
   const c = must();
@@ -2630,6 +2634,66 @@ const chunked = <T,>(xs: T[], n = CHUNK): T[][] => {
   return out;
 };
 
+// FIRST ATTENDED, LAST VISIT AND SOLVED, per call (0424, the user,
+// 2026-10-13). Read from `call_dates` for the calls a register has loaded --
+// one request per 150 UCNs -- and keyed by UCN. India dates, YYYY-MM-DD.
+// A call the reader may not see has no row; a failure leaves the three
+// columns blank rather than taking the register down with it.
+// pendingReason (0433): the latest visit entry's Call Pending Reason, only
+// while the call is open -- blank for a Solved or Cancelled call.
+export interface CallDates { firstAttendedOn: string; lastVisitOn: string; solvedOn: string; pendingReason: string }
+export async function callDatesFor(ucns: string[]): Promise<Map<string, CallDates>> {
+  const out = new Map<string, CallDates>();
+  const c = getSupabase(); if (!c) return out;
+  const list = [...new Set(ucns.map((u) => String(u ?? '').trim()).filter(Boolean))];
+  for (const part of chunked(list)) {
+    const { data, error } = await c.from('call_dates').select('ucn, first_attended_on, last_visit_on, solved_on, pending_reason').in('ucn', part);
+    if (error) { console.warn(`call_dates: ${errMsg(error)}`); return out; }
+    for (const r of data ?? []) {
+      out.set(String(r.ucn), {
+        firstAttendedOn: String(r.first_attended_on ?? ''),
+        lastVisitOn: String(r.last_visit_on ?? ''),
+        solvedOn: String(r.solved_on ?? ''),
+        pendingReason: String(r.pending_reason ?? ''),
+      });
+    }
+  }
+  return out;
+}
+
+// FILES KEPT WITH A STOCK TRANSFER OR A MATERIAL RETURN (0426, the user,
+// 2026-10-13). Any number per record, append-only; `ref` is the transfer's
+// Transfer No or the return's Reference (both `uid`). Who attached a file and
+// when are stamped by the database. Read for the records on screen, 150 refs a
+// request; a failed read leaves the column empty rather than the screen.
+export type StockFileKind = 'stock_transfer' | 'material_return';
+export interface StockRecordFile { id: number; ref: string; file_name: string; url: string; attached_by_name: string; attached_at: string }
+export async function listStockRecordFiles(kind: StockFileKind, refs: string[]): Promise<Map<string, StockRecordFile[]>> {
+  const out = new Map<string, StockRecordFile[]>();
+  const c = getSupabase(); if (!c) return out;
+  const list = [...new Set(refs.map((r) => String(r ?? '').trim()).filter(Boolean))];
+  for (const part of chunked(list)) {
+    const { data, error } = await c.from('stock_record_files')
+      .select('id, ref, file_name, url, attached_by_name, attached_at')
+      .eq('kind', kind).in('ref', part).order('attached_at').order('id');
+    if (error) { console.warn(`stock_record_files: ${errMsg(error)}`); return out; }
+    for (const r of (data ?? []) as StockRecordFile[]) out.set(r.ref, [...(out.get(r.ref) ?? []), r]);
+  }
+  return out;
+}
+// Counted, not assumed: row-level security refuses an insert it does not allow
+// with an error here (WITH CHECK), but a short count is still a refusal.
+export async function addStockRecordFiles(
+  kind: StockFileKind, ref: string, files: { name: string; url: string }[],
+): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  if (!files.length) return { ok: true };
+  const { data, error } = await c.from('stock_record_files')
+    .insert(files.map((f) => ({ kind, ref, file_name: f.name, url: f.url }))).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  return (data ?? []).length === files.length ? { ok: true } : { ok: false, error: 'Not saved — your role may not attach files to this record.' };
+}
+
 // Pending (not solved) calls, optionally for one call type — the Pending Calls
 // register. Rows come back in the app's call shape plus `state`.
 export async function listPendingCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
@@ -2755,7 +2819,7 @@ export async function openCallsFor(machines: MachineRef[], parties: string[] = [
 
 // Re-open a closed call (Hotline). The DB checks the permission and that the
 // call really is closed, and counts the re-open on the call.
-// THE REASON IS REQUIRED (0431, D-035, FRS-133.4 / FRS-120.9): no default, and
+// THE REASON IS REQUIRED (0447, D-035, FRS-133.4 / FRS-120.9): no default, and
 // a blank one is refused here in the database's own words before a round trip
 // -- reopen_call() refuses it too and records the reason, the person and the
 // time in public.call_reopens.
@@ -2765,7 +2829,7 @@ export async function reopenCall(ucn: string, reason: string): Promise<{ ok: boo
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-/** One re-open of a call, as reopen_call() recorded it (0431). */
+/** One re-open of a call, as reopen_call() recorded it (0447). */
 export interface CallReopen { id: number; ucn: string; reopenedAt: string; reopenedBy: string; reopenedByName: string; reason: string }
 /** A call's re-opens, newest first (D-035, FRS-133.4). A failed read THROWS:
  *  an empty list here reads as "never re-opened", which is a claim about the
@@ -3558,7 +3622,10 @@ export async function listCallStates(ucns: string[]): Promise<Record<string, str
     if (error) throw new Error(errMsg(error));
     (data ?? []).forEach((r) => {
       const row = r as { ucn?: string; state?: string; last_status?: string };
-      if (row.ucn) out[row.ucn] = String(row.last_status || row.state || '');
+      // Cancelled and Reopened are the call's own state and win over the
+      // latest visit's wording (the user, 2026-10-14) -- callStatusText()'s rule.
+      const st = String(row.state ?? '');
+      if (row.ucn) out[row.ucn] = st === 'Cancelled' || st === 'Reopened' ? st : String(row.last_status || st);
     });
   }
   return out;
@@ -3779,12 +3846,12 @@ export async function updateMasterItem(id: number, patch: { value?: string; extr
   return { ok: true };
 }
 
-/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0429, D-056, FRS-180.6) — asked
+/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0445, D-056, FRS-180.6) — asked
  *  BEFORE a Delete is offered, so a value in use is deactivated instead. The
  *  function counts as its owner, so the number is every record, not only the
  *  ones the reader may see. A count that could not be read is an ERROR, never
  *  0: 0 would offer the delete on exactly the value the count exists to stop
- *  (the database still refuses it, 0429's trigger, and that refusal is shown). */
+ *  (the database still refuses it, 0445's trigger, and that refusal is shown). */
 export async function masterValueUses(name: string, value: string): Promise<{ ok: true; uses: number } | { ok: false; error: string }> {
   const { data, error } = await must().rpc('master_value_uses', { p_name: name, p_value: value });
   if (error) return { ok: false, error: errMsg(error) };
@@ -3795,7 +3862,7 @@ export async function masterValueUses(name: string, value: string): Promise<{ ok
 export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
   // ROWS COUNTED: row-level security refuses a delete by matching nothing, and
   // no error is not "removed" (finding 48). A value records carry is refused
-  // by the database (0429) in its own words, passed on VERBATIM -- it says how
+  // by the database (0445) in its own words, passed on VERBATIM -- it says how
   // many records and to deactivate instead.
   const { data, error } = await must().from('masters').delete().eq('id', id).select('id');
   if (error) return { ok: false, error: errMsg(error) };
@@ -6018,7 +6085,7 @@ export async function listSlaRules(): Promise<SlaRuleRow[]> {
   if (error) throw new Error(errMsg(error));
   return (data ?? []) as SlaRuleRow[];
 }
-export async function saveSlaRule(key: string, patch: { target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
+export async function saveSlaRule(key: string, patch: { label?: string; target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
   // COUNT THE ROWS (finding 58, as finding 48 did for calls): row-level security
   // refuses an UPDATE by matching nothing, which is not an error -- so a refused
   // save used to read "saved" while nothing changed.
@@ -6230,7 +6297,7 @@ export interface IndoorJob {
   call_status?: string;
   call_pending_reason?: string;
   reported_to_customer_at: string | null;
-  /** Who recorded the damage report to the owner — the database's (0432). */
+  /** Who recorded the damage report to the owner — the database's (0448). */
   reported_to_customer_by: string | null;
   // Rework (§8.3.4)
   nc_reference: string;
@@ -6347,10 +6414,10 @@ export interface IndoorPdt {
   inspected_at: string | null;
 }
 
-/** A VOIDED ENTRY (0434, D-039, FRS-143.8): a harvested part, an accessory or
+/** A VOIDED ENTRY (0450, D-039, FRS-143.8): a harvested part, an accessory or
  *  a check is never deleted -- an entry made in error is marked void with the
  *  reason, and the database stamps when and who. A voided row is kept as it
- *  was and refuses any later change. Absent on a project without 0434. */
+ *  was and refuses any later change. Absent on a project without 0450. */
 export interface IndoorVoid {
   voided_at?: string | null; voided_by?: string | null; void_reason?: string | null;
 }
@@ -6411,7 +6478,7 @@ export async function saveIndoorJob(
     'qc_result', 'qc_notes', 'dispatch_ref', 'damage_note',
     // When the damage was reported to the owner (D-039, FRS-143.9). WHO is not
     // here: the database stamps reported_to_customer_by from the session when
-    // this changes, and clears it when this is cleared (0432).
+    // this changes, and clears it when this is cleared (0448).
     'reported_to_customer_at',
     'nc_reference', 'rework_instruction', 'rework_instruction_rev',
     'rework_authorised_by', 'rework_authorised_at', 'adverse_effect_assessed',
@@ -6431,7 +6498,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are the DC approval's (0327, 0424).
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0440).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -6576,7 +6643,7 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
   if (error) return { ok: false, error: errMsg(error) };
-  // D-145 (0438): a unit whose call was SOLVED since its visit was drafted is
+  // D-145 (0454): a unit whose call was SOLVED since its visit was drafted is
   // not filed; the function names those calls after a " | ".
   const out = String(data ?? '');
   const i = out.indexOf(' | ');
@@ -6768,7 +6835,7 @@ export async function saveIndoorCheck(
   return { ok: true };
 }
 
-/** VOID A HARVESTED PART, AN ACCESSORY OR A CHECK (0434, D-039, FRS-143.8) --
+/** VOID A HARVESTED PART, AN ACCESSORY OR A CHECK (0450, D-039, FRS-143.8) --
  *  the replacement for deleting one, which the database now refuses. Sends the
  *  reason and a non-null voided_at; the database stamps voided_at = now() and
  *  voided_by from the session whatever is sent, refuses an empty reason, and

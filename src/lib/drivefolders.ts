@@ -20,7 +20,7 @@
 // in step — `check:ui` compares them word for word.
 // ===========================================================================
 
-export type DriveFolder = 'field' | 'installation' | 'pm' | 'kyc' | 'additional' | 'indoor' | 'transfer';
+export type DriveFolder = 'field' | 'installation' | 'pm' | 'kyc' | 'additional' | 'indoor' | 'transfer' | 'stocktransfer' | 'materialreturn';
 
 export const DRIVE_FOLDER_NAMES: Record<DriveFolder, string> = {
   field: 'Field Reports',
@@ -37,6 +37,12 @@ export const DRIVE_FOLDER_NAMES: Record<DriveFolder, string> = {
   // Until the folder exists in the shared drive AND the bridge is redeployed,
   // the bridge files these in the drive root, where they still open.
   transfer: 'Ownership Transfers',
+  // Files kept with a stock transfer and with a material return (0426, the
+  // user, 2026-10-13: "Add File Upload Option in Stock Transfer and Material
+  // Return"). Until each folder exists in the shared drive AND the bridge is
+  // redeployed, the bridge files them in the drive root, where they still open.
+  stocktransfer: 'Stock Transfers',
+  materialreturn: 'Material Returns',
 };
 
 // WHICH FOLDER A VISIT REPORT BELONGS IN, from the call's own type — and this

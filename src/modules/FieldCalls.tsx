@@ -29,12 +29,12 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { formatDay } from '../lib/dates';
+import { formatDay, formatDayTime } from '../lib/dates';
 import { isNetworkFailure } from '../lib/dberror';
-import { supabaseConfigured, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
+import { supabaseConfigured, callDatesFor, type CallDates, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
 import { useAuditMode } from '../lib/auditMode';
 import { useCallFieldMasters } from './callFields';
-import { StateBadge, Ucn } from '../lib/callstate';
+import { StateBadge, Ucn, callStatusText } from '../lib/callstate';
 import { useUserNames, nameForUserId } from '../lib/userNames';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -64,6 +64,16 @@ const CALL_ALL_FIELDS = [
     ? { key: h.key, header: h.header, render: (r: Rec) => (h.key === 'regDate' ? fmtLongSmart(r[h.key]) : fmtLongDate(r[h.key])) }
     : { key: h.key, header: h.header }
   )),
+  // Read from `call_dates` (0424), not stored on the call.
+  { key: 'firstAttendedOn', header: 'First Attended Date', render: (r: Rec) => fmtLongDate(r.firstAttendedOn) },
+  { key: 'lastVisitOn', header: 'Last Visit Date', render: (r: Rec) => fmtLongDate(r.lastVisitOn) },
+  { key: 'solvedOn', header: 'Solved Date', render: (r: Rec) => fmtLongDate(r.solvedOn) },
+  // The latest visit's Call Pending Reason while the call is open (0433), and
+  // the reason it was cancelled while it is cancelled (0108).
+  { key: 'pendingReason', header: 'Call Pending Reason' },
+  { key: 'cancellationReason', header: 'Cancellation Reason' },
+  { key: 'cancelledAt', header: 'Cancellation Date', render: (r: Rec) => formatDayTime(r.cancelledAt) },
+  { key: 'cancelledByWho', header: 'Cancelled By' },
   // Not sheet columns — the database's own stamp of who registered the call:
   // the Hotline desk it belongs to, and the person who actually typed it in.
   { key: 'createdBy', header: 'Created By (Hotline Desk)' },
@@ -122,6 +132,26 @@ const VIEW_HIDDEN = ['complaintDate', 'registeredBy', 'actuallyRegisteredBy'];
 // REGISTRATION, so its answers are required there too and Sync can send it.
 const viewFields = (callType: string, mode: 'create' | 'edit' = 'edit') =>
   withVigilanceRule(FIELD_CALL_FIELDS, callType, mode).filter((f) => !VIEW_HIDDEN.includes(f.name));
+// Shown when a saved call is VIEWED, never on a form that saves: neither is a
+// field of the call somebody types. The pending reason is the latest visit
+// entry's while the call is open (0433); the cancellation reason is the one
+// typed when it was cancelled, while it is (0108).
+// VIEWING, a date is shown as TEXT. The values are formatted dd-MMM-yyyy for
+// the view (below), and a browser date box can only hold yyyy-mm-dd -- given
+// "06-Aug-2026" it shows NOTHING, which is how the Breakdown Date of every
+// opened call read blank while the register held it (the user, 2026-10-14:
+// "Why is the Breakdown date blank?").
+const viewOnlyFields = (callType: string): FieldDef[] => [...viewFields(callType), ...STATUS_VIEW_FIELDS]
+  .map((f) => (f.type === 'date' ? { ...f, type: 'text' as const } : f));
+const STATUS_VIEW_FIELDS: FieldDef[] = [
+  { name: 'pendingReason', label: 'Call Pending Reason', section: 'Registration', readOnly: true,
+    help: 'From the latest visit entry, while the call is open.', span: 1 },
+  { name: 'cancellationReason', label: 'Cancellation Reason', section: 'Registration', readOnly: true,
+    help: 'Typed when the call was cancelled. Shown while it is cancelled.', span: 1 },
+  { name: 'cancellationDate', label: 'Cancellation Date', section: 'Registration', readOnly: true,
+    help: 'When the call was cancelled.', span: 1 },
+  { name: 'cancelledByWho', label: 'Cancelled By', section: 'Registration', readOnly: true, span: 1 },
+];
 
 // ===========================================================================
 // FIELD CALL REGISTER — operational.
@@ -227,7 +257,7 @@ const COLUMNS: Column<Rec>[] = [
   },
   // The UCN carries its call's status everywhere it is shown (the user's
   // standing rule, 2026-09-06). Here the register already knows it.
-  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.lastStatus || r.callState} /> },
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStatusText(r.callState, r.lastStatus)} /> },
   {
     // Filled from the `call_state` view after the register loads — a call is
     // Solved / Unsolved / Report pending / Unattended by its LATEST visit.
@@ -235,7 +265,9 @@ const COLUMNS: Column<Rec>[] = [
     render: (r) => (
       <StateBadge
         state={String(r.callState ?? '')}
-        label={String(r.callState) === 'Reopened' ? 'Reopened' : String(r.lastStatus || r.callState || '')}
+        // Cancelled and Reopened are the call's own; otherwise the latest
+        // visit's wording (callStatusText, the user 2026-10-14).
+        label={callStatusText(r.callState, r.lastStatus)}
         title={Number(r.reopenCount ?? 0) > 0 ? `Re-opened ${r.reopenCount}×` : undefined}
       />
     ),
@@ -256,7 +288,7 @@ const COLUMNS: Column<Rec>[] = [
   // happening. A stopped age says so rather than being coloured — see aging.ts.
   { key: 'agingDays', header: 'Aging', width: 110, wrap: false, align: 'right',
     render: (r) => {
-      const a = callAging(r as { regDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
+      const a = callAging(r as { regDate?: unknown; breakdownDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
       if (a.days == null) return <span className="muted">—</span>;
       const tone = agingTone(a);
       return (
@@ -268,6 +300,28 @@ const COLUMNS: Column<Rec>[] = [
         </span>
       );
     } },
+  // FIRST ATTENDED, LAST VISIT AND SOLVED (0424, the user, 2026-10-13), read
+  // from `call_dates` after the register loads. First Attended is the earlier
+  // of the first visit and the first spare request; Solved is the visit date of
+  // the standing "Solved - Report Completed" entry -- the KPI Field_INST tab's
+  // definitions, so the register and the export agree.
+  { key: 'firstAttendedOn', header: 'First Attended Date', width: 160, render: (r) => fmtLongDate(r.firstAttendedOn) },
+  { key: 'lastVisitOn', header: 'Last Visit Date', width: 150, render: (r) => fmtLongDate(r.lastVisitOn) },
+  { key: 'solvedOn', header: 'Solved Date', width: 140, render: (r) => fmtLongDate(r.solvedOn) },
+  // CALL PENDING REASON AND CANCELLATION REASON (the user, 2026-10-13). The
+  // pending reason is the latest visit entry's -- the entry the call's status
+  // comes from -- and only while the call is open (0433); a Solved or
+  // Cancelled call reads blank. The cancellation reason is the one typed when
+  // the call was cancelled, shown only while it IS cancelled: a restored call
+  // keeps the reason on its record but is no longer cancelled.
+  { key: 'pendingReason', header: 'Call Pending Reason', width: 190 },
+  { key: 'cancellationReason', header: 'Cancellation Reason', width: 200 },
+  // CANCELLATION DATE (the user, 2026-10-14): when the call was cancelled, to
+  // the second. Restoring a call clears it (0108), so it shows exactly while
+  // the call is cancelled.
+  { key: 'cancelledAt', header: 'Cancellation Date', width: 190, render: (r) => formatDayTime(r.cancelledAt) },
+  // The login that cancelled it, or the name an old-system file gave (0439).
+  { key: 'cancelledByWho', header: 'Cancelled By', width: 200 },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
   { key: 'city', header: 'City', width: 110 },
@@ -1053,6 +1107,27 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     db.remove(config.collection, row.id);
   };
 
+  // The three visit dates (0424) and the Call Pending Reason (0433) for the
+  // calls LOADED -- not only those on screen, since the reason chips filter by
+  // them -- re-read whenever that set changes or the register syncs, so a
+  // visit just filed shows.
+  const [callDates, setCallDates] = useState<Map<string, CallDates>>(new Map());
+  const datesKey = useMemo(() => cached.map((r) => String(r.ucn ?? '')).filter(Boolean).join('|'), [cached]);
+  useEffect(() => {
+    if (!onDb || !datesKey) return;
+    let alive = true;
+    void callDatesFor(datesKey.split('|')).then((m) => { if (alive) setCallDates(m); });
+    return () => { alive = false; };
+  }, [onDb, datesKey, lastSync]);
+  const pendingReasonOf = (row: Rec) => (callDates.get(String(row.ucn ?? ''))?.pendingReason ?? '').trim();
+  // Only while cancelled: a restored call keeps the reason on its record (0108)
+  // but is not cancelled any more.
+  const cancellationReasonOf = (row: Rec) => (row.cancelledAt ? String(row.cancelReason ?? '').trim() : '');
+  // Only while cancelled; a login's name where there is one, else the file's.
+  const cancelledByOf = (row: Rec) => (!row.cancelledAt ? ''
+    : row.cancelledBy ? nameForUserId(String(row.cancelledBy), userNameMap) : String(row.cancelledByName ?? ''));
+  const [pendingReasonFilter, setPendingReasonFilter] = useState('');
+
   // The strip's counts come from the rows that pass everything else, so a name
   // shows what clicking it would actually give you.
   const engineerCounts = useMemo(() => {
@@ -1073,7 +1148,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cached, scope, user?.id, openOnly, reopenedOnly]);
 
-  const visibleRows = useMemo(() => {
+  const listedRows = useMemo(() => {
     const has = (val: unknown, needle: string) => !needle.trim() || String(val ?? '').toLowerCase().includes(needle.trim().toLowerCase());
     const q = srch.q.trim().toLowerCase();
     // Role-based visibility: engineers see only calls allotted to them; RMs see
@@ -1126,6 +1201,26 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       .map((x) => x.row);
   }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter, config.tab]);
 
+  // THE PENDING REASON FILTER, after everything else. (A Cancellation Reason
+  // strip was removed on the user's word, 2026-10-14: "I dont want this
+  // grouping"; the column stays.)
+  const pendingOk = (row: Rec) => !pendingReasonFilter || pendingReasonOf(row) === pendingReasonFilter;
+  const visibleRows = useMemo(
+    () => listedRows.filter(pendingOk),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [listedRows, callDates, pendingReasonFilter],
+  );
+  const countBy = (rows: Rec[], of: (row: Rec) => string) => {
+    const c = new Map<string, number>();
+    rows.forEach((row) => { const k = of(row); c.set(k, (c.get(k) ?? 0) + 1); });
+    return [...c.entries()].map(([key, count]) => ({ key, count }));
+  };
+  const pendingReasonCounts = useMemo(
+    () => countBy(listedRows, pendingReasonOf),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [listedRows, callDates],
+  );
+
   const refreshFromMasters = async (what: 'party' | 'product', ucns: string[], clear?: () => void) => {
     const list = ucns.map((u) => u.trim()).filter(Boolean);
     if (!list.length) return;
@@ -1161,11 +1256,21 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   };
 
   const rowsWithRegion = useMemo(
-    () => visibleRows.map((r) => ({
-      ...r,
-      _region: regionOf.get(String(r.allocatedTo ?? '').trim().toLowerCase()) ?? '',
-    })),
-    [visibleRows, regionOf],
+    () => visibleRows.map((r) => {
+      const d = callDates.get(String(r.ucn ?? ''));
+      return {
+        ...r,
+        _region: regionOf.get(String(r.allocatedTo ?? '').trim().toLowerCase()) ?? '',
+        firstAttendedOn: d?.firstAttendedOn ?? '',
+        lastVisitOn: d?.lastVisitOn ?? '',
+        solvedOn: d?.solvedOn ?? '',
+        pendingReason: (d?.pendingReason ?? '').trim(),
+        cancellationReason: cancellationReasonOf(r),
+        cancelledByWho: cancelledByOf(r),
+      };
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleRows, regionOf, callDates, userNameMap],
   );
 
 
@@ -1190,7 +1295,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // the Call Review asked for one, so the same act was explained on one screen
   // and not the other. Now a dialog whose Re-open button stays disabled until a
   // reason is typed, as the Call Review's does; reopen_call() refuses a blank
-  // one too (0431) and records the reason, the person and the time.
+  // one too (0447) and records the reason, the person and the time.
   const [reopenFor, setReopenFor] = useState<Rec | null>(null);
   const [reopenWhy, setReopenWhy] = useState('');
   const [reopenBusy, setReopenBusy] = useState(false);
@@ -1409,6 +1514,16 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         storeKey={`calls.${config.callType}.engineer`}
         more={moreAvailable || (searching && searchCapped)}
       />
+      <FacetChips
+        options={pendingReasonCounts}
+        value={pendingReasonFilter}
+        onChange={setPendingReasonFilter}
+        allLabel="All calls"
+        blankLabel="— no pending reason —"
+        title="Call Pending Reason"
+        storeKey={`calls.${config.callType}.pendingReason`}
+        more={moreAvailable || (searching && searchCapped)}
+      />
 
       {allotBlocked && (
         <p className="muted" style={{ margin: '4px 2px 0', fontSize: 12.5 }}>
@@ -1508,7 +1623,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <button
               className="btn btn-sm"
               onClick={() =>
-                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[], searching ? searchScope(searchCapped) : partial(moreAvailable))
+                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), rowsWithRegion as unknown as Record<string, unknown>[], searching ? searchScope(searchCapped) : partial(moreAvailable))
               }
             >
               ⭳ Export CSV
@@ -1542,6 +1657,24 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             {/* The call's actions — the SAME list, in the same order, as the row.
                 They used to be here AND in the form's footer, in two different
                 orders; one place is enough and two was worse than one. */}
+            {/* THE CALL'S STATUS, FIRST AND HIGHLIGHTED (the user, 2026-10-14:
+                "Add the call status in this view. Highlight the Status"): the
+                same chip and colour as the register, large, with what it is
+                pending on or why it was cancelled beside it. */}
+            {drawer.mode === 'view' && drawer.row && !(drawer.row as Rec)._pending && (
+              <div className="call-status-hero">
+                <span className="call-status-hero-label">Call Status</span>
+                <StateBadge
+                  state={String((drawer.row as Rec).callState ?? '')}
+                  label={callStatusText((drawer.row as Rec).callState, (drawer.row as Rec).lastStatus) || 'Unattended'}
+                />
+                {cancellationReasonOf(drawer.row as Rec)
+                  ? <span className="call-status-hero-why">Cancelled {formatDayTime((drawer.row as Rec).cancelledAt)} — {cancellationReasonOf(drawer.row as Rec)}</span>
+                  : pendingReasonOf(drawer.row as Rec)
+                    ? <span className="call-status-hero-why">Pending: {pendingReasonOf(drawer.row as Rec)}</span>
+                    : null}
+              </div>
+            )}
             {drawer.mode === 'view' && callActions(drawer.row as Rec).length > 0 && (
               <div className="call-actions-top">
                 {callActions(drawer.row as Rec).map((a) => (
@@ -1591,6 +1724,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
+              collapsible
               emphasisSections={[VIGILANCE_SECTION]}
               // IN THEIR OWN SECTIONS (the user, 2026-09-30: "Move the Update
               // Party Details to the respective section. I don't need the button
@@ -1618,6 +1752,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               columns={3}
               fields={lockByRight(injectMasters(
                 drawer.mode === 'create' ? buildCreateFields(prefill, config.callType)
+                  : drawer.mode === 'view' ? viewOnlyFields(config.callType)
                   : viewFields(config.callType, answering ? 'create' : 'edit'),
                 // Suggestions belong to the act of registering. See the note in
                 // `callFields.tsx`.
@@ -1639,6 +1774,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     regDate: formatDay(drawer.row?.regDate),
                     complaintDate: formatDay(drawer.row?.complaintDate),
                     breakdownDate: formatDay(drawer.row?.breakdownDate),
+                    pendingReason: pendingReasonOf(drawer.row as Rec),
+                    cancellationReason: cancellationReasonOf(drawer.row as Rec),
+                    cancellationDate: formatDayTime(drawer.row?.cancelledAt),
+                    cancelledByWho: cancelledByOf(drawer.row as Rec),
                   } : {}),
                   // The row carries the UUID; the form shows the person. A call
                   // loaded before the stamp existed has none, and says so

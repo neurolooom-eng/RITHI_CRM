@@ -1,7 +1,7 @@
 // ===========================================================================
 // MAY THIS VALUE-LIST ENTRY BE DELETED? (D-056, FRS-015, FRS-180.6)
 //
-// The screen's half of 0429. The database refuses deleting a value that any
+// The screen's half of 0445. The database refuses deleting a value that any
 // record carries -- unless ANOTHER row of the same list holds the same word,
 // because then nothing is orphaned (a complaint listed twice, once per
 // product). The screen asks master_value_uses() first so it can offer

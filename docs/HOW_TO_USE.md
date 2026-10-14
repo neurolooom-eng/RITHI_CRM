@@ -67,6 +67,20 @@ different totals. An empty register usually means access, not emptiness.
 ## Overview & search
 
 - **Dashboard** `/` — what is open, what is overdue, what needs you.
+  > **One tile and one list per SLA**, each under the name set on SLA Targets
+  > (for example *First visit*, *Call closure*): breached first, then due soon.
+  > A call late for two SLAs is on both lists. Only calls still being worked
+  > are on them: a **Solved** or **Cancelled** call never is.
+  > **Signing in always opens the Dashboard.** Reloading a page while signed in
+  > stays on that page.
+  > **Click to narrow, as on Failure Insights.** Click any bar, slice, period
+  > or table row and every figure on the page — tiles, SLA lists, charts,
+  > Recent Calls — narrows to it; the chip above says what is picked (click it,
+  > or the same mark again, to clear). The **calls trend** reads **Monthly,
+  > Quarterly or Yearly**, with calls, change, share and running total beside
+  > it; item status, products and engineers each have their figures beside the
+  > chart. **⬳ Download** on each block gives that block as Excel — shown only to
+  > a role with **Export / download CSV** ticked on Roles & Permissions.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
@@ -135,6 +149,12 @@ different totals. An empty register usually means access, not emptiness.
   **Ctrl+V**. Read it and send it from there.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
+  > **The call's dates come from the request:** **Complaint Date** is the day the
+  > request was raised; **Breakdown Date** is the request's *Attended Date* when
+  > it says *Call Attended? Yes*, otherwise the day it was raised. Each field
+  > says which it used. A call registered **directly** (*New Field Call*) takes
+  > today for all three dates; the Complaint and Breakdown Dates can be changed
+  > before saving.
 
 ## The call registers
 
@@ -157,6 +177,35 @@ different totals. An empty register usually means access, not emptiness.
   > later — or **Invoice Date**, which keeps the start on the PO / Warranty Sale
   > Entry. Nothing is pre-selected; the engineer must choose.
 - **Preventive (PM)** `/pm-calls` — planned maintenance.
+  > **First Attended Date, Last Visit Date and Solved Date** (all three
+  > registers): **First Attended** is the earlier of the first visit and the
+  > first spare request on the call; **Last Visit** is the latest visit date;
+  > **Solved** is the visit date of the report that set *Solved - Report
+  > Completed* (the latest one, if it was solved more than once) — it stays
+  > filled if the call was solved and later re-opened. The same definitions as
+  > the KPI Export's *Call Attended On* and *Call Solved Date*. India dates;
+  > they sort, and they are in the CSV.
+  > **Every timer counts from the Breakdown Date** — the day the machine
+  > failed: **Aging** here, the **SLA** on the Dashboard (from the start of that
+  > day), the **KPI Export**'s day counts and the *Attended within N days*
+  > objective. A call with no Breakdown Date counts from its registration.
+  > **Opening a call** shows its **Call Status** at the top, highlighted, with
+  > what it is pending on (or when and why it was cancelled). **▸ Collapse all
+  > sections** folds the form; click a section's name to fold or open just that
+  > one. It stays that way for the next call you open.
+  > **Call Pending Reason and Cancellation Reason** (all three registers, also
+  > in the opened call and the CSV): **Call Pending Reason** is the reason on
+  > the call's latest visit entry — the entry its status comes from — and shows
+  > only while the call is open, so a Solved or Cancelled call reads blank.
+  > **Cancellation Reason** is what was typed when the call was cancelled, shown
+  > while it is cancelled (turn *Open only* off to see cancelled calls). A chip
+  > row counts the calls per **pending** reason; click one to see only those.
+  > **Cancellation Date** is when the call was cancelled, to the second, and
+  > **Cancelled By** who did it (for the old system's cancelled calls, loaded
+  > from its file, the name the file gave). A
+  > cancelled call's **Call Status reads Cancelled** (grey) whatever its last
+  > visit said; restoring it puts back the status its visits give. Cancelled
+  > calls are not in the KPI Export.
   > **Listed newest Call Registration Date first** — not in the order a PM
   > month was uploaded, so a back-dated call sits where its date puts it.
   > Click a column heading to sort by something else.
@@ -217,17 +266,34 @@ on Roles & Permissions does not reach another team's calls.
   > you confirm and after it is written, the upload names any Sold Through that
   > is not a DEALER on the Party Master. It is still loaded — this is being
   > observed before deciding whether to refuse it.
-  > **DCCR Register — historical, with its calls** (Quality) loads an old DCCR
-  > register export as it is — for a year whose calls are not in RITHI (2025
-  > and before). Each row files **the call** (dated by CALL DATE, with the
-  > customer, place, product, serial and engineer; a P M VISIT row goes to PM
-  > Calls), **the review** (kept as imported, no Field Failure Report raised)
-  > and **one visit** from CURRENT CALL STATUS and the solved date, so a solved
-  > call reads Solved. Unattended calls stay Unattended; Canceled calls are
-  > filed cancelled. **Nobody is notified.** A call already in RITHI is left
-  > alone. Re-loading the file corrects the calls it filed.
+  > **DCCR Register — historical (calls kept in Call History)** (Quality) loads
+  > an old DCCR register export as it is — for a year whose calls are not in
+  > RITHI (2025 and before). Each row keeps **the call in Call History** (never
+  > a live register), dated by CALL DATE, with the file's CURRENT CALL STATUS
+  > and solved date as its status, and files **the review** (kept as imported,
+  > no Field Failure Report raised) so the **Recent Failure Rate** still counts
+  > its failures. **No visit is filed; nobody is notified.** A call already in
+  > RITHI is left alone. Re-loading the file corrects the history it kept.
+  > The 2025 calls loaded this way before 13-Oct-2026 were moved to Call History
+  > then, so 2025 no longer appears in the DCCR View.
   > **PM calls in the DCCR:** a PM call joins the Daily Complaint Review when
   > a part booked on it is a **Spare** in the Part Master (SPARE pre-set).
+  > **Call History — calls before RITHI (up to 2025)** (Calls) stores old calls
+  > **apart from everything else**. They are not in the Field, Installation or PM
+  > registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field
+  > Failure or the Objectives, and **nothing is created from them**: no visit, no
+  > review, no FFR, no notification, no Product Database change. The call
+  > status and solved date are the file's own, as written. One row per **UC No.
+  > + Call No.**, so a UC No. the old system used twice keeps both calls; load a
+  > file again and it corrects, never doubles. Every other column the file has
+  > is kept with the call. Read them on **Machine History** (group *Call
+  > history*). **Choose the Source** (e-service, WinMax, Yearly sheet, DCCR
+  > register, Other) **and, for a yearly sheet, its Year** before uploading.
+  > When the same UC No. + Call No. comes from another source or year — an Old
+  > Call in the next year's sheet, a call in two systems — the **latest year's
+  > record is shown**, the other is kept with it and the call is flagged
+  > **Duplicate**; nothing else is done about it. *How RITHI Functions →
+  > Evolution of Service Tools* explains the systems behind the history.
   > **Field Failure Register (any year)** (Quality) loads old FFR logs, a
   > year's tab at a time.
   > **Installation Warranty Start (old installation calls)** loads past
@@ -465,6 +531,11 @@ against the call it was fitted to.
   question from the dispatch queue, and now grantable separately.
 - **Hand Stock** `/handstock` — what an engineer holds. **Worked out, never
   stored**: issued − consumed ± transfers − returns.
+  > **🚫 Inactive users hidden** (on by default, remembered): people marked
+  > inactive on the User Master are left off the Stock Level list — its counts,
+  > the engineer picker and the CSV. Click it (**👥 Inactive users shown**) to
+  > see them again; their balances are unchanged either way. A name that is not
+  > on the User Master at all (for example INDOOR SERVICE) is always shown.
   > **Hand stock counts from 09-Jun-2022, the WinMax opening.** Consumption,
   > stock outs, transfers and returns from before that day are already inside
   > the opening balance, so they are not counted again. They are not deleted:
@@ -509,7 +580,11 @@ against the call it was fitted to.
   Stores to write; **Entered By** is whoever keyed the return.
   > **A return is your own stock.** Returning for another engineer needs *Return
   > stock for another engineer* (Stores and the approvers hold it).
-- **Stock Transfer** `/stock-transfer` — hand stock between engineers. A transfer
+  > **Files** (optional, as many as you like — the signed MRN, a photo): **⤴ Attach
+  > a file** on the New MRN form, or later in the **Files** column or the opened
+  > MRN. Each shows who attached it and when on hover. A saved file cannot be
+  > changed or removed. They go to the **Material Returns** folder in Drive.
+- **Stock Transfer (MTN)** `/stock-transfer` — hand stock between engineers. A transfer
   to the same person is held back and named. **From** offers your own name and
   the engineers in your team (the User Master); anybody else's stock needs
   *Transfer stock from any engineer*, ticked per role or per person. **To** is
@@ -524,6 +599,10 @@ against the call it was fitted to.
   record the receipt of a transfer — and Authorised By is signed by hand.
   > **A recorded transfer is not re-pointed.** Its engineers and date cannot be
   > changed afterwards; if it went to the wrong person, record a transfer back.
+  > **Files** (optional, as many as you like — the signed MTN, a photo): **⤴ Attach
+  > a file** on the New Transfer form, or later with **⤴** in the **Files**
+  > column. Each shows who attached it and when on hover. A saved file cannot be
+  > changed or removed. They go to the **Stock Transfers** folder in Drive.
 
 ## Quality
 
@@ -1491,6 +1570,8 @@ typed into a form that reads it.
   models, so a serial on its own would show you a different hospital's machine.
   - **Where it is now** — whose it is, its status, where, which engineer, and the
     warranty and contract it is under.
+  - **Call history** — the machine's calls before RITHI (loaded as Call
+    History), as the old file has them; history only, never a live call.
   - **Everything recorded against it** — calls, visits, spares fitted, Field
     Failure Reports, customer feedback, sale/warranty, contracts, ownership
     transfers, additional entries and workshop jobs. Filter by register, or
@@ -1511,6 +1592,10 @@ typed into a form that reads it.
 
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
+  - **Total** is worked out for every calculated objective, as the shared sheet
+    does: the **sum** of the months for the FFR count, the **average of the months
+    that have a figure** for every percentage. It follows any change to a month.
+    An objective with no calculation keeps the Total typed for it.
   - **Status**: each objective is Active, **Not Working** or **Do Not Use** (✏️ on
     the objective). The last two are hidden; tick **Show hidden** to see and
     change them. **Re-calculate works out Active objectives only** — a hidden
@@ -1612,7 +1697,10 @@ typed into a form that reads it.
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST_PM tab in its
   own column order — Field, Installation and PM calls; cancelled calls excluded
-  entirely.
+  entirely. **Every date in it is the India date** — Call Attended On, Call
+  Solved Date, the days counted and Failure Month — and Call Attended On and
+  Call Solved Date match the First Attended and Solved Dates on the call
+  registers.
 - **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;
   every other role is a tick on Roles & Permissions, and that tick gives the
   role the menu entry as well as the page. One line per engineer and part:
@@ -2013,8 +2101,9 @@ typed into a form that reads it.
   ON** a call's Update Party Details and Update Product Details are hidden (and
   refused).
 - **SLA / Objective Configuration** `/sla-objective-config` — the targets the
-  service is measured against. **SLA Targets**: the hours for first visit and
-  closure, each switchable. **Product Failure Rate**: a machine has *failed*
+  service is measured against. **SLA Targets**: a **name** for each SLA, its
+  hours, and on/off. The Dashboard shows one tile and one list per SLA under
+  the name given here; a blank name is refused. **Product Failure Rate**: a machine has *failed*
   when a field call on it is registered within **3 months** of its installation
   (its **warranty start**); the rate is over the machines of that product
   installed in the last **12 months** (rolling, up to each month's cut-off). A

@@ -34,7 +34,7 @@
 --   0326_party_country.sql
 --   0366_masters_required_kyc_and_line_names.sql
 --   0371_master_list_delete_key.sql
---   0429_master_value_in_use_kept.sql
+--   0445_master_value_in_use_kept.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -2388,11 +2388,11 @@ create policy masters_delete on public.masters for delete
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 
 -- ------------------------------------------------------------------------
--- 0429_master_value_in_use_kept.sql
+-- 0445_master_value_in_use_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0429 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
+-- 0445 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
 --        (second re-review D-056, FRS-015, FRS-180.6)
 --
 -- Master Lists offered Delete to a holder of master.<list>.delete, and

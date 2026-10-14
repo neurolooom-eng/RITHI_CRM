@@ -60,12 +60,15 @@
 --   0342_review_needs_a_call_you_can_see.sql
 --   0353_review_summary_carries_the_searched_columns.sql
 --   0395_dccr_history_import.sql
+--   0429_call_history.sql
+--   0430_dccr_history_into_call_history.sql
+--   0432_call_history_sources.sql
 --   0397_pm_spare_dccr.sql
 --   0398_dccr_junk_rows.sql
 --   0399_pm_spare_dccr_rerun.sql
 --   0400_pm_spare_blank_review.sql
---   0436_review_answers_read_key.sql
---   0427_ffr_customer_and_problem_required.sql
+--   0452_review_answers_read_key.sql
+--   0443_ffr_customer_and_problem_required.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -6299,6 +6302,452 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0429_call_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0429 -- CALL HISTORY: THE CALLS BEFORE RITHI, KEPT APART (the user,
+-- 2026-10-13: "I want to upload calls from 2017 -- It should not trigger DCCR
+-- or FFR or Anything -- it is just a Historical data. Only Calls" ... "Just
+-- store these outside the Main Loop of Calls or Spares. So the Call Status,
+-- Visit, Report can take from the file directly. Anything till 2025 is
+-- Historical Data. For Calls, Never load them into the Regular Workflow. Store
+-- it separately as historical data and dont add any workflow to these no
+-- upstream or Down stream").
+--
+-- A TABLE OF ITS OWN, AND NOTHING ELSE. Not field_calls / installation_calls /
+-- pm_calls, not `reports`, not `call_reviews`: so no UCN or call number is
+-- minted, no visit is filed, no call status is derived, no DCCR row appears,
+-- no FFR is raised, no notification is sent, no installation request is
+-- matched and no Product Database figure moves. NO TRIGGER here does anything
+-- but say who loaded the row. The call's status, its solved date and every
+-- other detail are THE FILE'S, as written -- Item Status and Contract Type
+-- included, not turned into WGP / CMC.
+--
+-- ONE ROW PER CALL, keyed by UC Number + Call No. The 2018-2022 file reuses 17
+-- UC Numbers for two different calls each (e.g. 21E28014: a PM visit on
+-- 28-May-2021 and a Field call on 08-Dec-2021), and every one of its 65,407
+-- Call Nos is distinct -- so both calls of a pair are kept, under the UC Number
+-- the file gives them, and re-loading a file corrects rather than duplicates.
+-- A later file without a Call No is still keyed, by its UC Number.
+--
+-- Every heading the register does not name is kept on the row (`extra`), so a
+-- year whose file carries visit or report columns keeps them, from the file.
+--
+-- READ like a call: whoever may read calls (calls.view) and sees every call,
+-- or the engineer on it and their managers; a row with no engineer, like an
+-- unallotted call, by every reader. WRITTEN only by Bulk Uploads (bulk.upload).
+-- Nothing reads it but the screens that show it: it is history, not input.
+-- ===========================================================================
+
+create table if not exists public.call_history (
+  id                 bigserial primary key,
+  ucn                text not null check (btrim(ucn) <> ''),
+  call_no            text not null default '',
+  call_at            timestamptz,
+  call_type          text not null default '',
+  party_name         text not null default '',
+  state              text not null default '',
+  city               text not null default '',
+  engineer           text not null default '',
+  item_code          text not null default '',
+  item_name          text not null default '',
+  serial             text not null default '',
+  standard_complaint text not null default '',
+  complaint_reported text not null default '',
+  item_status        text not null default '',
+  warranty_start     date,
+  contract_type      text not null default '',
+  call_status        text not null default '',
+  solved_at          timestamptz,
+  extra              jsonb not null default '{}'::jsonb,
+  loaded_at          timestamptz not null default now(),
+  loaded_by          uuid
+);
+create unique index if not exists call_history_key on public.call_history (ucn, call_no);
+create index if not exists call_history_serial_idx on public.call_history (serial);
+create index if not exists call_history_call_at_idx on public.call_history (call_at);
+
+comment on table public.call_history is
+  'Calls before RITHI (up to 2025), kept apart from every workflow (0429): one row per UC Number + Call No, as the historical file has them. No visit, review, FFR, notification or Product Database change follows from a row; status and solved date are the file''s.';
+
+-- WHO LOADED IT AND WHEN -- the only thing a trigger does here.
+create or replace function public.call_history_stamp()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.ucn := btrim(new.ucn);
+  new.call_no := btrim(coalesce(new.call_no, ''));
+  new.loaded_at := now();
+  new.loaded_by := auth.uid();
+  return new;
+end $$;
+revoke execute on function public.call_history_stamp() from public, anon, authenticated;
+drop trigger if exists call_history_stamp on public.call_history;
+create trigger call_history_stamp before insert or update on public.call_history
+  for each row execute function public.call_history_stamp();
+
+alter table public.call_history enable row level security;
+drop policy if exists ch_read on public.call_history;
+create policy ch_read on public.call_history for select using (
+  (select public.has_perm('calls.view'))
+  and ((select public.can_view_all_calls())
+       or btrim(engineer) = ''
+       or lower(btrim(engineer)) in (select lower(btrim(v.n)) from public.visible_engineer_names() v(n)))
+);
+drop policy if exists ch_insert on public.call_history;
+create policy ch_insert on public.call_history for insert with check ((select public.has_perm('bulk.upload')));
+drop policy if exists ch_update on public.call_history;
+create policy ch_update on public.call_history for update
+  using ((select public.has_perm('bulk.upload'))) with check ((select public.has_perm('bulk.upload')));
+
+-- Said, not left to defaults: no delete for a signed-in user, nothing at all
+-- for the public key.
+revoke all on public.call_history from anon, authenticated;
+grant select, insert, update on public.call_history to authenticated;
+revoke all on sequence public.call_history_id_seq from anon;
+grant usage on sequence public.call_history_id_seq to authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.call_history'::regclass);
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0430_dccr_history_into_call_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0430 -- THE 2025 DCCR-HISTORY CALLS MOVE TO CALL HISTORY (the user,
+-- 2026-10-13: "Move the 2025 calls to Call History too", choosing "Move them,
+-- but keep the failure rates"; the rule since 0429: "Anything till 2025 is
+-- Historical Data. For Calls, Never load them into the Regular Workflow").
+--
+-- 0395 filed each row of an old DCCR register as a call in field_calls /
+-- pm_calls (hidden from the registers), its review, and one visit. From here:
+--
+--   1. THE IMPORT FILES THE CALL INTO call_history, as the file has it -- the
+--      status (CURRENT CALL STATUS, else CALL STATUS) and solved date are the
+--      file's -- keyed by UC Number + Call Number. It files NO VISIT. The
+--      REVIEW is still filed, imported (no FFR), because the Recent Failure
+--      Rate counts a failure through its review (0431). A UC Number that is a
+--      LIVE call is still left alone, its missing review added -- as before.
+--
+--   2. THE CALLS ALREADY FILED MOVE: every field / PM call 0395 created
+--      (extra.imported_from = 'DCCR register (historical)') is copied to
+--      call_history with the file's status and solved date from its import
+--      row, then deleted from the live table, so it leaves the DCCR View,
+--      Product Failure Analysis and every other live list. The deletion runs
+--      as the migration's owner: block_hard_delete stops a signed-in user,
+--      and the copy in call_history is the record.
+--
+-- LEFT ALONE, on purpose: the reviews (call_reviews, still keyed by UC Number
+-- -- the failure rate reads them) and the visits 0395 filed (uid IMP-...),
+-- which the user is to decide about later with the other orphan visits.
+-- ===========================================================================
+
+-- ---- 1. the import from now on -----------------------------------------------
+create or replace function public.dccr_history_apply()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_live    boolean;
+  v_note    text[] := '{}';
+  v_status  text;
+begin
+  new.ucn := btrim(new.ucn);
+  -- A cell the file left empty can arrive as NULL; every text field reads it as blank.
+  new.call_number := coalesce(new.call_number, '');
+  new.party_name := coalesce(new.party_name, '');
+  new.place := coalesce(new.place, '');
+  new.product_name := coalesce(new.product_name, '');
+  new.serial := coalesce(new.serial, '');
+  new.call_type := coalesce(new.call_type, '');
+  new.standard_complaint := coalesce(new.standard_complaint, '');
+  new.complaint_reported := coalesce(new.complaint_reported, '');
+  new.item_status := coalesce(new.item_status, '');
+  new.engineer := coalesce(new.engineer, '');
+  new.call_status := coalesce(new.call_status, '');
+  new.pending_reason := coalesce(new.pending_reason, '');
+  new.current_call_status := coalesce(new.current_call_status, '');
+  new.warranty_number := coalesce(new.warranty_number, '');
+  new.warranty_start_text := coalesce(new.warranty_start_text, '');
+  new.public_health_threat := coalesce(new.public_health_threat, '');
+  new.death := coalesce(new.death, '');
+  new.serious_incident := coalesce(new.serious_incident, '');
+  new.risk_to_patient := coalesce(new.risk_to_patient, '');
+  new.warranty_failure := coalesce(new.warranty_failure, '');
+  new.frequent_failure := coalesce(new.frequent_failure, '');
+  new.service_observation := coalesce(new.service_observation, '');
+  new.complaint_grouping := coalesce(new.complaint_grouping, '');
+  new.root_cause_keyword := coalesce(new.root_cause_keyword, '');
+  new.spare_category := coalesce(new.spare_category, '');
+  new.imported_updated_by := coalesce(new.imported_updated_by, '');
+  new.extra := coalesce(new.extra, '{}'::jsonb);
+
+  if new.ucn = '' then raise exception 'UC Number is required.'; end if;
+  new.loaded_at := now();
+  new.loaded_by := auth.uid();
+
+  -- 1. THE CALL -- into Call History, never a live register (0430).
+  v_live := exists (select 1 from public.field_calls where ucn = new.ucn)
+         or exists (select 1 from public.installation_calls where ucn = new.ucn)
+         or exists (select 1 from public.pm_calls where ucn = new.ucn);
+  if v_live then
+    v_note := array_append(v_note, ('call already in the register -- left as it is')::text);
+  else
+    v_status := coalesce(nullif(btrim(new.current_call_status), ''), btrim(new.call_status));
+    insert into public.call_history (ucn, call_no, call_at, call_type, party_name, city, engineer,
+           item_name, serial, standard_complaint, complaint_reported, item_status, call_status, solved_at, extra)
+    values (new.ucn, new.call_number,
+            (new.call_date::timestamp at time zone 'Asia/Kolkata'),
+            btrim(new.call_type), new.party_name, new.place, new.engineer, new.product_name, new.serial,
+            new.standard_complaint, new.complaint_reported, new.item_status, v_status, new.call_solved_at,
+            new.extra || jsonb_strip_nulls(jsonb_build_object(
+              'imported_from', 'DCCR register (historical)',
+              'complaint_date', new.complaint_date,
+              'call_status_at_review', nullif(btrim(new.call_status), ''),
+              'pending_reason', nullif(btrim(new.pending_reason), ''),
+              'warranty_number', nullif(btrim(new.warranty_number), ''),
+              'warranty_start_in_file', nullif(btrim(new.warranty_start_text), ''),
+              'public_health_threat', nullif(btrim(new.public_health_threat), ''),
+              'death', nullif(btrim(new.death), ''),
+              'serious_incident', nullif(btrim(new.serious_incident), ''))))
+    on conflict (ucn, call_no) do update set
+      call_at = excluded.call_at, call_type = excluded.call_type, party_name = excluded.party_name,
+      city = excluded.city, engineer = excluded.engineer, item_name = excluded.item_name,
+      serial = excluded.serial, standard_complaint = excluded.standard_complaint,
+      complaint_reported = excluded.complaint_reported, item_status = excluded.item_status,
+      call_status = excluded.call_status, solved_at = excluded.solved_at, extra = excluded.extra;
+    v_note := array_append(v_note, ('kept in Call History' || coalesce(': ' || nullif(v_status, ''), ''))::text);
+  end if;
+
+  -- 2. THE REVIEW (imported: reviewers and dates as the file has them, no FFR).
+  -- A live call keeps its own review if it has one: only a missing one is added.
+  if v_live then
+    insert into public.call_reviews (ucn, call_number, imported, imported_updated_by, imported_updated_date,
+           risk_to_patient, warranty_failure, frequent_failure, review2_at,
+           complaint_grouping, root_cause_keyword, spare_category, service_observation, review3_at)
+    values (new.ucn, new.call_number, true, new.imported_updated_by, new.imported_updated_date,
+            new.risk_to_patient, new.warranty_failure, new.frequent_failure, new.review2_at,
+            new.complaint_grouping, new.root_cause_keyword, new.spare_category, new.service_observation, new.review3_at)
+    on conflict (ucn) do nothing;
+  else
+    insert into public.call_reviews (ucn, call_number, imported, imported_updated_by, imported_updated_date,
+           risk_to_patient, warranty_failure, frequent_failure, review2_at,
+           complaint_grouping, root_cause_keyword, spare_category, service_observation, review3_at)
+    values (new.ucn, new.call_number, true, new.imported_updated_by, new.imported_updated_date,
+            new.risk_to_patient, new.warranty_failure, new.frequent_failure, new.review2_at,
+            new.complaint_grouping, new.root_cause_keyword, new.spare_category, new.service_observation, new.review3_at)
+    on conflict (ucn) do update set
+      call_number = excluded.call_number, imported = true,
+      imported_updated_by = excluded.imported_updated_by, imported_updated_date = excluded.imported_updated_date,
+      risk_to_patient = excluded.risk_to_patient, warranty_failure = excluded.warranty_failure,
+      frequent_failure = excluded.frequent_failure, review2_at = excluded.review2_at,
+      complaint_grouping = excluded.complaint_grouping, root_cause_keyword = excluded.root_cause_keyword,
+      spare_category = excluded.spare_category, service_observation = excluded.service_observation,
+      review3_at = excluded.review3_at;
+  end if;
+  v_note := array_append(v_note, ('review filed')::text);
+
+  -- 3. NO VISIT (0430): the status is the file's, kept on the call history row.
+  new.result := array_to_string(v_note, '; ');
+  return new;
+end $$;
+revoke execute on function public.dccr_history_apply() from public, anon, authenticated;
+
+comment on table public.dccr_history_import is
+  'The old DCCR register as loaded (0395), one row per UC Number. Since 0430 a row keeps its call in Call History (call_history) with the file''s status, and its review; no visit, nothing in a live register. `result` says what was kept. A UC Number that is a live call is never overwritten.';
+
+-- ---- 2. the calls 0395 already filed -----------------------------------------
+do $$
+declare v_f integer; v_p integer; v_h integer;
+begin
+  if to_regclass('public.call_history') is null then return; end if;
+
+  insert into public.call_history (ucn, call_no, call_at, call_type, party_name, state, city, engineer,
+         item_name, serial, standard_complaint, complaint_reported, item_status, call_status, solved_at, extra)
+  select c.ucn, coalesce(c.call_number, ''),
+         coalesce(c.reg_at, (c.reg_date::timestamp at time zone 'Asia/Kolkata')),
+         coalesce(nullif(c.extra->>'call_type_in_file', ''), c.call_type, ''),
+         coalesce(c.party_name, ''), coalesce(c.state, ''), coalesce(c.city, ''), coalesce(c.allocated_to, ''),
+         coalesce(c.product_name, ''), coalesce(c.serial, ''), coalesce(c.standard_complaint, ''),
+         coalesce(c.complaint_reported, ''), coalesce(c.item_status, ''),
+         coalesce(nullif(btrim(d.current_call_status), ''), nullif(btrim(d.call_status), ''),
+                  case when c.cancelled_at is not null then 'Canceled' end, c.last_status, ''),
+         d.call_solved_at,
+         coalesce(c.extra, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
+           'complaint_date', c.complaint_date, 'warranty_number', nullif(btrim(coalesce(c.warranty_number, '')), ''),
+           'public_health_threat', nullif(btrim(coalesce(c.public_health_threat, '')), ''),
+           'death', nullif(btrim(coalesce(c.death, '')), ''),
+           'serious_incident', nullif(btrim(coalesce(c.serious_incident, '')), ''),
+           'moved_from', c.tbl, 'moved_by', '0430'))
+    from (select 'field_calls' as tbl, f.ucn, f.call_number, f.reg_at, f.reg_date, f.call_type, f.party_name, f.state, f.city,
+                 f.allocated_to, f.product_name, f.serial, f.standard_complaint, f.complaint_reported, f.item_status,
+                 f.last_status, f.cancelled_at, f.complaint_date, f.warranty_number, f.public_health_threat, f.death,
+                 f.serious_incident, f.extra
+            from public.field_calls f where f.extra->>'imported_from' = 'DCCR register (historical)'
+          union all
+          select 'pm_calls', p.ucn, p.call_number, p.reg_at, p.reg_date, p.call_type, p.party_name, p.state, p.city,
+                 p.allocated_to, p.product_name, p.serial, p.standard_complaint, p.complaint_reported, p.item_status,
+                 p.last_status, p.cancelled_at, p.complaint_date, p.warranty_number, p.public_health_threat, p.death,
+                 p.serious_incident, p.extra
+            from public.pm_calls p where p.extra->>'imported_from' = 'DCCR register (historical)') c
+    left join public.dccr_history_import d on d.ucn = c.ucn
+  on conflict (ucn, call_no) do nothing;
+  get diagnostics v_h = row_count;
+
+  delete from public.field_calls where extra->>'imported_from' = 'DCCR register (historical)'
+     and exists (select 1 from public.call_history h where h.ucn = field_calls.ucn
+                  and h.call_no = coalesce(field_calls.call_number, ''));
+  get diagnostics v_f = row_count;
+  delete from public.pm_calls where extra->>'imported_from' = 'DCCR register (historical)'
+     and exists (select 1 from public.call_history h where h.ucn = pm_calls.ucn
+                  and h.call_no = coalesce(pm_calls.call_number, ''));
+  get diagnostics v_p = row_count;
+
+  -- The import rows say where their call now is. The trigger is held off for
+  -- this one write: it would re-file every row and overwrite the move's note.
+  alter table public.dccr_history_import disable trigger dccr_history_apply;
+  update public.dccr_history_import d set result = 'kept in Call History (moved, 0430); review filed'
+   where exists (select 1 from public.call_history h where h.ucn = d.ucn and h.extra->>'moved_by' = '0430');
+  alter table public.dccr_history_import enable trigger dccr_history_apply;
+
+  raise notice '0430: % calls copied to Call History; % field and % PM calls removed from the live tables', v_h, v_f, v_p;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0432_call_history_sources.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0432 -- CALL HISTORY FROM SEVERAL SYSTEMS: SOURCE, YEAR, DUPLICATES FLAGGED
+-- (the user, 2026-10-13).
+--
+-- The history comes from every system of record: e-service (before WinMax,
+-- calls numbered plainly), WinMax (2017/2018 to 09-Jun-2022, where today's
+-- UC Number format began), the yearly sheets on RITHI v1.0 / AppSheet (from
+-- 10-Jun-2022, where every January the previous years' pending calls were
+-- carried forward as OLD CALLS and their later visit entries pasted into the
+-- next year's sheet), and the DCCR register. So the same call can arrive more
+-- than once. The user's rules:
+--
+--   "UCN + Call No = Unique, if the Unique is still a duplicate then Keep the
+--    latest year record. Flag it as Duplicate for now but dont action upon it
+--    until i explicitly say so" -- and for an Old Call: "Flag it as Duplicate
+--    ... And record it with the Year."
+--
+-- SO every row now says WHERE it came from (`source`: e-service / WinMax /
+-- Yearly sheet / DCCR register ...) and FOR WHICH YEAR (`record_year`: the
+-- yearly sheet's year, else the year of the call itself). When a file brings a
+-- UC No. + Call No. already held FROM ANOTHER SOURCE OR YEAR:
+--
+--   * the row shows the record of the LATER year (a tie goes to the newcomer);
+--   * the other record is NOT lost: it is kept, whole, in `duplicates`, with its
+--     source and year;
+--   * `duplicate` is set -- a FLAG and nothing more: nothing is merged, deleted
+--     or chosen beyond the latest-year rule until the user says so.
+--
+-- Re-loading the SAME source and year is a correction, as before: not a
+-- duplicate.
+-- ===========================================================================
+
+alter table public.call_history add column if not exists source      text not null default '';
+alter table public.call_history add column if not exists record_year integer;
+alter table public.call_history add column if not exists duplicate   boolean not null default false;
+alter table public.call_history add column if not exists duplicates  jsonb not null default '[]'::jsonb;
+
+comment on column public.call_history.source is 'The system of record the row came from: e-service, WinMax, Yearly sheet, DCCR register ... (0432).';
+comment on column public.call_history.record_year is 'The year of the record: a yearly sheet''s year, else the year of the call (0432).';
+comment on column public.call_history.duplicate is 'Flagged when the same UC No. + Call No. arrived from another source or year; the latest year''s record is shown, the others are kept in `duplicates`. A flag only -- nothing is acted on (0432).';
+comment on column public.call_history.duplicates is 'The other records of the same UC No. + Call No., each whole with its source and year (0432).';
+
+-- The calls 0430 moved from the DCCR-history import.
+update public.call_history
+   set source = 'DCCR register',
+       record_year = coalesce(record_year, extract(year from (call_at at time zone 'Asia/Kolkata'))::int)
+ where source = '' and extra->>'imported_from' = 'DCCR register (historical)';
+
+-- The record's year where the file gave none: the year of the call, in India.
+create or replace function public.call_history_year(p_year integer, p_call_at timestamptz)
+returns integer language sql immutable set search_path = public as $$
+  select coalesce(p_year, extract(year from (p_call_at at time zone 'Asia/Kolkata'))::int)
+$$;
+
+-- One record of a call, whole, as `duplicates` keeps it.
+create or replace function public.call_history_record(r public.call_history)
+returns jsonb language sql immutable set search_path = public as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'source', r.source, 'record_year', r.record_year, 'call_at', r.call_at, 'call_type', r.call_type,
+    'party_name', r.party_name, 'state', r.state, 'city', r.city, 'engineer', r.engineer,
+    'item_code', r.item_code, 'item_name', r.item_name, 'serial', r.serial,
+    'standard_complaint', r.standard_complaint, 'complaint_reported', r.complaint_reported,
+    'item_status', r.item_status, 'warranty_start', r.warranty_start, 'contract_type', r.contract_type,
+    'call_status', r.call_status, 'solved_at', r.solved_at, 'extra', r.extra, 'loaded_at', r.loaded_at))
+$$;
+
+create or replace function public.call_history_year_default()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.source := btrim(coalesce(new.source, ''));
+  new.record_year := public.call_history_year(new.record_year, new.call_at);
+  return new;
+end $$;
+revoke execute on function public.call_history_year_default() from public, anon, authenticated;
+drop trigger if exists call_history_year_default on public.call_history;
+create trigger call_history_year_default before insert on public.call_history
+  for each row execute function public.call_history_year_default();
+
+-- THE RULE ON A SECOND RECORD OF THE SAME CALL. Runs on the UPDATE an upsert
+-- makes when the key is already held -- AFTER call_history_stamp (the name
+-- sorts after it), so a record that stays keeps its own load time, and before
+-- zzz_sys_stamp. A record already kept for that source and year is REPLACED,
+-- never stacked, so loading the same file twice keeps one copy.
+create or replace function public.call_history_keep_latest()
+returns trigger language plpgsql set search_path = public as $$
+declare
+  v_old_year integer := public.call_history_year(old.record_year, old.call_at);
+  v_new_year integer;
+  v_rest     jsonb;
+  v_keep     public.call_history;
+begin
+  new.source := btrim(coalesce(new.source, ''));
+  v_new_year := public.call_history_year(new.record_year, new.call_at);
+  new.record_year := v_new_year;
+  -- The same source and year: a correction, not a duplicate.
+  if new.source = coalesce(old.source, '') and v_new_year is not distinct from v_old_year then
+    new.duplicate := old.duplicate;
+    new.duplicates := old.duplicates;
+    return new;
+  end if;
+  if v_new_year >= coalesce(v_old_year, v_new_year) then
+    -- The newcomer is the latest year: it shows; the held record is kept.
+    select coalesce(jsonb_agg(e), '[]'::jsonb) into v_rest
+      from jsonb_array_elements(coalesce(old.duplicates, '[]'::jsonb)) e
+     where not (e->>'source' = coalesce(old.source, '') and (e->>'record_year')::int is not distinct from v_old_year)
+       and not (e->>'source' = new.source and (e->>'record_year')::int is not distinct from v_new_year);
+    new.duplicates := v_rest || jsonb_build_array(public.call_history_record(old));
+    new.duplicate := true;
+    return new;
+  end if;
+  -- The held record is the later year: it stays as it was; the newcomer is kept.
+  select coalesce(jsonb_agg(e), '[]'::jsonb) into v_rest
+    from jsonb_array_elements(coalesce(old.duplicates, '[]'::jsonb)) e
+   where not (e->>'source' = new.source and (e->>'record_year')::int is not distinct from v_new_year);
+  v_keep := old;
+  v_keep.duplicates := v_rest || jsonb_build_array(public.call_history_record(new));
+  v_keep.duplicate := true;
+  return v_keep;
+end $$;
+revoke execute on function public.call_history_keep_latest() from public, anon, authenticated;
+drop trigger if exists call_history_keep_latest on public.call_history;
+drop trigger if exists call_history_zz_keep_latest on public.call_history;
+create trigger call_history_zz_keep_latest before update on public.call_history
+  for each row execute function public.call_history_keep_latest();
+
+create index if not exists call_history_duplicate_idx on public.call_history (duplicate) where duplicate;
+
+-- ------------------------------------------------------------------------
 -- 0397_pm_spare_dccr.sql
 -- ------------------------------------------------------------------------
 
@@ -6635,11 +7084,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0436_review_answers_read_key.sql
+-- 0452_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0436 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0452 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -6678,7 +7127,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0436_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0452_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -6686,16 +7135,16 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0436_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0436: % role(s) holding review.edit given review.view', n;
+  values ('0452_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0452: % role(s) holding review.edit given review.view', n;
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0427_ffr_customer_and_problem_required.sql
+-- 0443_ffr_customer_and_problem_required.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0427 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+-- 0443 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
 --        (second re-review D-027)
 --
 -- The Field Failure Report form refuses a report without Customer Name or
@@ -6709,7 +7158,7 @@ end $$;
 -- Not stopped: an import (bulk.upload / import.panel), a connection with no
 -- session, and a function running as its owner (ffr_from_review raises a
 -- report from the Daily Complaint Review and fills both from the call).
--- In the daily_review module, after 0436.
+-- In the daily_review module, after 0452.
 -- ===========================================================================
 
 create or replace function public.ffr_customer_and_problem_required()

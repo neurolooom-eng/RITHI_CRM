@@ -1,13 +1,13 @@
 -- ===========================================================================
--- REVIEW BATCH 11, PROVED ON A DATABASE (0439, 0440).
+-- REVIEW BATCH 11, PROVED ON A DATABASE (0455, 0456).
 -- Each section proves BOTH halves: the hole the review measured is closed,
 -- AND the honest path beside it still works.
 --
 --   1. D-071  a re-loaded MRN line takes the file's values -- one row, not two
---             -- by an importer only, and only an IMPORTED return (0439)
---   2. D-071  the same for a stock transfer line on an imported transfer (0439)
+--             -- by an importer only, and only an IMPORTED return (0455)
+--   2. D-071  the same for a stock transfer line on an imported transfer (0455)
 --   3. D-071  Normalise cover says what it would hand back, counts only what
---             it changed, and is refused to somebody who may not edit cover (0440)
+--             it changed, and is refused to somebody who may not edit cover (0456)
 --
 -- The user's decision, 2026-10-12: "Overwrite with the file".
 -- Checks raise an unlabelled error when they are wrong, so the harness counts

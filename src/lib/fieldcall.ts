@@ -284,8 +284,11 @@ export function toSheetDate(value: unknown): string {
 //   • neither readable → nothing, and the caller falls back to today, which is
 //                        the New Field Call answer
 //
-// Breakdown Date takes the same day: the request carries one date for the
-// event, and inventing a second one would be a guess.
+// THAT IS THE BREAKDOWN DATE. The COMPLAINT DATE is the day the request was
+// raised (the user, 2026-10-14: "Complaint Date should capture the
+// Registration Request Date. Break Down date should capture the Attended Date
+// from the Registration Request") -- complaintDateFromRequest() below. Until
+// then both took this one day.
 //
 // Kept here, with no imports beyond the date parser, so `npm run check:ui` can
 // pin the rule itself rather than the screen that renders it.
@@ -305,6 +308,13 @@ export function callDateFromRequest(r: {
   const logged = localIsoDate(r.loggedAt);
   if (logged) return { iso: logged, source: 'logged' };
   return { iso: '', source: 'none' };
+}
+
+// The day the request was RAISED: the Complaint Date of a call registered from
+// it (the user, 2026-10-14). '' when the request carries no readable time, and
+// the caller falls back to today.
+export function complaintDateFromRequest(r: { loggedAt?: unknown }): string {
+  return localIsoDate(r.loggedAt) ?? '';
 }
 
 // ---------------------------------------------------------------------------

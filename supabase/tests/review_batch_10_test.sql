@@ -1,5 +1,5 @@
 -- ===========================================================================
--- REVIEW BATCH 10, PROVED ON A DATABASE (0434, 0435).
+-- REVIEW BATCH 10, PROVED ON A DATABASE (0450, 0451).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
@@ -10,7 +10,7 @@
 --
 --   2. D-038  the PM upload asks pm_calls_in_month() which machines already have
 --             a PM call this month -- every PM call, past row-level security --
---             and is refused it without pm.bulk_upload (0435); the upload's own
+--             and is refused it without pm.bulk_upload (0451); the upload's own
 --             checks are proved by check:uploads / check:ui
 -- Checks raise an unlabelled error when they are wrong, so the harness counts
 -- a failure; an error that is meant to happen is labelled `expect ERROR`.

@@ -141,7 +141,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/spare-consumption', label: 'Spare Consumption' },
   { path: '/handstock', label: 'Hand Stock' },
   { path: '/mrn', label: 'Material Returns (MRN)' },
-  { path: '/stock-transfer', label: 'Stock Transfer' },
+  { path: '/stock-transfer', label: 'Stock Transfer (MTN)' },
   { path: '/feedback', label: 'Customer Feedback' },
   { path: '/failure-report', label: 'Field Failure Register' },
   { path: '/kpi', label: 'KPI & Failure Analysis' },
@@ -275,7 +275,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
   // D-129 (the user, 2026-10-05: "visible only to a selected few as set through
   // roles & permissions"): reading the review answers is its own key, given once
-  // to the roles that held review.edit (0436); review.edit grants it, since an
+  // to the roles that held review.edit (0452); review.edit grants it, since an
   // editor reads what they edit.
   { group: 'Calls', key: 'review.view', label: 'Read Daily Complaint Review answers' },
   // WHO MAY SWITCH AUTO REVIEW ON OR OFF (0269, 0285). Its answers carry the
@@ -783,7 +783,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
     { path: '/handstock', label: 'Hand Stock', actions: ['consumption.reconcile', 'stock.transfer'] },
     { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return', 'stock.return.others'] },
-    { path: '/stock-transfer', label: 'Stock Transfer', actions: ['stock.transfer', 'stock.transfer.others'] },
+    { path: '/stock-transfer', label: 'Stock Transfer (MTN)', actions: ['stock.transfer', 'stock.transfer.others'] },
   ] },
   // A HEADER OF ITS OWN, because the MENU has one (2026-09-08). The matrix is
   // read next to the menu — "what can this role open?" is asked with the menu

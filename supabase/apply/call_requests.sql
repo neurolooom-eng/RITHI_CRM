@@ -40,6 +40,9 @@
 --   0126_call_allot_permission.sql
 --   0127_call_edit_sections.sql
 --   0226_cancelled_is_not_report_pending.sql
+--   0434_cancelled_call_reads_cancelled.sql
+--   0435_call_dates_from_request.sql
+--   0439_cancel_calls_from_old_system.sql
 --   0242_cancel_calls_in_one_go.sql
 --   0232_call_request_edit.sql
 --   0260_rename_passes_the_request_freeze.sql
@@ -48,9 +51,9 @@
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
 --   0406_install_call_registers_requests.sql
---   0433_field_call_vigilance_answered.sql
---   0428_call_request_attended_not_future.sql
---   0431_call_reopen_reason_recorded.sql
+--   0449_field_call_vigilance_answered.sql
+--   0444_call_request_attended_not_future.sql
+--   0447_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -3263,6 +3266,229 @@ begin
 end $conv$;
 
 -- ------------------------------------------------------------------------
+-- 0434_cancelled_call_reads_cancelled.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0434 -- A CANCELLED CALL'S STATUS READS "CANCELLED" (the user, 2026-10-14:
+-- "these calls are Cancelled I believe, but the Status is still showing as
+-- UnSolved. If a Call is Cancelled, then the Status should also State
+-- 'Cancelled'").
+--
+-- Measured on the live project the same day: 26H07F0010, 26H07F0011 and
+-- 26H31F0009 were cancelled on 18-Sep-2026 (cancel_call(), 0108) and read
+-- open_state = 'Unsolved'. open_state is stamped by call_open_state_t (0226)
+-- from the LATEST VISIT'S status alone, and cancelling a call through the app
+-- writes cancelled_at / cancel_reason without touching the visits -- so the
+-- column only said Cancelled when a visit's own text did (the AppSheet
+-- "Canceled"), never for a call cancelled here.
+--
+-- NOW: a call with cancelled_at set reads 'Cancelled', whatever its visits
+-- say. Restoring it (restore_call() clears cancelled_at) puts back the state
+-- its visits give, because the same trigger runs on that update. Nothing else
+-- changes: call_open_state() keeps its two arguments and its answers (the
+-- client's stateBucket() is compared with it), and the visits are untouched.
+--
+-- Every screen and report reading open_state -- the call report, the DCCR,
+-- Product Failure Analysis, Solved without a Report -- therefore says
+-- Cancelled for these calls too, which is the rule as the user stated it.
+-- ===========================================================================
+
+create or replace function public.call_open_state_stamp()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  -- Whatever the caller sent is discarded. This is a derived value. A call
+  -- cancelled in RITHI (0108) is Cancelled first; otherwise its latest visit
+  -- decides (0226).
+  new.open_state := case when new.cancelled_at is not null then 'Cancelled'
+                         else public.call_open_state(new.last_status, new.last_visit_at) end;
+  return new;
+end $$;
+revoke execute on function public.call_open_state_stamp() from public, anon, authenticated;
+
+-- Restate the calls already cancelled. The trigger above writes the value;
+-- `set open_state = open_state` only makes it run.
+do $restate$
+declare t text; n bigint; total bigint := 0;
+begin
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls'] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format('update public.%I set open_state = open_state '
+                   'where cancelled_at is not null and open_state is distinct from %L', t, 'Cancelled');
+    get diagnostics n = row_count;
+    total := total + n;
+  end loop;
+  raise notice '0434: % cancelled call(s) now read Cancelled.', total;
+end $restate$;
+
+-- ------------------------------------------------------------------------
+-- 0435_call_dates_from_request.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0435 -- A CALL REGISTERED FROM A REQUEST: COMPLAINT DATE = THE DAY THE
+-- REQUEST WAS RAISED, BREAKDOWN DATE = THE DAY IT WAS ATTENDED (the user,
+-- 2026-10-14: "Complaint Date should capture the Registration Request Date.
+-- Break Down date should capture the Attended Date from the Registration
+-- Request"; asked, existing calls corrected too).
+--
+-- Until now both took ONE day: the attended date where the request said it
+-- was attended, else the day it was raised (callDateFromRequest(), 2026-09-05).
+-- Pending Registrations fills the two apart from v0.10.191; this restates the
+-- calls already registered, by the same rule:
+--
+--   complaint_date  the request's submitted_at, as an India date;
+--   breakdown_date  its attended_date where the request says it was attended
+--                   (call_attended Yes), else that same raised day -- the
+--                   client's rule, word for word, so a call registered today
+--                   and one corrected here agree.
+--
+-- ONLY A CALL WITH EXACTLY ONE REQUEST. Measured on the live project the same
+-- day: 4,596 calls are linked to a request, and 150 of them to more than one.
+-- Which request's dates belong to such a call is not something to guess, so
+-- they are left exactly as they are; supabase/apply/_calls_with_several_
+-- requests.sql lists them, each request with its dates.
+--
+-- Written as the table owner with no signed-in user, so the edit-section guard
+-- lets it through and the audit records it as one bulk event per table.
+-- ===========================================================================
+
+do $restate$
+declare t text; n bigint; total_c bigint := 0;
+begin
+  if to_regclass('public.call_requests') is null then return; end if;
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls'] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format($q$
+      with one as (
+        select r.ucn,
+               (r.submitted_at at time zone 'Asia/Kolkata')::date as raised,
+               case when lower(btrim(coalesce(r.call_attended, ''))) in ('y', 'yes', 'true', '1', 'attended')
+                         and r.attended_date is not null
+                    then r.attended_date end as attended
+          from public.call_requests r
+         where coalesce(btrim(r.ucn), '') <> ''
+           and r.submitted_at is not null
+           and (select count(*) from public.call_requests r2 where r2.ucn = r.ucn) = 1
+      )
+      update public.%I c
+         set complaint_date = one.raised,
+             breakdown_date = coalesce(one.attended, one.raised)
+        from one
+       where one.ucn = c.ucn
+         and (c.complaint_date is distinct from one.raised
+              or c.breakdown_date is distinct from coalesce(one.attended, one.raised))
+      $q$, t);
+    get diagnostics n = row_count;
+    total_c := total_c + n;
+  end loop;
+  raise notice '0435: % call(s) restated from their request; calls linked to several requests are left as they were.', total_c;
+end $restate$;
+
+-- ------------------------------------------------------------------------
+-- 0439_cancel_calls_from_old_system.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0439 -- THE CALLS CANCELLED IN THE OLD SYSTEM, CANCELLED HERE (the user,
+-- 2026-10-14: "Previously cancelled calls now moved to unsolved" ... "I have a
+-- file of the cancelled calls -- upload it", Canceled_Calls.csv).
+--
+-- The file is the old system's record of each cancellation: a visit entry
+-- with Call Status "Canceled" (39 rows, 38 calls; 26E07F0010 twice). None of
+-- those entries is in RITHI's visits, so nothing here said the calls were
+-- cancelled and they read Unattended, Unsolved or Solved. Settled with the
+-- user the same day:
+--
+--   cancelled_at   the entry's Visit Entry Date (when it was entered), IST;
+--   cancel_reason  its "Reason for cancelation";
+--   cancelled by   its Email-ID -- kept as text in extra.cancelled_by_name,
+--                  and as cancelled_by where that address is a RITHI login;
+--   a call that now reads Solved or Report pending is cancelled too, its
+--                  visits and spares kept ("Cancel it, keep the visits").
+--
+-- LEFT AS THEY ARE: a call already cancelled in RITHI (its own reason and
+-- date stand), and a call not in the live register -- the three 2025 calls
+-- are in Call History, which carries no workflow (0429). Where a call is in
+-- the file twice, its EARLIER entry is the cancellation.
+--
+-- Measured on the live project before writing: 21 to cancel (13 Unattended,
+-- 5 Unsolved, 3 Solved), 14 already cancelled, 3 in Call History.
+-- open_state follows by call_open_state_stamp() (0434). Restorable one by one
+-- with Restore call, like any cancellation.
+-- ===========================================================================
+
+do $load$
+declare n bigint; total bigint := 0; t text; v_held bigint; v_already bigint;
+begin
+  create temporary table _cancelled_file (ucn text, entry_uid text, call_number text, entered_at timestamptz, reason text, email text) on commit drop;
+  insert into _cancelled_file values
+  ('25L29F0008', 'H-926344b1', 'R15736-MONNAL T60-212', timestamptz '2026-01-19 18:15:59+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26A22F0004', 'H-88cf8fc4', 'R16094-ORION-G-1439', timestamptz '2026-01-27 11:28:16+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26B04F0005', 'H-94bcc800', 'R16217-ORION-G-105', timestamptz '2026-02-04 16:10:23+05:30', 'Wrong supply', 'airliquide.customercare2022@gmail.com'),
+  ('26B03F0031', 'H-0e7dabbe', 'R16215-ORION-G-106', timestamptz '2026-02-04 16:11:22+05:30', 'Wrong supply', 'airliquide.customercare2022@gmail.com'),
+  ('26B04F0024', 'H-0375f8e4', 'R16234-ORION-G-2142', timestamptz '2026-02-05 12:29:24+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('25L30F0014', 'H-8123663b', 'R15765-EXTEND-XT-XT 2986', timestamptz '2026-02-05 17:20:54+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('25L22F0033', 'H-d44582e7', 'CL2302883-CPX CARE-1034', timestamptz '2026-02-05 17:48:57+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26A08F0002', 'H-627632f8', 'R15920-MONNAL T60-19616', timestamptz '2026-02-09 12:25:52+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26A05F0001', 'H-3ccb7626', 'CL2303084-ORION-G-842', timestamptz '2026-02-11 14:34:37+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26B03F0017', 'H-ab332f2a', 'CL2300579-EXTEND-XT-XT 2884', timestamptz '2026-02-16 16:05:08+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26B13F0012', 'H-ee2bf99e', 'CL2300745-EXTEND-XT-XT 2884', timestamptz '2026-02-16 16:05:18+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26B03F0032', 'H-f8434031', 'R16216-VEGA-155', timestamptz '2026-02-16 18:13:48+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0020', 'H-ca7c6c6e', 'R16167-CPX CARE-1767', timestamptz '2026-02-19 10:55:53+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0004', 'H-ac65988d', 'R16167-CPX CARE-1769', timestamptz '2026-02-19 10:56:12+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0006', 'H-ced8cb85', 'R16167-CPX CARE-1770', timestamptz '2026-02-19 10:56:24+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0008', 'H-910dd5d2', 'R16168-CPX CARE-1772', timestamptz '2026-02-19 10:56:34+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0005', 'H-2b1a98dd', 'R16167-CPX CARE-1775', timestamptz '2026-02-19 10:57:04+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0007', 'H-9894a085', 'R16167-CPX CARE-1776', timestamptz '2026-02-19 10:57:38+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26B02F0008', 'H-d78bebdd', 'CL2300555-EXTEND-XT-INXT 0104', timestamptz '2026-03-02 18:05:55+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26A28F0008', 'H-3792e74b', 'R16140-VEGA-201', timestamptz '2026-03-10 16:14:23+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26B10F0016', 'H-5be280f2', 'R16286-EXTEND-XT-3', timestamptz '2026-03-17 11:49:41+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26C26I0001', 'H-e0226aa7', 'WI-MONNAL T60-20133', timestamptz '2026-03-19 11:49:46+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26C17F0011', 'H-3bf9cb06', 'CL2301288-VEGA-253', timestamptz '2026-03-20 14:38:32+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26C30F0010', 'H-acf05da5', 'CL2301552-ORION-1880', timestamptz '2026-03-30 18:27:13+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26A19F0044', 'H-9875997c', 'R16015-ORION-G-263', timestamptz '2026-04-02 15:23:12+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26D07F0016', 'H-0f6d2e26', 'R16946-ORION-G-2000', timestamptz '2026-04-08 16:53:29+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26C18F0010', 'H-efdbb2ac', 'R16742-MONNAL T75-10897', timestamptz '2026-04-10 16:34:08+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26D08F0004', 'H-8b66cfd4', 'R16951-MONNAL T75-5075', timestamptz '2026-04-24 12:53:37+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E12F0024', 'H-94b4ab94', 'R17291-VEGA-81', timestamptz '2026-05-14 10:02:57+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26B16F0030', 'H-6afba427', 'R16347-EXTEND-XT-INXT 1041', timestamptz '2026-05-15 15:19:06+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26C10F0002', 'H-fb3da293', 'R16645-MONNAL T60-7133', timestamptz '2026-05-15 15:19:59+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26D10F0016', 'H-20fdfa4d', 'R16978-EXTEND-XT-XT 2837', timestamptz '2026-05-15 15:20:51+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E07F0010', 'H-d6d7b6ec', 'R17247-EXTEND-XT-XT 2851', timestamptz '2026-05-15 15:22:15+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E07F0012', 'H-ff247dc7', 'R17249-EXTEND-XT-INXT 0419', timestamptz '2026-05-15 15:22:26+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E07F0010', 'H-3f35a61d', 'R17247-EXTEND-XT-XT 2851', timestamptz '2026-05-15 15:22:48+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26C18F0070', 'H-0b5039a8', 'R16747-EXTEND-XT-INXT 0519', timestamptz '2026-05-25 14:20:28+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26F01F0007', 'H-02a41594', 'R17504-ORION-G-936', timestamptz '2026-06-09 14:35:33+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26F01F0008', 'H-36113ca4', 'R17504-ORION-G-964', timestamptz '2026-06-09 14:37:06+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26G08F0031', 'H-f30b1087', 'CL2303045-MONNAL T75-', timestamptz '2026-08-25 15:10:15+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com')
+;
+  select count(distinct f.ucn) into v_held from _cancelled_file f where not exists (select 1 from public.calls c where c.ucn = f.ucn);
+  select count(distinct f.ucn) into v_already from _cancelled_file f join public.calls c on c.ucn = f.ucn where c.cancelled_at is not null;
+
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls'] loop
+    execute format($q$
+      with first_entry as (
+        select distinct on (ucn) ucn, entered_at, reason, email
+          from _cancelled_file order by ucn, entered_at, entry_uid
+      )
+      update public.%I c
+         set cancelled_at  = e.entered_at,
+             cancel_reason = e.reason,
+             cancelled_by  = (select p.id from public.profiles p where lower(p.email) = lower(e.email) limit 1),
+             extra         = coalesce(c.extra, '{}'::jsonb)
+                             || jsonb_build_object('cancelled_by_name', e.email,
+                                                   'cancelled_from', 'Canceled_Calls.csv (old system), loaded 2026-10-14')
+        from first_entry e
+       where e.ucn = c.ucn and c.cancelled_at is null
+      $q$, t);
+    get diagnostics n = row_count;
+    total := total + n;
+  end loop;
+  raise notice '0439: % call(s) cancelled from the file; % already cancelled in RITHI, left as they were; % not in the live register (Call History), left.', total, v_already, v_held;
+end $load$;
+
+-- ------------------------------------------------------------------------
 -- 0242_cancel_calls_in_one_go.sql
 -- ------------------------------------------------------------------------
 
@@ -4204,11 +4430,11 @@ begin
 end $once$;
 
 -- ------------------------------------------------------------------------
--- 0433_field_call_vigilance_answered.sql
+-- 0449_field_call_vigilance_answered.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0433 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0449 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -4260,11 +4486,11 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
--- 0428_call_request_attended_not_future.sql
+-- 0444_call_request_attended_not_future.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0428 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+-- 0444 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
 --        (second re-review D-030, part 3)
 --
 -- The Attended Date on Request Registration had no upper bound, and it becomes
@@ -4301,11 +4527,11 @@ create trigger call_request_attended_not_future
   for each row execute function public.call_request_attended_not_future();
 
 -- ------------------------------------------------------------------------
--- 0431_call_reopen_reason_recorded.sql
+-- 0447_call_reopen_reason_recorded.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0431 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+-- 0447 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
 --        (second re-review D-035, FRS-133.4, FRS-120.9)
 --
 -- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
@@ -4366,7 +4592,7 @@ begin
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
   end if;
-  -- 0431 (D-035, FRS-120.9): a re-open says why.
+  -- 0447 (D-035, FRS-120.9): a re-open says why.
   if btrim(coalesce(p_reason, '')) = '' then
     raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
   end if;
@@ -4381,7 +4607,7 @@ begin
      set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
    where ucn = p_ucn;
 
-  -- 0431 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  -- 0447 (D-035, FRS-133.4): the reason, the person and the time, kept.
   insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
   values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
 

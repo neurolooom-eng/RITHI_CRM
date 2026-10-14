@@ -86,6 +86,13 @@ export function parseDateParts(v: unknown, opts?: DateOpts): DateParts | null {
     if (mo >= 1 && mo <= 12) return { y: +m[3], mo, d, ...time };
   }
 
+  // EXCEL'S LONG DATE -- "Thursday, March 31, 2016", or "March 31, 2016"
+  // (the 2018-2022 call history's Warranty Start Date, 2026-10-13). The month
+  // is a NAME, so it cannot be read the other way round; the weekday, where
+  // present, is not checked against the date -- the date is the fact.
+  m = /^(?:[A-Za-z]+,\s*)?([A-Za-z]{3,})\s+(\d{1,2}),\s*(\d{4})\b/.exec(s);
+  if (m) { const mo = MONTHS[m[1].slice(0, 3).toLowerCase()]; if (mo) return { y: +m[3], mo, d: +m[2], ...time }; }
+
   return null;
 }
 

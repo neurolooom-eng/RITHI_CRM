@@ -10,11 +10,15 @@ import { formatDay } from './dates';
 //      status comes from the LATEST visit — so a visit dated next week closes a
 //      call that nobody has been to, and keeps it closed until that day passes.
 //
-//   2. NOT BEFORE THE COMPLAINT. Nobody attended a fault that had not been
-//      reported. A visit dated before the complaint also makes every
-//      response-time figure taken from the pair negative.
+//   2. NOT BEFORE THE BREAKDOWN. Nobody attended a machine before it failed.
+//      Until 2026-10-14 the bound was the Complaint Date; the user then set it
+//      to the Breakdown Date ("Reports can allow a Dates between the Breakdown
+//      Date and Today"), because a call registered from a request now carries
+//      the day the request was RAISED as its complaint, and the engineer was
+//      often there the day before. The caller passes the breakdown date, else
+//      the complaint date; the database (0436) does the same.
 //
-// A call with NO complaint date (an installation, a PM, an imported call that
+// A call with NO such date (an installation, a PM, an imported call that
 // never carried one) is only held to the first rule — there is nothing to
 // compare against, and refusing the visit would be inventing a requirement.
 //
@@ -29,14 +33,14 @@ import { formatDay } from './dates';
 
 // '' when the date is allowed. Otherwise the reason, in the words the person
 // entering it would use.
-export function visitDateProblem(visit: string, complaint: string, today: string): string {
+export function visitDateProblem(visit: string, from: string, today: string, what: 'breakdown' | 'complaint' = 'breakdown'): string {
   const v = (visit ?? '').trim();
   if (!v) return 'Give the date of the visit.';
   const t = (today ?? '').trim();
   // yyyy-mm-dd compares correctly as text — fixed width, biggest unit first.
   if (t && v > t) return `A visit cannot be dated in the future — ${fmt(v)} is after today.`;
-  const c = (complaint ?? '').trim();
-  if (c && v < c) return `A visit cannot be dated before the complaint (${fmt(c)}).`;
+  const c = (from ?? '').trim();
+  if (c && v < c) return `A visit cannot be dated before the ${what} (${fmt(c)}).`;
   return '';
 }
 

@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.188',
+    version: '0.10.203',
     date: '2026-10-12',
     title: 'Fifth re-review of every module recorded (no behaviour changed)',
     changes: [
@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.187',
+    version: '0.10.202',
     date: '2026-10-12',
     title: 'Review fixes: loading a file again corrects it instead of adding it twice',
     changes: [
@@ -35,7 +35,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.186',
+    version: '0.10.201',
     date: '2026-10-12',
     title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',
     changes: [
@@ -44,7 +44,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.185',
+    version: '0.10.200',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -55,7 +55,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.184',
+    version: '0.10.199',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -68,7 +68,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.183',
+    version: '0.10.198',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -78,7 +78,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.182',
+    version: '0.10.197',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -89,7 +89,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.181',
+    version: '0.10.196',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -103,7 +103,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.180',
+    version: '0.10.195',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -117,7 +117,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.179',
+    version: '0.10.194',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -128,6 +128,166 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.193',
+    date: '2026-10-14',
+    title: 'Cancellation Reason chips removed',
+    changes: [
+      'The Cancellation Reason filter chips above the Field, Installation and PM registers are gone. The Cancellation Reason column stays, and the Call Pending Reason chips stay.',
+    ],
+  },
+  {
+    version: '0.10.192',
+    date: '2026-10-14',
+    title: 'Calls cancelled in the old system are cancelled here; Cancelled By',
+    changes: [
+      'The cancelled calls from the old system (Canceled_Calls.csv) are now cancelled in RITHI, with the file\'s reason, the date and time the cancellation was entered, and who entered it. Calls that read Solved now are cancelled too; their visits are kept.',
+      'Calls already cancelled in RITHI keep their own reason and date. The three 2025 calls in the file are in Call History and were left as they are.',
+      'New column on the Field, Installation and PM registers: Cancelled By, the person who cancelled the call, or the name the old system\'s file gave. Also shown when a call is opened, and in Export CSV.',
+    ],
+  },
+  {
+    version: '0.10.191',
+    date: '2026-10-14',
+    title: 'Call dates from the request; every timer from the Breakdown Date; status first on an opened call',
+    changes: [
+      'A call registered from a request now takes its Complaint Date from the day the request was raised and its Breakdown Date from the day it was attended. If the request was never attended, both take the day it was raised. Each field says which date it used.',
+      'Calls already registered from a request were corrected by the same rule. Calls linked to more than one request were left as they were; supabase/apply/_calls_with_several_requests.sql lists them.',
+      'A call registered directly still takes today for the Complaint Date, Breakdown Date and Registration; the Complaint and Breakdown Dates can be changed before saving.',
+      'Every timer now counts from the Breakdown Date: Aging on the registers, the SLA on the Dashboard (from the start of that day), the KPI Export day counts (Attended, Solved and Pending Days, TTA, TTS) and the Attended-within-N-days objectives (after the next Re-Calculate).',
+      'A visit can be dated from the call\'s Breakdown Date up to today. Before, it could not be earlier than the Complaint Date.',
+      'An opened call shows its Call Status at the top, highlighted, with what it is pending on, or when and why it was cancelled.',
+      'The sections of an opened call can be collapsed one at a time or all at once, and stay that way for the next call.',
+      'Fixed: the Breakdown Date showed blank on every opened call, although the call had one.',
+    ],
+  },
+  {
+    version: '0.10.190',
+    date: '2026-10-14',
+    title: 'Cancelled calls read Cancelled; Cancellation Date on the registers',
+    changes: [
+      'A call cancelled in RITHI now shows its Call Status as Cancelled, in grey, everywhere: the Field, Installation and PM registers, Pending Registrations, the DCCR and the Call Report. Before, it kept showing its last visit\'s status, such as Unsolved.',
+      'Restoring a cancelled call puts its status back to what its visits say.',
+      'New column on the three registers: Cancellation Date, the date and time the call was cancelled. Also shown when a call is opened, and in Export CSV.',
+      'Cancelled calls are left out of the KPI Export, as before.',
+    ],
+  },
+  {
+    version: '0.10.189',
+    date: '2026-10-13',
+    title: 'Call Pending Reason and Cancellation Reason on every call',
+    changes: [
+      'The Field, Installation and PM call registers have two new columns: Call Pending Reason and Cancellation Reason. Both also show when a call is opened and are in Export CSV.',
+      'Call Pending Reason is the reason given on the call\'s latest visit entry, the same entry its status comes from. It shows only while the call is open, so a Solved or Cancelled call reads blank.',
+      'Cancellation Reason is the reason typed when the call was cancelled. It shows while the call is cancelled; a restored call keeps it on its record.',
+      'Two new rows of filter chips, Call Pending Reason and Cancellation Reason, show how many calls carry each reason; click one to see only those calls.',
+    ],
+  },
+  {
+    version: '0.10.188',
+    date: '2026-10-13',
+    title: 'Call History from every system; Evolution of Service Tools',
+    changes: [
+      'Bulk Uploads → Call History now asks which system the file came from (e-service, WinMax, Yearly sheet, DCCR register or Other) and, for a yearly sheet, its year. Every row is recorded with them.',
+      'When the same UC No. and Call No. arrives from another system or year, such as an Old Call in the next year\'s sheet, the latest year\'s record is shown. The other record is kept with it and the call is flagged Duplicate; nothing else is done about it. Loading the same file twice keeps one copy.',
+      'Machine History shows each old call\'s source and year, and its Duplicate flag.',
+      'New page under How RITHI Functions: Evolution of Service Tools. It covers e-service, WinMax (2017/2018 to 09-Jun-2022), RITHI v1.0 (AppSheet, the yearly sheets with Old Calls, from 10-Jun-2022) and RITHI v2.0, and how each one\'s calls are kept here.',
+    ],
+  },
+  {
+    version: '0.10.187',
+    date: '2026-10-13',
+    title: 'The 2025 DCCR-history calls moved to Call History',
+    changes: [
+      'The 2025 calls loaded with the old DCCR register are now in Call History, out of the live call tables. 2025 therefore no longer appears in the DCCR View or Product Failure Analysis.',
+      'Their DCCR reviews are kept, and the Recent Failure Rate objectives still count those failures, so no 2026 figure changes.',
+      'Loading an old DCCR register now keeps its calls in Call History too, with the file\'s status. It files the review but no visit, and never adds anything to the live registers.',
+    ],
+  },
+  {
+    version: '0.10.186',
+    date: '2026-10-13',
+    title: 'Call History: calls before RITHI, kept apart',
+    changes: [
+      'New in Bulk Uploads → Calls: Call History, for calls before RITHI (up to 2025). Old calls are stored exactly as the file has them, including the call status, solved date, item status and contract type. Every other column is kept too.',
+      'They are kept apart from everything. They do not appear in the Field, Installation or PM registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or the Objectives. Nothing is created from them: no visit, no review, no FFR, no notification, no change to the Product Database.',
+      'Each call is one row per UC No. and Call No., so a UC No. the old system used for two calls keeps both. Uploading the same file again corrects it rather than adding it twice.',
+      'Machine History shows a machine\'s old calls in their own Call history group.',
+      'Dates written as Excel\'s long date (e.g. "Thursday, March 31, 2016") are now read on every upload.',
+    ],
+  },
+  {
+    version: '0.10.185',
+    date: '2026-10-13',
+    title: 'Objective: the Total column is calculated',
+    changes: [
+      'The Total column on the Objective page is now worked out the way the shared sheet does it. For the FFR count it is the sum of the months. For every percentage objective it is the average of the months that have a figure. Blank and NA months are left out.',
+      'It updates by itself whenever a month changes, whether by Re-Calculate or a month typed over by hand. An objective with no calculation keeps the Total typed for it.',
+    ],
+  },
+  {
+    version: '0.10.184',
+    date: '2026-10-13',
+    title: 'Dashboard: click to narrow, trend by period, figures beside each chart, downloads',
+    changes: [
+      'The Dashboard now works like Failure Insights. Click any bar, slice, period or table row, and every figure on the page narrows to it: the tiles, the SLA tiles and lists, the charts and Recent Calls. A chip shows what is picked; click it, or the same mark again, to clear.',
+      'The calls trend can be read Monthly, Quarterly or Yearly. Beside it are the calls, the change on the period before, the share and the running total. It now covers every period, not only the last six months.',
+      'Item status, top products and calls by engineer each have their figures in a small table beside the chart. The charts show the top 12.',
+      '⬳ Download on each block saves it as Excel, with a sheet saying what it was narrowed to. The button only appears for roles that have Export / download CSV ticked on Roles & Permissions.',
+    ],
+  },
+  {
+    version: '0.10.183',
+    date: '2026-10-13',
+    title: 'One SLA list per SLA, named; sign-in opens the Dashboard',
+    changes: [
+      'The Dashboard now shows each SLA separately: one tile and one list per SLA, under its own name. The tile shows how many calls are breached and how many are due soon. The list puts breached calls first, then the nearest deadline. A call late for both its first visit and its closure appears on both lists.',
+      'SLA / Objective Configuration → SLA Targets lets you name each SLA; the Dashboard uses that name. A blank name is refused.',
+      'Signing in now always opens the Dashboard, instead of whatever page was last open. Reloading a page while signed in still keeps you on it.',
+    ],
+  },
+  {
+    version: '0.10.182',
+    date: '2026-10-13',
+    title: 'Files on Stock Transfers and Material Returns; Stock Transfer (MTN)',
+    changes: [
+      'Stock Transfer and Material Returns can now keep files with each record, such as the signed MTN or MRN, or a photo. Attach as many as you like with ⤴ Attach a file on the New Transfer / New MRN form, or later from the Files column. On Material Returns you can also attach from the opened MRN.',
+      'Each file opens in RITHI. Hover over it to see who attached it and when. A saved file cannot be changed or removed, and files are optional.',
+      'Files go to the Stock Transfers and Material Returns folders in Drive, or to the drive root until those folders are set up.',
+      'Stock Transfer is now called Stock Transfer (MTN) in the menu, on the page, and on Roles & Permissions. Only the name changed; nobody\'s rights did.',
+    ],
+  },
+  {
+    version: '0.10.181',
+    date: '2026-10-13',
+    title: 'KPI Export: India dates',
+    changes: [
+      'FIXED: the KPI Export took Call Attended On and Call Solved Date in UTC. A visit loaded from a file is recorded at midnight India time, so almost every one read a day early, and Attended in Days and Solved in Days were a day short. They now use the India date, as the call registers do.',
+      'Failure Month and the day the counts start from are India dates too, so a call registered just after midnight on the 1st belongs to that month.',
+      'Call Attended On now counts a spare request whoever raised it, so an engineer\'s export shows the same dates as their call register and their manager\'s export.',
+      'Nothing to re-calculate: the next download has the corrected dates.',
+    ],
+  },
+  {
+    version: '0.10.180',
+    date: '2026-10-13',
+    title: 'Hand Stock: inactive users hidden',
+    changes: [
+      'Hand Stock now leaves off people marked inactive on the User Master. The new 🚫 Inactive users hidden switch is on by default; click it (👥 Inactive users shown) to see them again. The choice is remembered.',
+      'Hiding them changes no balance: the counts, the engineer picker and the Export CSV simply follow the shorter list. A name that is not on the User Master at all, such as INDOOR SERVICE, is always shown.',
+    ],
+  },
+  {
+    version: '0.10.179',
+    date: '2026-10-13',
+    title: 'Call registers: First Attended, Last Visit and Solved dates; cancelled calls off the SLA list',
+    changes: [
+      'The Field Call Register, Installation Calls and Preventive (PM) now show three dates for every call: First Attended Date, Last Visit Date and Solved Date. They sort, and the CSV carries them.',
+      'First Attended is the earlier of the first visit and the first spare request on the call. Last Visit is the latest visit date. Solved is the visit date of the report that set "Solved - Report Completed". These are the KPI Export\'s definitions, and every date is the India date.',
+      'A call moved to a new engineer shows them the same First Attended Date their manager sees, even when somebody else raised the spare request.',
+      'FIXED: a Cancelled call no longer appears on the Dashboard\'s SLA Breached count or the "SLA — needs attention" list.',
     ],
   },
   {

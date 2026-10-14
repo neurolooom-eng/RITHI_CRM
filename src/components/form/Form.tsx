@@ -97,6 +97,12 @@ interface FormProps {
   /** A control placed in a section's HEADER, by section name (e.g. the call
    *  view's Update Party Details beside Customer & Product). */
   sectionActions?: Record<string, ReactNode>;
+  /** Sections can be collapsed one at a time from their header, or all at once
+   *  (the user, 2026-10-14: "I want to be able to Collapse all Sections").
+   *  Remembered per person under `sectionOrderKey`. A section holding a field
+   *  that failed validation opens again on Save, so nothing required can be
+   *  hidden behind a caret. */
+  collapsible?: boolean;
 }
 
 const resolveOptions = (f: FieldDef, values: Record<string, unknown> = {}): FieldOption[] =>
@@ -121,6 +127,7 @@ export function SchemaForm({
   sectionOrderKey,
   emphasisSections,
   sectionActions,
+  collapsible = false,
 }: FormProps) {
   const initValues = (): FormValues => {
     const v: FormValues = {};
@@ -190,6 +197,20 @@ export function SchemaForm({
     if (storeKey) { try { localStorage.setItem(storeKey, JSON.stringify(next)); } catch { /* ignore */ } }
   };
 
+  // Collapsed sections, by name, per person.
+  const foldKey = collapsible && sectionOrderKey ? `rithi.formCollapsed.${sectionOrderKey}` : null;
+  const [collapsed, setCollapsed] = useState<string[]>(() => {
+    try { return foldKey ? JSON.parse(localStorage.getItem(foldKey) || '[]') : []; } catch { return []; }
+  });
+  const saveCollapsed = (next: string[]) => {
+    setCollapsed(next);
+    if (foldKey) { try { localStorage.setItem(foldKey, JSON.stringify(next)); } catch { /* private window */ } }
+  };
+  const namedSections = orderedSections.map(([k]) => k).filter(Boolean);
+  const isCollapsed = (k: string) => collapsible && !!k && collapsed.includes(k);
+  const toggleSection = (k: string) => saveCollapsed(collapsed.includes(k) ? collapsed.filter((x) => x !== k) : [...collapsed, k]);
+  const allCollapsed = namedSections.length > 0 && namedSections.every((k) => collapsed.includes(k));
+
   const setValue = (name: string, value: unknown) => {
     setValues((v) => ({ ...v, [name]: value }));
     if (touched) setErrors((e) => ({ ...e, [name]: validateField(name, value) ?? '' }));
@@ -228,7 +249,13 @@ export function SchemaForm({
       if (msg) errs[f.name] = msg;
     });
     setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+    if (Object.keys(errs).length > 0) {
+      // Open every collapsed section holding an error, or Save fails for a
+      // reason nobody can see.
+      const bad = new Set(fields.filter((f) => errs[f.name]).map((f) => f.section ?? ''));
+      if (collapsible && collapsed.some((k) => bad.has(k))) saveCollapsed(collapsed.filter((k) => !bad.has(k)));
+      return;
+    }
     // normalize numeric fields
     const out: FormValues = { ...values };
     fields.forEach((f) => {
@@ -243,6 +270,14 @@ export function SchemaForm({
 
   return (
     <form className="sf" onSubmit={submit}>
+      {collapsible && namedSections.length > 1 && (
+        <div className="sf-fold-all">
+          <button type="button" className="btn btn-ghost btn-sm"
+            onClick={() => saveCollapsed(allCollapsed ? [] : namedSections)}>
+            {allCollapsed ? '▾ Expand all sections' : '▸ Collapse all sections'}
+          </button>
+        </div>
+      )}
       {orderedSections.map(([section, secFields], si) => (
         <div
           className={`sf-section${emphasisSections?.includes(section) ? ' sf-section-vital' : ''}`}
@@ -250,7 +285,13 @@ export function SchemaForm({
         >
           {section && (
             <div className="sf-section-title">
-              <span>{section}</span>
+              {collapsible ? (
+                <button type="button" className="sf-fold" aria-expanded={!isCollapsed(section)}
+                  title={isCollapsed(section) ? 'Expand this section' : 'Collapse this section'}
+                  onClick={() => toggleSection(section)}>
+                  <span className="sf-fold-caret">{isCollapsed(section) ? '▸' : '▾'}</span>{section}
+                </button>
+              ) : <span>{section}</span>}
               {sectionActions?.[section] && <span className="sf-section-action">{sectionActions[section]}</span>}
               {storeKey && orderedSections.length > 1 && (
                 <span className="sf-section-move">
@@ -260,7 +301,7 @@ export function SchemaForm({
               )}
             </div>
           )}
-          <div className="sf-grid" style={gridStyle}>
+          {!isCollapsed(section) && <div className="sf-grid" style={gridStyle}>
             {secFields.map((f) => {
               const span = Math.min(f.span ?? 1, columns);
               const err = errors[f.name];
@@ -291,7 +332,7 @@ export function SchemaForm({
                 </div>
               );
             })}
-          </div>
+          </div>}
         </div>
       ))}
       <div className="sf-actions">

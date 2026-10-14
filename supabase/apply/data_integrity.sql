@@ -18,8 +18,8 @@
 --   0225_record_audit_on.sql
 --   0246_record_audit_description.sql
 --   0314_record_audit_on_movements_and_training.sql
---   0426_record_audit_on_configuration_objectives_indoor.sql
---   0430_cover_registers_imaged.sql
+--   0442_record_audit_on_configuration_objectives_indoor.sql
+--   0446_cover_registers_imaged.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -525,11 +525,11 @@ begin
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0426_record_audit_on_configuration_objectives_indoor.sql
+-- 0442_record_audit_on_configuration_objectives_indoor.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0426 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
+-- 0442 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
 --        (second re-review D-067, D-021, D-039)
 --
 -- record_audit (0225, 0314) images fifteen tables. Three groups that decide
@@ -649,15 +649,15 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0426: record_audit armed on % of 13 tables.', n;
+  raise notice '0442: record_audit armed on % of 13 tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0430_cover_registers_imaged.sql
+-- 0446_cover_registers_imaged.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0430 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
+-- 0446 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
 --
 -- sale_entries, sale_items, contract_entries, contract_items,
 -- ownership_transfers and product_additional_entries were outside 0225's
@@ -665,13 +665,13 @@ end $on$;
 -- corrected, or an entry deleted with every machine under it left no image of
 -- what was there. FRS-187.3: a correction shall be recorded with its before and
 -- after values by a trigger that cannot be bypassed. The same statement-level
--- triggers as 0225 / 0314 / 0426, so a cover import is one event.
+-- triggers as 0225 / 0314 / 0442, so a cover import is one event.
 --
 -- DELETION ITSELF STAYS -- the user's decision of 2026-10-06 ("Keep deleting,
 -- recorded"): an entry, a machine, a transfer or an additional entry may still
 -- be deleted by the holder of that register's delete authority, and what it
 -- removed is read back from record_audit. FRS-187 was rewritten to match.
--- In data_integrity, after 0426: every cover table is created earlier in
+-- In data_integrity, after 0442: every cover table is created earlier in
 -- ALL_ORDER.
 -- ===========================================================================
 
@@ -679,7 +679,7 @@ do $on$
 declare t text; n int := 0;
 begin
   if to_regproc('public.record_audit_fn') is null then
-    raise notice '0430: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
+    raise notice '0446: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
     return;
   end if;
   foreach t in array array[
@@ -703,7 +703,7 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0430: record_audit armed on % of 6 cover tables.', n;
+  raise notice '0446: record_audit armed on % of 6 cover tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------

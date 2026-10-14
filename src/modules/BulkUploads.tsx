@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
 import { uploadRows, planUpload, applyUploadPlan, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
-import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, prepWritesQuestion,
+import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, prepWritesQuestion, askedFields, missingAsk,
   type UploadDef, type ShapeResult, type UploadPlan } from '../lib/uploads';
 import { dealerParties } from '../lib/cover';
 import { recordAudit } from '../lib/audit';
@@ -30,6 +31,9 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [open, setOpen] = useState(false);
+  // What the file cannot say, asked here and written on every row (UploadAsk).
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const missing = missingAsk(def.asks, answers);
 
   const pick = async (f: File | null) => {
     setMsg(null); setPending(null);
@@ -90,8 +94,15 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
 
   const write = async () => {
     if (!pending) return;
+    if (missing) { setMsg({ tone: 'error', text: `Choose the ${missing} before uploading.` }); return; }
     const p = pending;
     const started = performance.now();
+    // The answers to what the file cannot say go on every row BEFORE the plan,
+    // so the plan and the confirmation count what will actually be written.
+    const asked = askedFields(def.asks, answers);
+    const shapedRows = Object.keys(asked).length ? pending.shaped.rows.map((r) => ({ ...r, ...asked })) : pending.shaped.rows;
+    const askedNote = Object.keys(asked).length
+      ? `Every row is recorded with ${(def.asks ?? []).filter((a) => asked[a.to] !== undefined).map((a) => `${a.label}: ${String(asked[a.to])}`).join(', ')}.\n\n` : '';
     // Some registers point at rows that have to be there first, or accept only
     // some of the names in the file (see `prepare`). PLANNED before the
     // confirmation -- reads only -- so the number you are asked to approve is
@@ -101,10 +112,10 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
     // consumption file describes) is only NAMED in the confirmation and written
     // after OK (D-075): it used to be written before it, so Cancel left those
     // rows behind -- and a visit moves its call's status.
-    let plan: UploadPlan = { rows: pending.shaped.rows, writes: [], note: '' };
+    let plan: UploadPlan = { rows: shapedRows, writes: [], note: '' };
     if (def.prepare) {
       setBusy('Checking what these rows point at…');
-      const pre = await planUpload(def.prepare, pending.shaped.rows);
+      const pre = await planUpload(def.prepare, shapedRows);
       setBusy('');
       if (!pre.ok || !pre.plan) {
         const why = pre.error ?? 'Could not prepare the upload.';
@@ -138,7 +149,7 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
       : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
     const first = prepWritesQuestion(plan.writes);
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${first ? `${first}\n\n` : ''}${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) {
+    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${askedNote}${first ? `${first}\n\n` : ''}${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) {
       const unrecorded = await record(p, { outcome: 'cancelled', ready: n, toWrite: n, written: 0, why: 'Cancelled at the confirmation — nothing was written.', started });
       if (unrecorded) setMsg({ tone: 'error', text: `Cancelled — nothing was written.${unrecorded}` });
       return;
@@ -188,7 +199,8 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
                 ? ` · ${s.unmatched.length} ${def.extraInto ? 'kept on the row' : 'ignored'}`
                 : ''}
             </button>
-            <button className="btn btn-primary btn-sm" disabled={!!busy || !s.rows.length} onClick={() => void write()}>
+            <button className="btn btn-primary btn-sm" disabled={!!busy || !s.rows.length || !!missing}
+              title={missing ? `Choose the ${missing} first` : undefined} onClick={() => void write()}>
               ⤵ Upload {s.rows.length}
             </button>
           </>
@@ -196,6 +208,27 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
         {busy && <span className="muted">{busy}</span>}
       </div>
 
+      {def.asks && (
+        <div className="row" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 6 }}>
+          {def.asks.map((a) => (
+            <label key={a.to} className="rep-field" style={{ minWidth: 180 }} title={a.hint}>
+              <span className="field-label">{a.label}{(typeof a.required === 'function' ? a.required(answers) : a.required) ? ' *' : ''}</span>
+              {a.type === 'select' ? (
+                <SelectPicker value={answers[a.to] ?? ''} disabled={!!busy} placeholder="— choose —"
+                  options={a.options ?? []} onChange={(v) => setAnswers((x) => ({ ...x, [a.to]: v }))} />
+              ) : (
+                <input className="input" inputMode="numeric" maxLength={4} placeholder="e.g. 2023" value={answers[a.to] ?? ''} disabled={!!busy}
+                  onChange={(e) => setAnswers((x) => ({ ...x, [a.to]: e.target.value.replace(/\D/g, '') }))} />
+              )}
+            </label>
+          ))}
+          {def.asks.some((a) => a.hint) && (
+            <span className="muted" style={{ fontSize: 12, flex: 1, minWidth: 240 }}>
+              {def.asks.filter((a) => a.hint).map((a) => `${a.label}: ${a.hint}`).join(' ')}
+            </span>
+          )}
+        </div>
+      )}
       {def.note && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{def.note}</div>}
       {def.requires && <div className="muted" style={{ fontSize: 12 }}>Load <b>{def.requires}</b> first — these rows point at it.</div>}
       {!def.conflict && (

@@ -523,7 +523,7 @@ const mr = shapeUpload(def('material_returns'), [
 eq('the real return loads', mr.rows.length, 1);
 eq('the empty one is held back by name', mr.skipped[0].why, 'nothing returned — good and defective are both zero');
 
-// D-071 (0439, the user's decision 2026-10-12: "Overwrite with the file"): the
+// D-071 (0455, the user's decision 2026-10-12: "Overwrite with the file"): the
 // MRN Register and Stock Transfer Lines are keyed, and a file with no row
 // numbers is numbered in file order within its parent -- the numbers the
 // database gave the first load -- so the same file lands on the same rows.
@@ -624,7 +624,7 @@ console.log('\n-- a column the register was told it does not want --');
 // 32 since the Product Master (the catalogue of product LINES) joined the
 // Product Database (the machines) — the two are different registers and this
 // number is what catches one being added without a test beside it.
-eq('registers defined', UPLOADS.length, 36);  // + DCCR Register -- historical, with its calls (0395)  // + Installation Warranty Start (0332)  // + QMS Master List (0265), Technical / Service Notes (0272)
+eq('registers defined', UPLOADS.length, 37);  // + Call History, calls before RITHI (0429)  // + DCCR Register -- historical, with its calls (0395)  // + Installation Warranty Start (0332)  // + QMS Master List (0265), Technical / Service Notes (0272)
 
 console.log('\n-- the Part Master upload fills the HSN code (0309) --');
 {

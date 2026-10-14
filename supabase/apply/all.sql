@@ -99,12 +99,12 @@
 --   0374_indoor_new_device_kind.sql
 --   0377_pre_delivery_qc.sql
 --   0378_pdqc_number.sql
---   0438_indoor_approval_skips_a_solved_call.sql
+--   0454_indoor_approval_skips_a_solved_call.sql
 --   0363_indoor_pdt_lock_dispatch_and_cleaning.sql
 --   0367_indoor_dc_approver_is_the_login.sql
---   0424_indoor_record_visit_closed_and_comments.sql
---   0432_indoor_reported_to_customer_stamp.sql
---   0434_indoor_parts_accessories_checks_voided.sql
+--   0440_indoor_record_visit_closed_and_comments.sql
+--   0448_indoor_reported_to_customer_stamp.sql
+--   0450_indoor_parts_accessories_checks_voided.sql
 --   0355_spare_recycling.sql
 --   0365_spare_recycling_start_sla_mrn.sql
 --   0376_spare_recycling_delete.sql
@@ -129,7 +129,7 @@
 --   0326_party_country.sql
 --   0366_masters_required_kyc_and_line_names.sql
 --   0371_master_list_delete_key.sql
---   0429_master_value_in_use_kept.sql
+--   0445_master_value_in_use_kept.sql
 --   0070_documents.sql
 --   0265_qms_document_key.sql
 --   0272_service_note_upload_key.sql
@@ -139,7 +139,7 @@
 --   0368_qms_revision_is_a_new_entry.sql
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
---   0425_user_master_keeps_history.sql
+--   0441_user_master_keeps_history.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -169,6 +169,9 @@
 --   0126_call_allot_permission.sql
 --   0127_call_edit_sections.sql
 --   0226_cancelled_is_not_report_pending.sql
+--   0434_cancelled_call_reads_cancelled.sql
+--   0435_call_dates_from_request.sql
+--   0439_cancel_calls_from_old_system.sql
 --   0242_cancel_calls_in_one_go.sql
 --   0232_call_request_edit.sql
 --   0260_rename_passes_the_request_freeze.sql
@@ -177,9 +180,9 @@
 --   0341_call_actions_need_sight_of_the_call.sql
 --   0386_pm_dates_are_registration.sql
 --   0406_install_call_registers_requests.sql
---   0433_field_call_vigilance_answered.sql
---   0428_call_request_attended_not_future.sql
---   0431_call_reopen_reason_recorded.sql
+--   0449_field_call_vigilance_answered.sql
+--   0444_call_request_attended_not_future.sql
+--   0447_call_reopen_reason_recorded.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -213,15 +216,19 @@
 --   0342_review_needs_a_call_you_can_see.sql
 --   0353_review_summary_carries_the_searched_columns.sql
 --   0395_dccr_history_import.sql
+--   0429_call_history.sql
+--   0430_dccr_history_into_call_history.sql
+--   0432_call_history_sources.sql
 --   0397_pm_spare_dccr.sql
 --   0398_dccr_junk_rows.sql
 --   0399_pm_spare_dccr_rerun.sql
 --   0400_pm_spare_blank_review.sql
---   0436_review_answers_read_key.sql
---   0427_ffr_customer_and_problem_required.sql
+--   0452_review_answers_read_key.sql
+--   0443_ffr_customer_and_problem_required.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
+--   0436_visit_date_from_breakdown.sql
 --   0224_solved_without_a_report.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
@@ -307,7 +314,7 @@
 --   0373_stock_movement_dates.sql
 --   0375_stock_transfer_own_or_team.sql
 --   0392_save_records_whole.sql
---   0439_stock_loads_overwrite_on_reload.sql
+--   0455_stock_loads_overwrite_on_reload.sql
 --   0385_stores_dispatch_report.sql
 --   0387_stores_dispatch_2025_history.sql
 --   0388_stores_dispatch_2026_history.sql
@@ -321,6 +328,7 @@
 --   0419_delete_so16233_ky732930.sql
 --   0420_drop_or44271_ky550200.sql
 --   0421_delete_voided_ky550200_consumption.sql
+--   0426_stock_record_files.sql
 --   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
@@ -362,9 +370,10 @@
 --   0403_pm_due_install_and_customer.sql
 --   0404_pm_due_no_install_call_allowed.sql
 --   0407_pm_schedule.sql
---   0435_pm_calls_in_month.sql
---   0440_cover_normalise_says_first.sql
+--   0451_pm_calls_in_month.sql
+--   0456_cover_normalise_says_first.sql
 --   0044_sla_rules.sql
+--   0427_sla_rule_named.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
 --   0301_knowledge_base_needs_a_profile.sql
@@ -402,7 +411,10 @@
 --   0418_missed_pm_left_out.sql
 --   0422_feedback_satisfaction_objective.sql
 --   0423_objective_dates_in_india_time.sql
---   0437_objective_with_figures_kept.sql
+--   0428_objective_total_calculated.sql
+--   0431_failure_rate_reads_dccr_history.sql
+--   0438_objective_attended_from_breakdown.sql
+--   0453_objective_with_figures_kept.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -410,8 +422,8 @@
 --   0225_record_audit_on.sql
 --   0246_record_audit_description.sql
 --   0314_record_audit_on_movements_and_training.sql
---   0426_record_audit_on_configuration_objectives_indoor.sql
---   0430_cover_registers_imaged.sql
+--   0442_record_audit_on_configuration_objectives_indoor.sql
+--   0446_cover_registers_imaged.sql
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
@@ -445,6 +457,10 @@
 --   0191_call_and_feedback_reports.sql
 --   0254_spare_insights_ist_window.sql
 --   0417_spare_insights_planned_with_dates.sql
+--   0424_call_dates.sql
+--   0425_kpi_export_india_dates.sql
+--   0433_call_pending_reason.sql
+--   0437_kpi_counts_from_breakdown.sql
 --   0218_product_database_v2.sql
 --   0220_product_database_2_is_materialised.sql
 --   0221_product_database_2_needs_no_gate.sql
@@ -5098,7 +5114,7 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
   ('masters.product_master.delete', 'masters.edit'),
-  -- D-129 (0436, 2026-10-05): an editor of the review reads its answers.
+  -- D-129 (0452, 2026-10-05): an editor of the review reads its answers.
   ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
@@ -11516,11 +11532,11 @@ create trigger zy_pdqc_number before insert or update on public.pdqc_records
 alter table public.pdqc_records alter column pdqc_no set not null;
 
 -- ------------------------------------------------------------------------
--- 0438_indoor_approval_skips_a_solved_call.sql
+-- 0454_indoor_approval_skips_a_solved_call.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0438 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
+-- 0454 — APPROVING AN INDOOR DC DOES NOT PUT A SOLVED CALL BACK TO UNSOLVED
 --        (second re-review D-145; the user's decision, 2026-10-04)
 --
 -- approve_indoor_dc files each unit's drafted visit as Unsolved / Return to
@@ -11730,7 +11746,7 @@ end $function$;
 -- It is named to run AFTER zz_indoor_jobs_guard and zz_indoor_jobs_stamp
 -- (zzy_ sorts between them and zzz_sys_stamp), so its stamps are the last word.
 -- A connection with no session (a repair, an import) is not stopped.
--- In the indoor module, after 0438.
+-- In the indoor module, after 0454.
 -- ===========================================================================
 
 -- ---- D-111 ------------------------------------------------------------------
@@ -11919,11 +11935,11 @@ revoke execute on function public.indoor_dc_may_approve(text) from anon;
 grant execute on function public.indoor_dc_may_approve(text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0424_indoor_record_visit_closed_and_comments.sql
+-- 0440_indoor_record_visit_closed_and_comments.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0424 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
+-- 0440 — record_indoor_visit() IS NOT A SIGNED-IN USER'S, AND THE INDOOR VISIT
 --        COLUMNS SAY WHEN THE VISIT IS ACTUALLY FILED
 --        (second re-review D-108, D-116)
 --
@@ -11953,11 +11969,11 @@ comment on column public.indoor_jobs.visit_filed_at is
   'When the drafted visit was filed in full -- the visit, its spares and its feedback -- by the DC''s approval (0327). create_indoor_dc() does not ask for it; approve_indoor_dc() files it.';
 
 -- ------------------------------------------------------------------------
--- 0432_indoor_reported_to_customer_stamp.sql
+-- 0448_indoor_reported_to_customer_stamp.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0432 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+-- 0448 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
 --        (second re-review D-039, FRS-143.9)
 --
 -- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
@@ -11968,7 +11984,7 @@ comment on column public.indoor_jobs.visit_filed_at is
 --   * a time in the future is refused (five minutes' grace for a clock);
 --   * clearing the time clears the person.
 -- A connection with no session (a repair, an import) is left alone.
--- In the indoor module, after 0424.
+-- In the indoor module, after 0440.
 -- ===========================================================================
 
 create or replace function public.indoor_reported_to_customer_stamp()
@@ -11996,16 +12012,16 @@ create trigger zzy_indoor_reported_to_customer
   for each row execute function public.indoor_reported_to_customer_stamp();
 
 -- ------------------------------------------------------------------------
--- 0434_indoor_parts_accessories_checks_voided.sql
+-- 0450_indoor_parts_accessories_checks_voided.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0434 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
+-- 0450 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
 --        (second re-review D-039, FRS-143.8)
 --
 -- The parts, accessories and checks under an indoor job were FOR ALL policies
 -- with DELETE granted (0158), and the screen offered Remove on each, so a
--- harvested part or a recorded check verdict could be erased. 0426 images the
+-- harvested part or a recorded check verdict could be erased. 0442 images the
 -- delete; FRS-143.8 asks for more: they "shall not be deletable through the
 -- application; an entry made in error shall be marked void with the reason,
 -- the person and the time retained".
@@ -12223,7 +12239,7 @@ begin
     for a in
       select * from public.indoor_job_accessories
        where job_id = j.id and (btrim(name) <> '' or btrim(serial) <> '')
-         and voided_at is null   -- 0434 (D-039): a voided accessory does not travel
+         and voided_at is null   -- 0450 (D-039): a voided accessory does not travel
        order by id
     loop
       v_line := v_line + 1;
@@ -15631,11 +15647,11 @@ create policy masters_delete on public.masters for delete
              or public.has_perm('master.' || coalesce(name, '') || '.delete'));
 
 -- ------------------------------------------------------------------------
--- 0429_master_value_in_use_kept.sql
+-- 0445_master_value_in_use_kept.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0429 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
+-- 0445 — A VALUE THAT RECORDS CARRY IS DEACTIVATED, NOT DELETED
 --        (second re-review D-056, FRS-015, FRS-180.6)
 --
 -- Master Lists offered Delete to a holder of master.<list>.delete, and
@@ -16766,11 +16782,11 @@ AS $function$
 $function$;
 
 -- ------------------------------------------------------------------------
--- 0425_user_master_keeps_history.sql
+-- 0441_user_master_keeps_history.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0425 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+-- 0441 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
 --        (second re-review D-059)
 --
 -- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
@@ -19990,6 +20006,229 @@ begin
 end $conv$;
 
 -- ------------------------------------------------------------------------
+-- 0434_cancelled_call_reads_cancelled.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0434 -- A CANCELLED CALL'S STATUS READS "CANCELLED" (the user, 2026-10-14:
+-- "these calls are Cancelled I believe, but the Status is still showing as
+-- UnSolved. If a Call is Cancelled, then the Status should also State
+-- 'Cancelled'").
+--
+-- Measured on the live project the same day: 26H07F0010, 26H07F0011 and
+-- 26H31F0009 were cancelled on 18-Sep-2026 (cancel_call(), 0108) and read
+-- open_state = 'Unsolved'. open_state is stamped by call_open_state_t (0226)
+-- from the LATEST VISIT'S status alone, and cancelling a call through the app
+-- writes cancelled_at / cancel_reason without touching the visits -- so the
+-- column only said Cancelled when a visit's own text did (the AppSheet
+-- "Canceled"), never for a call cancelled here.
+--
+-- NOW: a call with cancelled_at set reads 'Cancelled', whatever its visits
+-- say. Restoring it (restore_call() clears cancelled_at) puts back the state
+-- its visits give, because the same trigger runs on that update. Nothing else
+-- changes: call_open_state() keeps its two arguments and its answers (the
+-- client's stateBucket() is compared with it), and the visits are untouched.
+--
+-- Every screen and report reading open_state -- the call report, the DCCR,
+-- Product Failure Analysis, Solved without a Report -- therefore says
+-- Cancelled for these calls too, which is the rule as the user stated it.
+-- ===========================================================================
+
+create or replace function public.call_open_state_stamp()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  -- Whatever the caller sent is discarded. This is a derived value. A call
+  -- cancelled in RITHI (0108) is Cancelled first; otherwise its latest visit
+  -- decides (0226).
+  new.open_state := case when new.cancelled_at is not null then 'Cancelled'
+                         else public.call_open_state(new.last_status, new.last_visit_at) end;
+  return new;
+end $$;
+revoke execute on function public.call_open_state_stamp() from public, anon, authenticated;
+
+-- Restate the calls already cancelled. The trigger above writes the value;
+-- `set open_state = open_state` only makes it run.
+do $restate$
+declare t text; n bigint; total bigint := 0;
+begin
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls'] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format('update public.%I set open_state = open_state '
+                   'where cancelled_at is not null and open_state is distinct from %L', t, 'Cancelled');
+    get diagnostics n = row_count;
+    total := total + n;
+  end loop;
+  raise notice '0434: % cancelled call(s) now read Cancelled.', total;
+end $restate$;
+
+-- ------------------------------------------------------------------------
+-- 0435_call_dates_from_request.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0435 -- A CALL REGISTERED FROM A REQUEST: COMPLAINT DATE = THE DAY THE
+-- REQUEST WAS RAISED, BREAKDOWN DATE = THE DAY IT WAS ATTENDED (the user,
+-- 2026-10-14: "Complaint Date should capture the Registration Request Date.
+-- Break Down date should capture the Attended Date from the Registration
+-- Request"; asked, existing calls corrected too).
+--
+-- Until now both took ONE day: the attended date where the request said it
+-- was attended, else the day it was raised (callDateFromRequest(), 2026-09-05).
+-- Pending Registrations fills the two apart from v0.10.191; this restates the
+-- calls already registered, by the same rule:
+--
+--   complaint_date  the request's submitted_at, as an India date;
+--   breakdown_date  its attended_date where the request says it was attended
+--                   (call_attended Yes), else that same raised day -- the
+--                   client's rule, word for word, so a call registered today
+--                   and one corrected here agree.
+--
+-- ONLY A CALL WITH EXACTLY ONE REQUEST. Measured on the live project the same
+-- day: 4,596 calls are linked to a request, and 150 of them to more than one.
+-- Which request's dates belong to such a call is not something to guess, so
+-- they are left exactly as they are; supabase/apply/_calls_with_several_
+-- requests.sql lists them, each request with its dates.
+--
+-- Written as the table owner with no signed-in user, so the edit-section guard
+-- lets it through and the audit records it as one bulk event per table.
+-- ===========================================================================
+
+do $restate$
+declare t text; n bigint; total_c bigint := 0;
+begin
+  if to_regclass('public.call_requests') is null then return; end if;
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls'] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format($q$
+      with one as (
+        select r.ucn,
+               (r.submitted_at at time zone 'Asia/Kolkata')::date as raised,
+               case when lower(btrim(coalesce(r.call_attended, ''))) in ('y', 'yes', 'true', '1', 'attended')
+                         and r.attended_date is not null
+                    then r.attended_date end as attended
+          from public.call_requests r
+         where coalesce(btrim(r.ucn), '') <> ''
+           and r.submitted_at is not null
+           and (select count(*) from public.call_requests r2 where r2.ucn = r.ucn) = 1
+      )
+      update public.%I c
+         set complaint_date = one.raised,
+             breakdown_date = coalesce(one.attended, one.raised)
+        from one
+       where one.ucn = c.ucn
+         and (c.complaint_date is distinct from one.raised
+              or c.breakdown_date is distinct from coalesce(one.attended, one.raised))
+      $q$, t);
+    get diagnostics n = row_count;
+    total_c := total_c + n;
+  end loop;
+  raise notice '0435: % call(s) restated from their request; calls linked to several requests are left as they were.', total_c;
+end $restate$;
+
+-- ------------------------------------------------------------------------
+-- 0439_cancel_calls_from_old_system.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0439 -- THE CALLS CANCELLED IN THE OLD SYSTEM, CANCELLED HERE (the user,
+-- 2026-10-14: "Previously cancelled calls now moved to unsolved" ... "I have a
+-- file of the cancelled calls -- upload it", Canceled_Calls.csv).
+--
+-- The file is the old system's record of each cancellation: a visit entry
+-- with Call Status "Canceled" (39 rows, 38 calls; 26E07F0010 twice). None of
+-- those entries is in RITHI's visits, so nothing here said the calls were
+-- cancelled and they read Unattended, Unsolved or Solved. Settled with the
+-- user the same day:
+--
+--   cancelled_at   the entry's Visit Entry Date (when it was entered), IST;
+--   cancel_reason  its "Reason for cancelation";
+--   cancelled by   its Email-ID -- kept as text in extra.cancelled_by_name,
+--                  and as cancelled_by where that address is a RITHI login;
+--   a call that now reads Solved or Report pending is cancelled too, its
+--                  visits and spares kept ("Cancel it, keep the visits").
+--
+-- LEFT AS THEY ARE: a call already cancelled in RITHI (its own reason and
+-- date stand), and a call not in the live register -- the three 2025 calls
+-- are in Call History, which carries no workflow (0429). Where a call is in
+-- the file twice, its EARLIER entry is the cancellation.
+--
+-- Measured on the live project before writing: 21 to cancel (13 Unattended,
+-- 5 Unsolved, 3 Solved), 14 already cancelled, 3 in Call History.
+-- open_state follows by call_open_state_stamp() (0434). Restorable one by one
+-- with Restore call, like any cancellation.
+-- ===========================================================================
+
+do $load$
+declare n bigint; total bigint := 0; t text; v_held bigint; v_already bigint;
+begin
+  create temporary table _cancelled_file (ucn text, entry_uid text, call_number text, entered_at timestamptz, reason text, email text) on commit drop;
+  insert into _cancelled_file values
+  ('25L29F0008', 'H-926344b1', 'R15736-MONNAL T60-212', timestamptz '2026-01-19 18:15:59+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26A22F0004', 'H-88cf8fc4', 'R16094-ORION-G-1439', timestamptz '2026-01-27 11:28:16+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26B04F0005', 'H-94bcc800', 'R16217-ORION-G-105', timestamptz '2026-02-04 16:10:23+05:30', 'Wrong supply', 'airliquide.customercare2022@gmail.com'),
+  ('26B03F0031', 'H-0e7dabbe', 'R16215-ORION-G-106', timestamptz '2026-02-04 16:11:22+05:30', 'Wrong supply', 'airliquide.customercare2022@gmail.com'),
+  ('26B04F0024', 'H-0375f8e4', 'R16234-ORION-G-2142', timestamptz '2026-02-05 12:29:24+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('25L30F0014', 'H-8123663b', 'R15765-EXTEND-XT-XT 2986', timestamptz '2026-02-05 17:20:54+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('25L22F0033', 'H-d44582e7', 'CL2302883-CPX CARE-1034', timestamptz '2026-02-05 17:48:57+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26A08F0002', 'H-627632f8', 'R15920-MONNAL T60-19616', timestamptz '2026-02-09 12:25:52+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26A05F0001', 'H-3ccb7626', 'CL2303084-ORION-G-842', timestamptz '2026-02-11 14:34:37+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26B03F0017', 'H-ab332f2a', 'CL2300579-EXTEND-XT-XT 2884', timestamptz '2026-02-16 16:05:08+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26B13F0012', 'H-ee2bf99e', 'CL2300745-EXTEND-XT-XT 2884', timestamptz '2026-02-16 16:05:18+05:30', 'Wrong sl.no. entered', 'airliquide.customercare2022@gmail.com'),
+  ('26B03F0032', 'H-f8434031', 'R16216-VEGA-155', timestamptz '2026-02-16 18:13:48+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0020', 'H-ca7c6c6e', 'R16167-CPX CARE-1767', timestamptz '2026-02-19 10:55:53+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0004', 'H-ac65988d', 'R16167-CPX CARE-1769', timestamptz '2026-02-19 10:56:12+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0006', 'H-ced8cb85', 'R16167-CPX CARE-1770', timestamptz '2026-02-19 10:56:24+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0008', 'H-910dd5d2', 'R16168-CPX CARE-1772', timestamptz '2026-02-19 10:56:34+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0005', 'H-2b1a98dd', 'R16167-CPX CARE-1775', timestamptz '2026-02-19 10:57:04+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26A30F0007', 'H-9894a085', 'R16167-CPX CARE-1776', timestamptz '2026-02-19 10:57:38+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26B02F0008', 'H-d78bebdd', 'CL2300555-EXTEND-XT-INXT 0104', timestamptz '2026-03-02 18:05:55+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26A28F0008', 'H-3792e74b', 'R16140-VEGA-201', timestamptz '2026-03-10 16:14:23+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26B10F0016', 'H-5be280f2', 'R16286-EXTEND-XT-3', timestamptz '2026-03-17 11:49:41+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26C26I0001', 'H-e0226aa7', 'WI-MONNAL T60-20133', timestamptz '2026-03-19 11:49:46+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26C17F0011', 'H-3bf9cb06', 'CL2301288-VEGA-253', timestamptz '2026-03-20 14:38:32+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26C30F0010', 'H-acf05da5', 'CL2301552-ORION-1880', timestamptz '2026-03-30 18:27:13+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26A19F0044', 'H-9875997c', 'R16015-ORION-G-263', timestamptz '2026-04-02 15:23:12+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26D07F0016', 'H-0f6d2e26', 'R16946-ORION-G-2000', timestamptz '2026-04-08 16:53:29+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26C18F0010', 'H-efdbb2ac', 'R16742-MONNAL T75-10897', timestamptz '2026-04-10 16:34:08+05:30', 'ALTERNATE SERVICE', 'airliquide.customercare2022@gmail.com'),
+  ('26D08F0004', 'H-8b66cfd4', 'R16951-MONNAL T75-5075', timestamptz '2026-04-24 12:53:37+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E12F0024', 'H-94b4ab94', 'R17291-VEGA-81', timestamptz '2026-05-14 10:02:57+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com'),
+  ('26B16F0030', 'H-6afba427', 'R16347-EXTEND-XT-INXT 1041', timestamptz '2026-05-15 15:19:06+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26C10F0002', 'H-fb3da293', 'R16645-MONNAL T60-7133', timestamptz '2026-05-15 15:19:59+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26D10F0016', 'H-20fdfa4d', 'R16978-EXTEND-XT-XT 2837', timestamptz '2026-05-15 15:20:51+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E07F0010', 'H-d6d7b6ec', 'R17247-EXTEND-XT-XT 2851', timestamptz '2026-05-15 15:22:15+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E07F0012', 'H-ff247dc7', 'R17249-EXTEND-XT-INXT 0419', timestamptz '2026-05-15 15:22:26+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26E07F0010', 'H-3f35a61d', 'R17247-EXTEND-XT-XT 2851', timestamptz '2026-05-15 15:22:48+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26C18F0070', 'H-0b5039a8', 'R16747-EXTEND-XT-INXT 0519', timestamptz '2026-05-25 14:20:28+05:30', 'CUSTOMER NOT APPROVED THE ESTIMATE', 'airliquide.customercare2022@gmail.com'),
+  ('26F01F0007', 'H-02a41594', 'R17504-ORION-G-936', timestamptz '2026-06-09 14:35:33+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26F01F0008', 'H-36113ca4', 'R17504-ORION-G-964', timestamptz '2026-06-09 14:37:06+05:30', 'Repeated Calls-Software Issue', 'airliquide.customercare2022@gmail.com'),
+  ('26G08F0031', 'H-f30b1087', 'CL2303045-MONNAL T75-', timestamptz '2026-08-25 15:10:15+05:30', 'WRONG CALL REGISTRATION', 'airliquide.customercare2022@gmail.com')
+;
+  select count(distinct f.ucn) into v_held from _cancelled_file f where not exists (select 1 from public.calls c where c.ucn = f.ucn);
+  select count(distinct f.ucn) into v_already from _cancelled_file f join public.calls c on c.ucn = f.ucn where c.cancelled_at is not null;
+
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls'] loop
+    execute format($q$
+      with first_entry as (
+        select distinct on (ucn) ucn, entered_at, reason, email
+          from _cancelled_file order by ucn, entered_at, entry_uid
+      )
+      update public.%I c
+         set cancelled_at  = e.entered_at,
+             cancel_reason = e.reason,
+             cancelled_by  = (select p.id from public.profiles p where lower(p.email) = lower(e.email) limit 1),
+             extra         = coalesce(c.extra, '{}'::jsonb)
+                             || jsonb_build_object('cancelled_by_name', e.email,
+                                                   'cancelled_from', 'Canceled_Calls.csv (old system), loaded 2026-10-14')
+        from first_entry e
+       where e.ucn = c.ucn and c.cancelled_at is null
+      $q$, t);
+    get diagnostics n = row_count;
+    total := total + n;
+  end loop;
+  raise notice '0439: % call(s) cancelled from the file; % already cancelled in RITHI, left as they were; % not in the live register (Call History), left.', total, v_already, v_held;
+end $load$;
+
+-- ------------------------------------------------------------------------
 -- 0242_cancel_calls_in_one_go.sql
 -- ------------------------------------------------------------------------
 
@@ -20931,11 +21170,11 @@ begin
 end $once$;
 
 -- ------------------------------------------------------------------------
--- 0433_field_call_vigilance_answered.sql
+-- 0449_field_call_vigilance_answered.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0433 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
+-- 0449 — A FIELD CALL IS REGISTERED WITH ITS THREE VIGILANCE QUESTIONS ANSWERED
 --        (second re-review D-033; the user's decision, 2026-10-05)
 --
 -- Public Health Threat?, Death? and Serious Incident? carried defaultValue 'NO'
@@ -20987,11 +21226,11 @@ create trigger field_call_vigilance_answered
   for each row execute function public.field_call_vigilance_answered();
 
 -- ------------------------------------------------------------------------
--- 0428_call_request_attended_not_future.sql
+-- 0444_call_request_attended_not_future.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0428 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
+-- 0444 — A CALL REQUEST'S ATTENDED DATE IS NOT IN THE FUTURE
 --        (second re-review D-030, part 3)
 --
 -- The Attended Date on Request Registration had no upper bound, and it becomes
@@ -21028,11 +21267,11 @@ create trigger call_request_attended_not_future
   for each row execute function public.call_request_attended_not_future();
 
 -- ------------------------------------------------------------------------
--- 0431_call_reopen_reason_recorded.sql
+-- 0447_call_reopen_reason_recorded.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0431 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
+-- 0447 — A RE-OPEN RECORDS ITS REASON, ITS PERSON AND ITS TIME
 --        (second re-review D-035, FRS-133.4, FRS-120.9)
 --
 -- reopen_call(p_ucn, p_reason) accepted a reason and wrote only reopened_at and
@@ -21093,7 +21332,7 @@ begin
   if public.call_visible_to_me(p_ucn) is false then
     raise exception 'Call % is not one of yours to change', p_ucn using errcode = '42501';
   end if;
-  -- 0431 (D-035, FRS-120.9): a re-open says why.
+  -- 0447 (D-035, FRS-120.9): a re-open says why.
   if btrim(coalesce(p_reason, '')) = '' then
     raise exception 'Give the reason for re-opening call %', p_ucn using errcode = '23514';
   end if;
@@ -21108,7 +21347,7 @@ begin
      set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
    where ucn = p_ucn;
 
-  -- 0431 (D-035, FRS-133.4): the reason, the person and the time, kept.
+  -- 0447 (D-035, FRS-133.4): the reason, the person and the time, kept.
   insert into public.call_reopens (ucn, reopened_at, reopened_by, reopened_by_name, reason, created_by)
   values (p_ucn, now(), auth.uid(), coalesce(public.my_display_name(), auth.email(), ''), btrim(p_reason), auth.uid());
 
@@ -27383,6 +27622,452 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0429_call_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0429 -- CALL HISTORY: THE CALLS BEFORE RITHI, KEPT APART (the user,
+-- 2026-10-13: "I want to upload calls from 2017 -- It should not trigger DCCR
+-- or FFR or Anything -- it is just a Historical data. Only Calls" ... "Just
+-- store these outside the Main Loop of Calls or Spares. So the Call Status,
+-- Visit, Report can take from the file directly. Anything till 2025 is
+-- Historical Data. For Calls, Never load them into the Regular Workflow. Store
+-- it separately as historical data and dont add any workflow to these no
+-- upstream or Down stream").
+--
+-- A TABLE OF ITS OWN, AND NOTHING ELSE. Not field_calls / installation_calls /
+-- pm_calls, not `reports`, not `call_reviews`: so no UCN or call number is
+-- minted, no visit is filed, no call status is derived, no DCCR row appears,
+-- no FFR is raised, no notification is sent, no installation request is
+-- matched and no Product Database figure moves. NO TRIGGER here does anything
+-- but say who loaded the row. The call's status, its solved date and every
+-- other detail are THE FILE'S, as written -- Item Status and Contract Type
+-- included, not turned into WGP / CMC.
+--
+-- ONE ROW PER CALL, keyed by UC Number + Call No. The 2018-2022 file reuses 17
+-- UC Numbers for two different calls each (e.g. 21E28014: a PM visit on
+-- 28-May-2021 and a Field call on 08-Dec-2021), and every one of its 65,407
+-- Call Nos is distinct -- so both calls of a pair are kept, under the UC Number
+-- the file gives them, and re-loading a file corrects rather than duplicates.
+-- A later file without a Call No is still keyed, by its UC Number.
+--
+-- Every heading the register does not name is kept on the row (`extra`), so a
+-- year whose file carries visit or report columns keeps them, from the file.
+--
+-- READ like a call: whoever may read calls (calls.view) and sees every call,
+-- or the engineer on it and their managers; a row with no engineer, like an
+-- unallotted call, by every reader. WRITTEN only by Bulk Uploads (bulk.upload).
+-- Nothing reads it but the screens that show it: it is history, not input.
+-- ===========================================================================
+
+create table if not exists public.call_history (
+  id                 bigserial primary key,
+  ucn                text not null check (btrim(ucn) <> ''),
+  call_no            text not null default '',
+  call_at            timestamptz,
+  call_type          text not null default '',
+  party_name         text not null default '',
+  state              text not null default '',
+  city               text not null default '',
+  engineer           text not null default '',
+  item_code          text not null default '',
+  item_name          text not null default '',
+  serial             text not null default '',
+  standard_complaint text not null default '',
+  complaint_reported text not null default '',
+  item_status        text not null default '',
+  warranty_start     date,
+  contract_type      text not null default '',
+  call_status        text not null default '',
+  solved_at          timestamptz,
+  extra              jsonb not null default '{}'::jsonb,
+  loaded_at          timestamptz not null default now(),
+  loaded_by          uuid
+);
+create unique index if not exists call_history_key on public.call_history (ucn, call_no);
+create index if not exists call_history_serial_idx on public.call_history (serial);
+create index if not exists call_history_call_at_idx on public.call_history (call_at);
+
+comment on table public.call_history is
+  'Calls before RITHI (up to 2025), kept apart from every workflow (0429): one row per UC Number + Call No, as the historical file has them. No visit, review, FFR, notification or Product Database change follows from a row; status and solved date are the file''s.';
+
+-- WHO LOADED IT AND WHEN -- the only thing a trigger does here.
+create or replace function public.call_history_stamp()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.ucn := btrim(new.ucn);
+  new.call_no := btrim(coalesce(new.call_no, ''));
+  new.loaded_at := now();
+  new.loaded_by := auth.uid();
+  return new;
+end $$;
+revoke execute on function public.call_history_stamp() from public, anon, authenticated;
+drop trigger if exists call_history_stamp on public.call_history;
+create trigger call_history_stamp before insert or update on public.call_history
+  for each row execute function public.call_history_stamp();
+
+alter table public.call_history enable row level security;
+drop policy if exists ch_read on public.call_history;
+create policy ch_read on public.call_history for select using (
+  (select public.has_perm('calls.view'))
+  and ((select public.can_view_all_calls())
+       or btrim(engineer) = ''
+       or lower(btrim(engineer)) in (select lower(btrim(v.n)) from public.visible_engineer_names() v(n)))
+);
+drop policy if exists ch_insert on public.call_history;
+create policy ch_insert on public.call_history for insert with check ((select public.has_perm('bulk.upload')));
+drop policy if exists ch_update on public.call_history;
+create policy ch_update on public.call_history for update
+  using ((select public.has_perm('bulk.upload'))) with check ((select public.has_perm('bulk.upload')));
+
+-- Said, not left to defaults: no delete for a signed-in user, nothing at all
+-- for the public key.
+revoke all on public.call_history from anon, authenticated;
+grant select, insert, update on public.call_history to authenticated;
+revoke all on sequence public.call_history_id_seq from anon;
+grant usage on sequence public.call_history_id_seq to authenticated;
+
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.call_history'::regclass);
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0430_dccr_history_into_call_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0430 -- THE 2025 DCCR-HISTORY CALLS MOVE TO CALL HISTORY (the user,
+-- 2026-10-13: "Move the 2025 calls to Call History too", choosing "Move them,
+-- but keep the failure rates"; the rule since 0429: "Anything till 2025 is
+-- Historical Data. For Calls, Never load them into the Regular Workflow").
+--
+-- 0395 filed each row of an old DCCR register as a call in field_calls /
+-- pm_calls (hidden from the registers), its review, and one visit. From here:
+--
+--   1. THE IMPORT FILES THE CALL INTO call_history, as the file has it -- the
+--      status (CURRENT CALL STATUS, else CALL STATUS) and solved date are the
+--      file's -- keyed by UC Number + Call Number. It files NO VISIT. The
+--      REVIEW is still filed, imported (no FFR), because the Recent Failure
+--      Rate counts a failure through its review (0431). A UC Number that is a
+--      LIVE call is still left alone, its missing review added -- as before.
+--
+--   2. THE CALLS ALREADY FILED MOVE: every field / PM call 0395 created
+--      (extra.imported_from = 'DCCR register (historical)') is copied to
+--      call_history with the file's status and solved date from its import
+--      row, then deleted from the live table, so it leaves the DCCR View,
+--      Product Failure Analysis and every other live list. The deletion runs
+--      as the migration's owner: block_hard_delete stops a signed-in user,
+--      and the copy in call_history is the record.
+--
+-- LEFT ALONE, on purpose: the reviews (call_reviews, still keyed by UC Number
+-- -- the failure rate reads them) and the visits 0395 filed (uid IMP-...),
+-- which the user is to decide about later with the other orphan visits.
+-- ===========================================================================
+
+-- ---- 1. the import from now on -----------------------------------------------
+create or replace function public.dccr_history_apply()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_live    boolean;
+  v_note    text[] := '{}';
+  v_status  text;
+begin
+  new.ucn := btrim(new.ucn);
+  -- A cell the file left empty can arrive as NULL; every text field reads it as blank.
+  new.call_number := coalesce(new.call_number, '');
+  new.party_name := coalesce(new.party_name, '');
+  new.place := coalesce(new.place, '');
+  new.product_name := coalesce(new.product_name, '');
+  new.serial := coalesce(new.serial, '');
+  new.call_type := coalesce(new.call_type, '');
+  new.standard_complaint := coalesce(new.standard_complaint, '');
+  new.complaint_reported := coalesce(new.complaint_reported, '');
+  new.item_status := coalesce(new.item_status, '');
+  new.engineer := coalesce(new.engineer, '');
+  new.call_status := coalesce(new.call_status, '');
+  new.pending_reason := coalesce(new.pending_reason, '');
+  new.current_call_status := coalesce(new.current_call_status, '');
+  new.warranty_number := coalesce(new.warranty_number, '');
+  new.warranty_start_text := coalesce(new.warranty_start_text, '');
+  new.public_health_threat := coalesce(new.public_health_threat, '');
+  new.death := coalesce(new.death, '');
+  new.serious_incident := coalesce(new.serious_incident, '');
+  new.risk_to_patient := coalesce(new.risk_to_patient, '');
+  new.warranty_failure := coalesce(new.warranty_failure, '');
+  new.frequent_failure := coalesce(new.frequent_failure, '');
+  new.service_observation := coalesce(new.service_observation, '');
+  new.complaint_grouping := coalesce(new.complaint_grouping, '');
+  new.root_cause_keyword := coalesce(new.root_cause_keyword, '');
+  new.spare_category := coalesce(new.spare_category, '');
+  new.imported_updated_by := coalesce(new.imported_updated_by, '');
+  new.extra := coalesce(new.extra, '{}'::jsonb);
+
+  if new.ucn = '' then raise exception 'UC Number is required.'; end if;
+  new.loaded_at := now();
+  new.loaded_by := auth.uid();
+
+  -- 1. THE CALL -- into Call History, never a live register (0430).
+  v_live := exists (select 1 from public.field_calls where ucn = new.ucn)
+         or exists (select 1 from public.installation_calls where ucn = new.ucn)
+         or exists (select 1 from public.pm_calls where ucn = new.ucn);
+  if v_live then
+    v_note := array_append(v_note, ('call already in the register -- left as it is')::text);
+  else
+    v_status := coalesce(nullif(btrim(new.current_call_status), ''), btrim(new.call_status));
+    insert into public.call_history (ucn, call_no, call_at, call_type, party_name, city, engineer,
+           item_name, serial, standard_complaint, complaint_reported, item_status, call_status, solved_at, extra)
+    values (new.ucn, new.call_number,
+            (new.call_date::timestamp at time zone 'Asia/Kolkata'),
+            btrim(new.call_type), new.party_name, new.place, new.engineer, new.product_name, new.serial,
+            new.standard_complaint, new.complaint_reported, new.item_status, v_status, new.call_solved_at,
+            new.extra || jsonb_strip_nulls(jsonb_build_object(
+              'imported_from', 'DCCR register (historical)',
+              'complaint_date', new.complaint_date,
+              'call_status_at_review', nullif(btrim(new.call_status), ''),
+              'pending_reason', nullif(btrim(new.pending_reason), ''),
+              'warranty_number', nullif(btrim(new.warranty_number), ''),
+              'warranty_start_in_file', nullif(btrim(new.warranty_start_text), ''),
+              'public_health_threat', nullif(btrim(new.public_health_threat), ''),
+              'death', nullif(btrim(new.death), ''),
+              'serious_incident', nullif(btrim(new.serious_incident), ''))))
+    on conflict (ucn, call_no) do update set
+      call_at = excluded.call_at, call_type = excluded.call_type, party_name = excluded.party_name,
+      city = excluded.city, engineer = excluded.engineer, item_name = excluded.item_name,
+      serial = excluded.serial, standard_complaint = excluded.standard_complaint,
+      complaint_reported = excluded.complaint_reported, item_status = excluded.item_status,
+      call_status = excluded.call_status, solved_at = excluded.solved_at, extra = excluded.extra;
+    v_note := array_append(v_note, ('kept in Call History' || coalesce(': ' || nullif(v_status, ''), ''))::text);
+  end if;
+
+  -- 2. THE REVIEW (imported: reviewers and dates as the file has them, no FFR).
+  -- A live call keeps its own review if it has one: only a missing one is added.
+  if v_live then
+    insert into public.call_reviews (ucn, call_number, imported, imported_updated_by, imported_updated_date,
+           risk_to_patient, warranty_failure, frequent_failure, review2_at,
+           complaint_grouping, root_cause_keyword, spare_category, service_observation, review3_at)
+    values (new.ucn, new.call_number, true, new.imported_updated_by, new.imported_updated_date,
+            new.risk_to_patient, new.warranty_failure, new.frequent_failure, new.review2_at,
+            new.complaint_grouping, new.root_cause_keyword, new.spare_category, new.service_observation, new.review3_at)
+    on conflict (ucn) do nothing;
+  else
+    insert into public.call_reviews (ucn, call_number, imported, imported_updated_by, imported_updated_date,
+           risk_to_patient, warranty_failure, frequent_failure, review2_at,
+           complaint_grouping, root_cause_keyword, spare_category, service_observation, review3_at)
+    values (new.ucn, new.call_number, true, new.imported_updated_by, new.imported_updated_date,
+            new.risk_to_patient, new.warranty_failure, new.frequent_failure, new.review2_at,
+            new.complaint_grouping, new.root_cause_keyword, new.spare_category, new.service_observation, new.review3_at)
+    on conflict (ucn) do update set
+      call_number = excluded.call_number, imported = true,
+      imported_updated_by = excluded.imported_updated_by, imported_updated_date = excluded.imported_updated_date,
+      risk_to_patient = excluded.risk_to_patient, warranty_failure = excluded.warranty_failure,
+      frequent_failure = excluded.frequent_failure, review2_at = excluded.review2_at,
+      complaint_grouping = excluded.complaint_grouping, root_cause_keyword = excluded.root_cause_keyword,
+      spare_category = excluded.spare_category, service_observation = excluded.service_observation,
+      review3_at = excluded.review3_at;
+  end if;
+  v_note := array_append(v_note, ('review filed')::text);
+
+  -- 3. NO VISIT (0430): the status is the file's, kept on the call history row.
+  new.result := array_to_string(v_note, '; ');
+  return new;
+end $$;
+revoke execute on function public.dccr_history_apply() from public, anon, authenticated;
+
+comment on table public.dccr_history_import is
+  'The old DCCR register as loaded (0395), one row per UC Number. Since 0430 a row keeps its call in Call History (call_history) with the file''s status, and its review; no visit, nothing in a live register. `result` says what was kept. A UC Number that is a live call is never overwritten.';
+
+-- ---- 2. the calls 0395 already filed -----------------------------------------
+do $$
+declare v_f integer; v_p integer; v_h integer;
+begin
+  if to_regclass('public.call_history') is null then return; end if;
+
+  insert into public.call_history (ucn, call_no, call_at, call_type, party_name, state, city, engineer,
+         item_name, serial, standard_complaint, complaint_reported, item_status, call_status, solved_at, extra)
+  select c.ucn, coalesce(c.call_number, ''),
+         coalesce(c.reg_at, (c.reg_date::timestamp at time zone 'Asia/Kolkata')),
+         coalesce(nullif(c.extra->>'call_type_in_file', ''), c.call_type, ''),
+         coalesce(c.party_name, ''), coalesce(c.state, ''), coalesce(c.city, ''), coalesce(c.allocated_to, ''),
+         coalesce(c.product_name, ''), coalesce(c.serial, ''), coalesce(c.standard_complaint, ''),
+         coalesce(c.complaint_reported, ''), coalesce(c.item_status, ''),
+         coalesce(nullif(btrim(d.current_call_status), ''), nullif(btrim(d.call_status), ''),
+                  case when c.cancelled_at is not null then 'Canceled' end, c.last_status, ''),
+         d.call_solved_at,
+         coalesce(c.extra, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
+           'complaint_date', c.complaint_date, 'warranty_number', nullif(btrim(coalesce(c.warranty_number, '')), ''),
+           'public_health_threat', nullif(btrim(coalesce(c.public_health_threat, '')), ''),
+           'death', nullif(btrim(coalesce(c.death, '')), ''),
+           'serious_incident', nullif(btrim(coalesce(c.serious_incident, '')), ''),
+           'moved_from', c.tbl, 'moved_by', '0430'))
+    from (select 'field_calls' as tbl, f.ucn, f.call_number, f.reg_at, f.reg_date, f.call_type, f.party_name, f.state, f.city,
+                 f.allocated_to, f.product_name, f.serial, f.standard_complaint, f.complaint_reported, f.item_status,
+                 f.last_status, f.cancelled_at, f.complaint_date, f.warranty_number, f.public_health_threat, f.death,
+                 f.serious_incident, f.extra
+            from public.field_calls f where f.extra->>'imported_from' = 'DCCR register (historical)'
+          union all
+          select 'pm_calls', p.ucn, p.call_number, p.reg_at, p.reg_date, p.call_type, p.party_name, p.state, p.city,
+                 p.allocated_to, p.product_name, p.serial, p.standard_complaint, p.complaint_reported, p.item_status,
+                 p.last_status, p.cancelled_at, p.complaint_date, p.warranty_number, p.public_health_threat, p.death,
+                 p.serious_incident, p.extra
+            from public.pm_calls p where p.extra->>'imported_from' = 'DCCR register (historical)') c
+    left join public.dccr_history_import d on d.ucn = c.ucn
+  on conflict (ucn, call_no) do nothing;
+  get diagnostics v_h = row_count;
+
+  delete from public.field_calls where extra->>'imported_from' = 'DCCR register (historical)'
+     and exists (select 1 from public.call_history h where h.ucn = field_calls.ucn
+                  and h.call_no = coalesce(field_calls.call_number, ''));
+  get diagnostics v_f = row_count;
+  delete from public.pm_calls where extra->>'imported_from' = 'DCCR register (historical)'
+     and exists (select 1 from public.call_history h where h.ucn = pm_calls.ucn
+                  and h.call_no = coalesce(pm_calls.call_number, ''));
+  get diagnostics v_p = row_count;
+
+  -- The import rows say where their call now is. The trigger is held off for
+  -- this one write: it would re-file every row and overwrite the move's note.
+  alter table public.dccr_history_import disable trigger dccr_history_apply;
+  update public.dccr_history_import d set result = 'kept in Call History (moved, 0430); review filed'
+   where exists (select 1 from public.call_history h where h.ucn = d.ucn and h.extra->>'moved_by' = '0430');
+  alter table public.dccr_history_import enable trigger dccr_history_apply;
+
+  raise notice '0430: % calls copied to Call History; % field and % PM calls removed from the live tables', v_h, v_f, v_p;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0432_call_history_sources.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0432 -- CALL HISTORY FROM SEVERAL SYSTEMS: SOURCE, YEAR, DUPLICATES FLAGGED
+-- (the user, 2026-10-13).
+--
+-- The history comes from every system of record: e-service (before WinMax,
+-- calls numbered plainly), WinMax (2017/2018 to 09-Jun-2022, where today's
+-- UC Number format began), the yearly sheets on RITHI v1.0 / AppSheet (from
+-- 10-Jun-2022, where every January the previous years' pending calls were
+-- carried forward as OLD CALLS and their later visit entries pasted into the
+-- next year's sheet), and the DCCR register. So the same call can arrive more
+-- than once. The user's rules:
+--
+--   "UCN + Call No = Unique, if the Unique is still a duplicate then Keep the
+--    latest year record. Flag it as Duplicate for now but dont action upon it
+--    until i explicitly say so" -- and for an Old Call: "Flag it as Duplicate
+--    ... And record it with the Year."
+--
+-- SO every row now says WHERE it came from (`source`: e-service / WinMax /
+-- Yearly sheet / DCCR register ...) and FOR WHICH YEAR (`record_year`: the
+-- yearly sheet's year, else the year of the call itself). When a file brings a
+-- UC No. + Call No. already held FROM ANOTHER SOURCE OR YEAR:
+--
+--   * the row shows the record of the LATER year (a tie goes to the newcomer);
+--   * the other record is NOT lost: it is kept, whole, in `duplicates`, with its
+--     source and year;
+--   * `duplicate` is set -- a FLAG and nothing more: nothing is merged, deleted
+--     or chosen beyond the latest-year rule until the user says so.
+--
+-- Re-loading the SAME source and year is a correction, as before: not a
+-- duplicate.
+-- ===========================================================================
+
+alter table public.call_history add column if not exists source      text not null default '';
+alter table public.call_history add column if not exists record_year integer;
+alter table public.call_history add column if not exists duplicate   boolean not null default false;
+alter table public.call_history add column if not exists duplicates  jsonb not null default '[]'::jsonb;
+
+comment on column public.call_history.source is 'The system of record the row came from: e-service, WinMax, Yearly sheet, DCCR register ... (0432).';
+comment on column public.call_history.record_year is 'The year of the record: a yearly sheet''s year, else the year of the call (0432).';
+comment on column public.call_history.duplicate is 'Flagged when the same UC No. + Call No. arrived from another source or year; the latest year''s record is shown, the others are kept in `duplicates`. A flag only -- nothing is acted on (0432).';
+comment on column public.call_history.duplicates is 'The other records of the same UC No. + Call No., each whole with its source and year (0432).';
+
+-- The calls 0430 moved from the DCCR-history import.
+update public.call_history
+   set source = 'DCCR register',
+       record_year = coalesce(record_year, extract(year from (call_at at time zone 'Asia/Kolkata'))::int)
+ where source = '' and extra->>'imported_from' = 'DCCR register (historical)';
+
+-- The record's year where the file gave none: the year of the call, in India.
+create or replace function public.call_history_year(p_year integer, p_call_at timestamptz)
+returns integer language sql immutable set search_path = public as $$
+  select coalesce(p_year, extract(year from (p_call_at at time zone 'Asia/Kolkata'))::int)
+$$;
+
+-- One record of a call, whole, as `duplicates` keeps it.
+create or replace function public.call_history_record(r public.call_history)
+returns jsonb language sql immutable set search_path = public as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'source', r.source, 'record_year', r.record_year, 'call_at', r.call_at, 'call_type', r.call_type,
+    'party_name', r.party_name, 'state', r.state, 'city', r.city, 'engineer', r.engineer,
+    'item_code', r.item_code, 'item_name', r.item_name, 'serial', r.serial,
+    'standard_complaint', r.standard_complaint, 'complaint_reported', r.complaint_reported,
+    'item_status', r.item_status, 'warranty_start', r.warranty_start, 'contract_type', r.contract_type,
+    'call_status', r.call_status, 'solved_at', r.solved_at, 'extra', r.extra, 'loaded_at', r.loaded_at))
+$$;
+
+create or replace function public.call_history_year_default()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.source := btrim(coalesce(new.source, ''));
+  new.record_year := public.call_history_year(new.record_year, new.call_at);
+  return new;
+end $$;
+revoke execute on function public.call_history_year_default() from public, anon, authenticated;
+drop trigger if exists call_history_year_default on public.call_history;
+create trigger call_history_year_default before insert on public.call_history
+  for each row execute function public.call_history_year_default();
+
+-- THE RULE ON A SECOND RECORD OF THE SAME CALL. Runs on the UPDATE an upsert
+-- makes when the key is already held -- AFTER call_history_stamp (the name
+-- sorts after it), so a record that stays keeps its own load time, and before
+-- zzz_sys_stamp. A record already kept for that source and year is REPLACED,
+-- never stacked, so loading the same file twice keeps one copy.
+create or replace function public.call_history_keep_latest()
+returns trigger language plpgsql set search_path = public as $$
+declare
+  v_old_year integer := public.call_history_year(old.record_year, old.call_at);
+  v_new_year integer;
+  v_rest     jsonb;
+  v_keep     public.call_history;
+begin
+  new.source := btrim(coalesce(new.source, ''));
+  v_new_year := public.call_history_year(new.record_year, new.call_at);
+  new.record_year := v_new_year;
+  -- The same source and year: a correction, not a duplicate.
+  if new.source = coalesce(old.source, '') and v_new_year is not distinct from v_old_year then
+    new.duplicate := old.duplicate;
+    new.duplicates := old.duplicates;
+    return new;
+  end if;
+  if v_new_year >= coalesce(v_old_year, v_new_year) then
+    -- The newcomer is the latest year: it shows; the held record is kept.
+    select coalesce(jsonb_agg(e), '[]'::jsonb) into v_rest
+      from jsonb_array_elements(coalesce(old.duplicates, '[]'::jsonb)) e
+     where not (e->>'source' = coalesce(old.source, '') and (e->>'record_year')::int is not distinct from v_old_year)
+       and not (e->>'source' = new.source and (e->>'record_year')::int is not distinct from v_new_year);
+    new.duplicates := v_rest || jsonb_build_array(public.call_history_record(old));
+    new.duplicate := true;
+    return new;
+  end if;
+  -- The held record is the later year: it stays as it was; the newcomer is kept.
+  select coalesce(jsonb_agg(e), '[]'::jsonb) into v_rest
+    from jsonb_array_elements(coalesce(old.duplicates, '[]'::jsonb)) e
+   where not (e->>'source' = new.source and (e->>'record_year')::int is not distinct from v_new_year);
+  v_keep := old;
+  v_keep.duplicates := v_rest || jsonb_build_array(public.call_history_record(new));
+  v_keep.duplicate := true;
+  return v_keep;
+end $$;
+revoke execute on function public.call_history_keep_latest() from public, anon, authenticated;
+drop trigger if exists call_history_keep_latest on public.call_history;
+drop trigger if exists call_history_zz_keep_latest on public.call_history;
+create trigger call_history_zz_keep_latest before update on public.call_history
+  for each row execute function public.call_history_keep_latest();
+
+create index if not exists call_history_duplicate_idx on public.call_history (duplicate) where duplicate;
+
+-- ------------------------------------------------------------------------
 -- 0397_pm_spare_dccr.sql
 -- ------------------------------------------------------------------------
 
@@ -27719,11 +28404,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0436_review_answers_read_key.sql
+-- 0452_review_answers_read_key.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0436 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
+-- 0452 — DAILY COMPLAINT REVIEW ANSWERS ARE READ BY THOSE GIVEN THE KEY
 --        (second re-review D-129, the open half; the user, 2026-10-05)
 --
 -- call_reviews_read (0044) is auth.role() = 'authenticated': every signed-in
@@ -27762,7 +28447,7 @@ revoke all on public.one_time_fixes_done from anon, authenticated;
 do $$
 declare n bigint;
 begin
-  if exists (select 1 from public.one_time_fixes_done where name = '0436_review_view_to_editors') then return; end if;
+  if exists (select 1 from public.one_time_fixes_done where name = '0452_review_view_to_editors') then return; end if;
   update public.app_roles
      set permissions = permissions || '["review.view"]'::jsonb
    where jsonb_array_length(coalesce(permissions, '[]'::jsonb)) > 0
@@ -27770,16 +28455,16 @@ begin
      and not (permissions ? 'review.view');
   get diagnostics n = row_count;
   insert into public.one_time_fixes_done (name, detail)
-  values ('0436_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
-  raise notice '0436: % role(s) holding review.edit given review.view', n;
+  values ('0452_review_view_to_editors', n || ' role(s) holding review.edit given review.view');
+  raise notice '0452: % role(s) holding review.edit given review.view', n;
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0427_ffr_customer_and_problem_required.sql
+-- 0443_ffr_customer_and_problem_required.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0427 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
+-- 0443 — A FIELD FAILURE REPORT NAMES ITS CUSTOMER AND ITS PROBLEM
 --        (second re-review D-027)
 --
 -- The Field Failure Report form refuses a report without Customer Name or
@@ -27793,7 +28478,7 @@ end $$;
 -- Not stopped: an import (bulk.upload / import.panel), a connection with no
 -- session, and a function running as its owner (ffr_from_review raises a
 -- report from the Daily Complaint Review and fills both from the call).
--- In the daily_review module, after 0436.
+-- In the daily_review module, after 0452.
 -- ===========================================================================
 
 create or replace function public.ffr_customer_and_problem_required()
@@ -27983,6 +28668,59 @@ create trigger reports_visit_date_guard
 
 comment on function public.reports_visit_date_guard() is
   'A visit entered on the Visit Update form (uid WEB-...) cannot be dated in the future or before its call''s complaint date. Imported history is exempt by design — see the migration header.';
+
+-- ------------------------------------------------------------------------
+-- 0436_visit_date_from_breakdown.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0436 -- A VISIT MAY BE DATED FROM THE BREAKDOWN DATE TO TODAY (the user,
+-- 2026-10-14: "Reports can allow a Dates between the Breakdown Date and
+-- Today"; asked, the Visit Report's Visit Date).
+--
+-- reports_visit_date_guard() (0115) refused a visit dated before the call's
+-- COMPLAINT DATE. A call registered from a request now carries the day the
+-- request was RAISED as its Complaint Date and the day it was ATTENDED as its
+-- Breakdown Date (0435), and an engineer is often there before the request is
+-- raised -- so the lower bound is the Breakdown Date, falling back to the
+-- Complaint Date where a call carries none. Everything else is 0115 as it was:
+-- only the Visit Update form's rows (uid WEB-) are judged, never imported
+-- history, and a correction that leaves the date alone is not checked.
+-- ===========================================================================
+
+create or replace function public.reports_visit_date_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_visit date; v_from date; v_today date;
+begin
+  if new.visit_at is null then return new; end if;
+
+  -- Only what the Visit Update form writes. See 0115's header.
+  if coalesce(new.uid, '') !~ '^WEB-' then return new; end if;
+
+  -- An UPDATE that leaves the date alone is not this trigger's business.
+  if tg_op = 'UPDATE' and old.visit_at is not distinct from new.visit_at then
+    return new;
+  end if;
+
+  v_visit := (new.visit_at at time zone 'UTC')::date;
+  v_today := (now() at time zone 'Asia/Kolkata')::date;
+
+  if v_visit > v_today then
+    raise exception 'A visit cannot be dated in the future (% is after %)', v_visit, v_today
+      using errcode = 'check_violation';
+  end if;
+
+  select coalesce(c.breakdown_date, c.complaint_date) into v_from from public.calls c where c.ucn = new.ucn;
+  if v_from is not null and v_visit < v_from then
+    raise exception 'A visit cannot be dated before the breakdown (% is before %)', v_visit, v_from
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end $$;
+
+comment on function public.reports_visit_date_guard() is
+  'A visit entered on the Visit Update form (uid WEB-...) cannot be dated in the future or before its call''s Breakdown Date (else Complaint Date) (0436). Imported history is exempt by design -- see 0115.';
 
 -- ------------------------------------------------------------------------
 -- 0224_solved_without_a_report.sql
@@ -37618,10 +38356,10 @@ begin
   -- A PART RENAME (0310): only the part changed, exactly as the ticket that
   -- rename_part_records() filed in this transaction says. Nothing else on a
   -- return may change, by anybody but an administrator.
-  -- 'part_key' (0439, D-071) is the part code, generated from `part` and not
+  -- 'part_key' (0455, D-071) is the part code, generated from `part` and not
   -- yet computed in a BEFORE trigger, so it would never compare equal; left
   -- out here too, so a replay of this file alone does not refuse every rename
-  -- once 0439 has added the column. A no-op where the column is absent.
+  -- once 0455 has added the column. A no-op where the column is absent.
   if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
        = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
      and exists (select 1 from public.part_rename_ticket t
@@ -39024,7 +39762,7 @@ revoke execute on function public.save_material_return(jsonb, jsonb) from public
 grant execute on function public.save_material_return(jsonb, jsonb) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0439_stock_loads_overwrite_on_reload.sql
+-- 0455_stock_loads_overwrite_on_reload.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -39065,7 +39803,7 @@ grant execute on function public.save_material_return(jsonb, jsonb) to authentic
 alter table public.material_returns
   add column if not exists part_key text generated always as (public.part_code(part)) stored;
 comment on column public.material_returns.part_key is
-  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0439).';
+  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0455).';
 -- Cannot collide with existing rows: material_returns_uid_part_idx is unique
 -- on (uid, part_code(part), coalesce(row_no, 0)), and row_no is always set.
 create unique index if not exists material_returns_natural_key
@@ -39113,7 +39851,7 @@ create or replace function public.material_returns_immutable()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if public.is_admin() then return new; end if;
-  -- D-071 (0439): an IMPORTED return re-loaded from its file takes the file's
+  -- D-071 (0455): an IMPORTED return re-loaded from its file takes the file's
   -- values, by an importer only. It stays imported -- a return raised in the
   -- app is never reached by this.
   if old.source = 'import' and new.source = 'import'
@@ -40691,6 +41429,113 @@ begin
     raise notice '0421: % matching line(s) -- nothing deleted', n;
   end if;
 end $once$;
+
+-- ------------------------------------------------------------------------
+-- 0426_stock_record_files.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0426 -- FILES KEPT WITH A STOCK TRANSFER OR A MATERIAL RETURN (the user,
+-- 2026-10-13: "Add File Upload Option in Stock Transfer and Material Return").
+--
+-- Settled with the user the same day: any number of files per record
+-- (the signed MTN or MRN, a photo, a covering letter), each listed with who
+-- attached it and when; attached on the New Transfer / New MRN form AND
+-- afterwards on the saved record, because the signed copy usually comes back
+-- after the stock has moved; optional -- a record saves without one.
+--
+-- A TABLE OF ITS OWN, not a column on the record, for two reasons:
+--   * a material return is one ROW PER PART sharing a Reference (uid), so a
+--     file on the return is a file on the GROUP, which no row can carry once;
+--   * both records are fixed once written -- stock_transfer_header_fixed and
+--     material_returns_immutable refuse edits -- and those guards are right.
+--     A file attached later is a new fact about the record, not a change to
+--     it, so it is a new row here and neither guard is loosened.
+--
+-- APPEND-ONLY. No update or delete policy: a file somebody relied on stays
+-- listed. The file itself lives in Drive, uploaded through the bridge (the
+-- "Stock Transfers" / "Material Returns" folders, else the drive root).
+--
+-- WHO MAY SEE A FILE: whoever may see its record -- the read policy asks the
+-- record's own table, under the reader's own row-level security.
+-- WHO MAY ATTACH ONE: whoever may see the record AND may raise that kind of
+-- record -- stock.transfer for a transfer; for a return, stock.return on
+-- their own return, or stock.return.others / an administrator on anybody's
+-- (mr_insert's own audience, restated).
+-- WHO ATTACHED IT AND WHEN are stamped by the database; a caller's values are
+-- discarded (the 0113/0114 rule).
+-- ===========================================================================
+
+create table if not exists public.stock_record_files (
+  id               bigserial primary key,
+  kind             text not null check (kind in ('stock_transfer', 'material_return')),
+  ref              text not null check (btrim(ref) <> ''),
+  file_name        text not null check (btrim(file_name) <> ''),
+  url              text not null check (btrim(url) <> ''),
+  attached_by      uuid,
+  attached_by_name text not null default '',
+  attached_at      timestamptz not null default now(),
+  created_at       timestamptz not null default now()
+);
+create index if not exists stock_record_files_ref_idx on public.stock_record_files (kind, ref);
+
+comment on table public.stock_record_files is
+  'Files kept with a stock transfer (ref = stock_transfers.uid) or a material return (ref = material_returns.uid), any number each, append-only (0426).';
+
+alter table public.stock_record_files enable row level security;
+
+create or replace function public.stock_record_files_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.attached_by      := auth.uid();
+  new.attached_by_name := coalesce((select nullif(btrim(full_name), '') from public.profiles where id = auth.uid()),
+                                   auth.email(), '');
+  new.attached_at      := now();
+  new.created_at       := now();
+  return new;
+end $$;
+revoke execute on function public.stock_record_files_stamp() from public, anon, authenticated;
+
+drop trigger if exists stock_record_files_stamp on public.stock_record_files;
+create trigger stock_record_files_stamp before insert on public.stock_record_files
+  for each row execute function public.stock_record_files_stamp();
+
+drop policy if exists srf_read on public.stock_record_files;
+create policy srf_read on public.stock_record_files for select using (
+  (kind = 'stock_transfer'  and exists (select 1 from public.stock_transfers  t where t.uid = stock_record_files.ref))
+  or (kind = 'material_return' and exists (select 1 from public.material_returns m where m.uid = stock_record_files.ref))
+);
+
+drop policy if exists srf_insert on public.stock_record_files;
+create policy srf_insert on public.stock_record_files for insert with check (
+  (kind = 'stock_transfer'
+     and (select public.has_perm('stock.transfer'))
+     and exists (select 1 from public.stock_transfers t where t.uid = stock_record_files.ref))
+  or (kind = 'material_return'
+     and (select public.has_perm('stock.return'))
+     and exists (select 1 from public.material_returns m
+                  where m.uid = stock_record_files.ref
+                    and ((select public.is_admin())
+                         or (select public.has_perm('stock.return.others'))
+                         or lower(coalesce(m.engineer_email, '')) = lower(coalesce((select auth.email()), '')))))
+);
+
+-- SAID, NOT LEFT TO DEFAULTS. Supabase's default privileges hand every new
+-- table to anon and authenticated in full; with no policy an UPDATE or DELETE
+-- would merely match nothing and report success. Revoked, they are refused.
+revoke all on public.stock_record_files from anon, authenticated;
+grant select, insert on public.stock_record_files to authenticated;
+revoke all on sequence public.stock_record_files_id_seq from anon;
+grant usage on sequence public.stock_record_files_id_seq to authenticated;
+
+-- The five system columns every table carries (0244), attached now so the
+-- live project need not wait for sys_columns.sql to be re-run.
+do $$
+begin
+  if to_regprocedure('public.sys_columns_attach(regclass)') is not null then
+    perform public.sys_columns_attach('public.stock_record_files'::regclass);
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0384_handstock_balance_all.sql
@@ -46981,11 +47826,11 @@ revoke execute on function public.pm_schedule(text, text) from public, anon;
 grant execute on function public.pm_schedule(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0435_pm_calls_in_month.sql
+-- 0451_pm_calls_in_month.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0435 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
+-- 0451 — WHICH MACHINES ALREADY HAVE A PM CALL THIS MONTH, ASKED OF EVERY
 --        PM CALL (second re-review D-038, FRS-142.11 as the user decided)
 --
 -- The user's decision (2026-10-12): when a PM upload names a machine that
@@ -47022,7 +47867,7 @@ revoke execute on function public.pm_calls_in_month(date) from public, anon;
 grant execute on function public.pm_calls_in_month(date) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0440_cover_normalise_says_first.sql
+-- 0456_cover_normalise_says_first.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -47121,7 +47966,7 @@ begin
   if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
     raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
   end if;
-  -- 0440: only the lines with a value to hand back, so the count is the count
+  -- 0456: only the lines with a value to hand back, so the count is the count
   -- changed -- the same test cover_unpin_preview() counts by.
   update public.sale_items i set
     invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
@@ -47228,6 +48073,30 @@ drop policy if exists sla_write on public.sla_rules;
 create policy sla_write on public.sla_rules for all
   using (public.is_admin() or public.has_perm('config.manage'))
   with check (public.is_admin() or public.has_perm('config.manage'));
+
+-- ------------------------------------------------------------------------
+-- 0427_sla_rule_named.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0427 -- EVERY SLA HAS A NAME (the user, 2026-10-13: "Segregate the SLA
+-- Breach. Name it. Add Provision to Name the SLA. And use that name to
+-- Display. Every SLA should display a List separately").
+--
+-- sla_rules.label was always there and always editable by whoever holds
+-- Admin config (sla_write, 0044); the SLA Targets card now offers it, and the
+-- Dashboard shows one tile and one list per SLA under that name. A blank name
+-- would be a tile and a list with no heading, so it is refused here as well as
+-- on the form. The existing names are all filled, so the check validates at
+-- once.
+-- ===========================================================================
+do $$
+begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.sla_rules'::regclass and conname = 'sla_rules_label_named') then
+    alter table public.sla_rules add constraint sla_rules_label_named check (btrim(label) <> '');
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0042_knowledge_base.sql
@@ -56007,11 +56876,642 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
--- 0437_objective_with_figures_kept.sql
+-- 0428_objective_total_calculated.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0437 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
+-- 0428 -- THE TOTAL COLUMN IS CALCULATED (the user, 2026-10-13: "Yes,
+-- calculate the Total column in RITHI", answering whether RITHI should work
+-- out the Total the shared sheet "Service Quality Objective -2026.xlsx" shows).
+--
+-- THE SHEET'S OWN RULE, read off its figures, not invented:
+--   * a COUNT objective (No. of Field failures registered in FFR) -- the SUM of
+--     its months: 0+9+7+6+2+4+6 = 34;
+--   * every PERCENTAGE objective -- the plain AVERAGE of the periods that carry
+--     a figure: CPXcare (0.01+0.01+0+0+0+0+0)/7 = 0.2857%, Problem Call
+--     attending within 3 days (0.92+...+0.96)/7 = 94.29%, Preventive
+--     Maintenance (10%+10%)/2 = 10%. A month with no figure (an NA quarter, a
+--     month not yet measured) is in neither the sum nor the count.
+-- An average of the months, not the year's calls pooled -- that is what the
+-- sheet does, and the figure is reported against it.
+--
+-- WHICH ROWS: a CALCULATED objective (calc_key set). A typed objective keeps
+-- the Total somebody typed, exactly as before. Worked out by a trigger on
+-- every insert and update, so Re-Calculate, a month typed over by hand and a
+-- bulk load all leave it right; a Total sent for a calculated objective is
+-- replaced. Then every existing calculated objective is restated once.
+-- ===========================================================================
+
+create or replace function public.objective_total(o public.quality_objectives)
+returns numeric language sql immutable set search_path = public as $$
+  with v(x) as (
+    select unnest(array[o.m01, o.m02, o.m03, o.m04, o.m05, o.m06, o.m07, o.m08, o.m09, o.m10, o.m11, o.m12])
+  )
+  select case when o.calc_key = 'ffr_count_monthly' then (select sum(x) from v where x is not null)
+              else (select avg(x) from v where x is not null) end
+$$;
+comment on function public.objective_total(public.quality_objectives) is
+  'The Total of a calculated objective, the shared sheet''s way (0428): the sum of the months for the FFR count, the plain average of the months that carry a figure for every percentage objective.';
+
+create or replace function public.quality_objectives_total()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if coalesce(new.calc_key, '') <> '' then
+    new.total := public.objective_total(new);
+  end if;
+  return new;
+end $$;
+revoke execute on function public.quality_objectives_total() from public, anon, authenticated;
+
+drop trigger if exists zx_quality_objectives_total on public.quality_objectives;
+create trigger zx_quality_objectives_total before insert or update on public.quality_objectives
+  for each row execute function public.quality_objectives_total();
+
+-- Every calculated objective restated once. Marked as Re-Calculate's own
+-- write, so the manual-override marks (0349) are left exactly as they are.
+do $$
+begin
+  perform set_config('rithi.objective_recalc', 'on', true);
+  update public.quality_objectives set total = total where coalesce(calc_key, '') <> '';
+  perform set_config('rithi.objective_recalc', '', true);
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0431_failure_rate_reads_dccr_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0431 -- THE RECENT FAILURE RATE KEEPS THE 2025 FAILURES (the user,
+-- 2026-10-13, moving the 2025 DCCR-history calls to Call History: "Move them,
+-- but keep the failure rates").
+--
+-- _dccr_failure_calls() (0393, 0396) counts a failure from a FIELD CALL and its
+-- DCCR REVIEW. 0430 moves the 2025 calls out of field_calls into call_history;
+-- their reviews stay. So the function gains a second arm: a Call History row
+-- WITH an imported DCCR review counts exactly as the field call did -- the
+-- same product, serial and date (the call's India day), the same review
+-- answers, a Canceled call left out as a cancelled one was. A history row with
+-- no review (the 2018-2022 calls) is not a failure and adds nothing.
+--
+-- RESTATED FROM 0396 WORD FOR WORD, with the second arm added.
+-- ===========================================================================
+
+create or replace function public._dccr_failure_calls(p_product text, p_serial text, p_asof date)
+returns table (ucn text, call_number text, reg_date date, product_name text, serial text,
+               party_name text, installed_on date, commissioning_month date,
+               days_to_failure integer, spare_category text, any_potential_effect text)
+language sql stable security definer set search_path = public as $$
+  with c as (
+    select f.ucn, f.call_number, f.reg_date, f.product_name, f.serial, f.party_name
+      from public.field_calls f
+     where f.cancelled_at is null
+    union all
+    -- THE 2025 DCCR HISTORY, now in Call History (0430), through its review.
+    select h.ucn, h.call_no, (h.call_at at time zone 'Asia/Kolkata')::date, h.item_name, h.serial, h.party_name
+      from public.call_history h
+     where h.call_status !~* '^cancel'
+       and exists (select 1 from public.call_reviews x where x.ucn = h.ucn and x.imported)
+  )
+  select c.ucn, c.call_number, c.reg_date, c.product_name, c.serial, c.party_name,
+         m.warranty_start, date_trunc('month', m.warranty_start)::date,
+         (c.reg_date - m.warranty_start)::integer,
+         coalesce(r.spare_category, ''), coalesce(r.any_potential_effect, '')
+    from c
+    join public.call_reviews r on r.ucn = c.ucn
+    join lateral (
+      select pr.warranty_start
+        from public.products pr
+       where lower(btrim(pr.serial_number)) = lower(btrim(c.serial))
+         and pr.item_name ilike p_product
+         and pr.warranty_start is not null
+         and pr.warranty_start <= c.reg_date
+       order by pr.warranty_start desc, pr.id desc
+       limit 1) m on true
+   where btrim(coalesce(c.serial, '')) <> ''
+     and c.product_name ilike p_product
+     and coalesce(c.serial, '') ilike p_serial
+     and c.reg_date <= p_asof
+     and (upper(coalesce(r.spare_category, '')) like '%SPARE%'
+          or upper(btrim(coalesce(r.any_potential_effect, ''))) = 'YES')
+$$;
+revoke execute on function public._dccr_failure_calls(text, text, date) from public, anon, authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0438_objective_attended_from_breakdown.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0438 -- "ATTENDED WITHIN N DAYS" COUNTS FROM THE BREAKDOWN DATE (the user,
+-- 2026-10-14: "For Reports and Calculation, the Timer should be calculated
+-- from the Breakdown Date"; asked, the Objectives included).
+--
+-- objective_value() and objective_evidence() counted the days to the first
+-- attendance from the later of the Complaint Date and the registration day.
+-- They now count from the call's Breakdown Date, falling back to that rule
+-- only where a call carries none -- the same `counts_from` as the KPI export
+-- (0437). Which month a call belongs to is unchanged: still its registration.
+--
+-- RESTATED FROM A DATABASE built from every migration (0423's definitions,
+-- compared before writing), with only that expression changed in each.
+-- Stored figures follow on the next Re-Calculate.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.objective_value(p_id bigint, p_month integer)
+ RETURNS numeric
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_days   integer;
+  n_num    integer;
+  n_den    integer;
+  v_from   date;     -- the first day of the rolling window
+  v_upto   date;     -- the cut-off
+  v_win    integer;  -- months after installation a call is a failure
+  v_avg    numeric;  -- the DCCR cohort average (0393)
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found or o.calc_key = '' then return null; end if;
+
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return null; end if;
+
+  -- FAILURE WITHIN <window> MONTHS OF INSTALLATION, over the machines installed
+  -- in the rolling <rolling> months to the cut-off (0357). Installation is the
+  -- WARRANTY START. Counted in MACHINES, so a machine called out three times
+  -- inside its window is one failure.
+  -- ONE HASHED JOIN, NOT A SEARCH PER MACHINE (0359). The machines installed
+  -- in the window are joined to the calls of the window on the serial; the
+  -- settings are read once into variables, and the calls are bounded below by
+  -- the window's first day -- a qualifying call is on or after a warranty
+  -- start that is itself inside the window, so the bound removes nothing that
+  -- could count. Same rule, same answer as 0357.
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    v_upto   := p.period_end;
+    v_from   := (v_upto - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date;
+    v_win    := public.objective_setting('failure_window_months', 3);
+    -- EXECUTE, as the other branches here do: a plpgsql query is re-planned
+    -- GENERICALLY after its fifth run in a session, and Re-Calculate runs this
+    -- one sixty times in one statement. The generic plan was ten times slower
+    -- (1.5 s for ten months against 0.16 s); a dynamic query is planned with
+    -- its values every time.
+    execute $q$
+    with base as (
+      select pr.id, upper(btrim(pr.serial_number)) as k, pr.warranty_start as ws
+        from public.products pr
+       where pr.item_name ilike $1
+         and coalesce(pr.serial_number, '') ilike $2
+         and btrim(coalesce(pr.serial_number, '')) <> ''
+         and pr.warranty_start > $3
+         and pr.warranty_start <= $4
+    ),
+    failed as (
+      select distinct b.id
+        from base b
+        join public.field_calls c on upper(btrim(coalesce(c.serial, ''))) = b.k
+       where c.cancelled_at is null
+         and c.product_name ilike $1
+         and c.reg_date > $3
+         and c.reg_date <= $4
+         and c.reg_date >= b.ws
+         and c.reg_date <= (b.ws + make_interval(months => $5))::date
+    )
+    select (select count(*) from base), (select count(*) from failed)
+    $q$ into n_den, n_num using v_prod, v_serial, v_from, v_upto, v_win;
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- nothing installed, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  -- DCCR FAILURE BY COMMISSIONING MONTH (0393, the user 2026-10-06). The
+  -- average of the <window>-month failure rates of the <rolling> commissioning
+  -- months ending in this month; a month still inside its window, or with no
+  -- machine installed, is blank and left out of the average -- the sheet's
+  -- AVERAGE over its blank cells. dccr_failure_cohort_rows() is the table the
+  -- Objective page's Failure Rate tab shows, so the two cannot disagree.
+  -- AS OF TODAY, NOT THE MONTH'S END (0416, the user, 2026-10-12: "For these
+  -- Recent Failures dont need a cutoff date"; asked, "Measure as of today").
+  -- The month still decides WHICH twelve commissioning months are averaged
+  -- (v_upto); every failing call registered up to today counts (v_from holds
+  -- today here), so a past month's figure grows as late failures come in.
+  if o.calc_key = 'dccr_failure_cohort' then
+    v_upto := least(p.period_end, (now() at time zone 'Asia/Kolkata')::date);
+    v_from := (now() at time zone 'Asia/Kolkata')::date;
+    v_win  := public.objective_setting('failure_window_months', 3);
+    select avg(cr.rate)
+      into v_avg
+      from public._dccr_failure_cohort_rows(
+             o.calc_params->>'product',
+             coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%'),
+             v_from, v_win) cr
+     where cr.month >= (date_trunc('month', v_upto)
+                        - make_interval(months => public.objective_setting('failure_rolling_months', 12) - 1))::date
+       and cr.month <= date_trunc('month', v_upto)::date
+       and cr.rate is not null;
+    return case when v_avg is null then null else round(v_avg, 6) end;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    -- THE VISIT DATE decides, not the entry date. A solving report with no
+    -- visit date recorded falls back to when it was entered, so a missing
+    -- keystroke cannot push a closed call back into the open column.
+    execute format($q$
+      select count(*),
+             count(*) filter (where not exists (
+               select 1 from public.reports r
+                where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+                  and coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date) <= $4))
+        from %s c
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+         -- A MISSED PM (0418): a PM call added after the end of the month it
+         -- is registered for. Left out unless the objective says to count it.
+         and ($5 or c.added_on is null
+              or c.added_on <= (date_trunc('month', c.reg_date) + interval '1 month - 1 day')::date)
+    $q$, public.objective_call_table(o.calc_params))
+      into n_den, n_num
+     using p.period_start, p.period_end,
+           coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%'),
+           p.solve_cutoff,
+           (lower(btrim(coalesce(o.calc_params->>'family', ''))) <> 'pm'
+                or lower(btrim(coalesce(o.calc_params->>'missed_pm', ''))) = 'include');
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- no calls, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    execute format($q$
+      with c as (
+        select cc.ucn,
+               coalesce(cc.breakdown_date, greatest(cc.complaint_date, coalesce((cc.reg_at at time zone 'Asia/Kolkata')::date, cc.reg_date))) as counts_from
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min((visit_at at time zone 'Asia/Kolkata')::date) as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, (created_at at time zone 'Asia/Kolkata')::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select count(*),
+             count(*) filter (
+               where least(fv.on_date, fs.on_date) is not null
+                 and c.counts_from is not null
+                 and greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0) <= $4)
+        from c left join fv on fv.ucn = c.ucn left join fs on fs.ucn = c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      into n_den, n_num
+     using p.period_start, p.period_end,
+           coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%'), v_days;
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- no calls, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  -- CUSTOMER FEEDBACK SATISFACTION (0422) -- the "Customer Feedback" workbook:
+  -- each call's satisfaction % (feedback_satisfaction()), averaged over the
+  -- calls whose VISIT DATE (the workbook's Solved Date) falls in the period.
+  -- A feedback missing one of its questions is left out, as the workbook's
+  -- IFERROR leaves it blank. No feedback, no figure.
+  if o.calc_key = 'feedback_satisfaction' then
+    select round(avg(z.s), 6) into v_avg
+      from (select public.feedback_satisfaction(f.answers, f.call_type) as s
+              from public.feedback f
+             where (f.visit_at at time zone 'Asia/Kolkata')::date >= p.period_start
+               and (f.visit_at at time zone 'Asia/Kolkata')::date <= p.period_end) z
+     where z.s is not null;
+    return v_avg;
+  end if;
+
+  -- -------------------------------------------------------------------------
+  -- ffr_count_monthly -- HOW MANY FIELD FAILURE REPORTS WERE RAISED.
+  --
+  -- A COUNT, not a rate, and the first objective here that is one. Three things
+  -- follow from that and none of them is incidental:
+  --
+  --   * it counts DISTINCT FFR NUMBERS, not rows. 0181 made the register one
+  --     row per MACHINE precisely because one report can cover several -- eight
+  --     FFR numbers over twelve machines, measured -- so counting rows would
+  --     report twelve failures where four reports exist. A report with no
+  --     number counts as itself (`row-<id>`) rather than collapsing with every
+  --     other unnumbered one.
+  --   * ZERO IS AN ANSWER. Every rate above returns null on an empty
+  --     denominator because a rate over nothing is undefined; a count over
+  --     nothing is nought, and that is the whole point of an objective whose
+  --     target is "To Monitor". A blank would read as "not measured yet",
+  --     which is a different and worse claim.
+  --   * the month is the FFR DATE and there is no fallback, because none is
+  --     reachable: 0165 declares `ffr_date date not null default (now() at time
+  --     zone 'Asia/Kolkata')::date`. The first draft here carried a
+  --     coalesce to created_at and a note explaining it -- dead code, and a
+  --     note describing a rule that can never fire is worse than no note in a
+  --     record somebody signs. The test found it by inserting a null.
+  -- -------------------------------------------------------------------------
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    select count(distinct coalesce(nullif(btrim(f.ffr_no), ''), 'row-' || f.id))
+      into n_num
+      from public.field_failure_reports f
+     where coalesce(f.product_name, '') ilike v_prod
+       and coalesce(f.product_serial, '') ilike v_serial
+       and f.ffr_date >= p.period_start
+       and f.ffr_date <= p.period_end;
+    return coalesce(n_num, 0);
+  end if;
+
+  return null;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)
+ RETURNS TABLE(role text, ucn text, call_number text, reg_date date, product_name text, serial text, party_name text, call_type text, status text, allocated_to text, warranty_number text, warranty_start date, warranty_end date, contract_number text, contract_start date, contract_end date, contract_type text, closure_date date, closure_recorded_on date, after_cutoff text, details jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_type   text;
+  v_days   integer;
+  v_from   date;
+  v_upto   date;
+  v_win    integer;
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found then return; end if;
+  -- THE GATE FOLLOWS THE REGISTER THE FIGURE IS COUNTED FROM. An FFR objective
+  -- reads the Field Failure Register, which has had its own right since 0176
+  -- (`ffr.view`); asking for `calls.view` instead would let somebody who may
+  -- not open that register read every report through this door, and refuse
+  -- somebody who may.
+  if o.calc_key = 'ffr_count_monthly' then
+    if not (public.has_perm('ffr.view') or public.has_perm('ffr.manage')) then
+      raise exception 'RBAC: you cannot read the Field Failure Reports behind this figure';
+    end if;
+  elsif not (public.has_perm('calls.view') or public.has_perm('reports.view')) then
+    raise exception 'RBAC: you cannot read the calls behind this figure';
+  end if;
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return; end if;
+  v_type := coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%');
+
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    v_upto   := p.period_end;
+    v_from   := (v_upto - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date;
+    v_win    := public.objective_setting('failure_window_months', 3);
+
+    -- (The outer alias is `c`, as on every call branch, so _status.sql row
+    -- 193's tiebreak check -- `reg_date desc, c.ucn` -- reads it.)
+    -- SHEET 1: ONE ROW PER FAILED MACHINE -- its FIRST field call inside the
+    -- window -- so the sheet counts to the numerator. `details` says when the
+    -- machine was installed, how many days later it failed, and how many calls
+    -- fell inside the window.
+    -- EXECUTE for the same reason as objective_value: the app pages this
+    -- function, re-running it per thousand rows, and the sixth page would get
+    -- the generic plan.
+    return query execute $q$
+      with base as (
+        select pr.*
+          from public.products pr
+         where pr.item_name ilike $1
+           and coalesce(pr.serial_number, '') ilike $2
+           and btrim(coalesce(pr.serial_number, '')) <> ''
+           and pr.warranty_start > $3
+           and pr.warranty_start <= $4
+      ),
+      hits as (
+        select b.id as machine_id, b.warranty_start as installed_on, c.*,
+               count(*) over (partition by b.id) as calls_in_window,
+               row_number() over (partition by b.id order by c.reg_date, c.ucn) as rn
+          from base b
+          join public.field_calls c
+            on upper(btrim(coalesce(c.serial, ''))) = upper(btrim(b.serial_number))
+         where c.cancelled_at is null
+           and c.product_name ilike $1
+           and c.reg_date > $3
+           and c.reg_date <= $4
+           and c.reg_date >= b.warranty_start
+           and c.reg_date <= (b.warranty_start + make_interval(months => $5))::date
+      )
+      select 'failure'::text, c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text,
+             jsonb_build_object(
+               'Installed (warranty start)', c.installed_on,
+               'Days after installation', (c.reg_date - c.installed_on),
+               'Field calls in the window', c.calls_in_window)
+        from hits c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.rn = 1
+       order by c.reg_date desc, c.ucn
+    $q$ using v_prod, v_serial, v_from, v_upto, v_win;
+
+    return query
+      select 'filter'::text, ''::text, ''::text, p.period_end,
+             'Product Master, Product like ' || v_prod,
+             case when v_serial = '%' then '(no serial filter -- product only)'
+                  else 'Serial like ' || v_serial end,
+             p.label, 'Field calls'::text, ''::text, ''::text,
+             ''::text, null::date, null::date, ''::text, null::date, null::date, ''::text,
+             null::date, null::date,
+             'Installed (warranty start) in the '
+               || public.objective_setting('failure_rolling_months', 12)
+               || ' months to ' || p.period_end
+               || '; failed = a field call within '
+               || public.objective_setting('failure_window_months', 3)
+               || ' months of installation',
+             null::jsonb;
+
+    -- SHEET 2: THE MACHINES INSTALLED IN THE WINDOW -- the denominator -- each
+    -- carrying its whole Product Master row.
+    return query
+      select 'machine'::text, ''::text, ''::text, null::date,
+             pr.item_name, pr.serial_number, pr.party_name, ''::text,
+             coalesce(pr.item_status, ''), ''::text,
+             pr.warranty_number, pr.warranty_start, pr.warranty_end,
+             pr.contract_number, pr.contract_start, pr.contract_end, pr.contract_type,
+             null::date, null::date, ''::text,
+             coalesce(pr.extra, '{}'::jsonb)
+        from public.products pr
+       where pr.item_name ilike v_prod
+         and coalesce(pr.serial_number, '') ilike v_serial
+         and btrim(coalesce(pr.serial_number, '')) <> ''
+         and pr.warranty_start > v_from
+         and pr.warranty_start <= v_upto
+       order by pr.serial_number, pr.item_name, pr.id;
+    return;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    return query execute format($q$
+      select case when cl.counts_on is not null and cl.counts_on <= $4
+                  then 'closed' else 'open' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on,
+             concat_ws(' ',
+               case when cl.counts_on is not null and cl.counts_on > $4
+                    then 'YES -- solved on ' || cl.counts_on
+                         || ', after the cut-off of ' || $4 || ', so it is counted as OPEN'
+               end,
+               case when cl.counts_on is not null and cl.closed_on is null
+                    then 'NOTE -- no visit date on the solving report; the date it was '
+                         'ENTERED (' || cl.recorded_on || ') was used instead'
+               end),
+             null::jsonb
+        from %s c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on,
+                     coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date) as counts_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+         -- A MISSED PM (0418) is left out of the evidence exactly as it is
+         -- left out of the figure, unless the objective counts it.
+         and ($5 or c.added_on is null
+              or c.added_on <= (date_trunc('month', c.reg_date) + interval '1 month - 1 day')::date)
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, p.solve_cutoff,
+            (lower(btrim(coalesce(o.calc_params->>'family', ''))) <> 'pm'
+                or lower(btrim(coalesce(o.calc_params->>'missed_pm', ''))) = 'include');
+    return;
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    return query execute format($q$
+      with c as (
+        select cc.*, coalesce(cc.breakdown_date, greatest(cc.complaint_date,
+                              coalesce((cc.reg_at at time zone 'Asia/Kolkata')::date, cc.reg_date))) as counts_from
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min((visit_at at time zone 'Asia/Kolkata')::date) as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, (created_at at time zone 'Asia/Kolkata')::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select case when least(fv.on_date, fs.on_date) is not null
+                   and c.counts_from is not null
+                   and greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0) <= $4
+                  then 'attended' else 'late' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             case when least(fv.on_date, fs.on_date) is null then 'never attended'
+                  else 'attended on ' || least(fv.on_date, fs.on_date)
+                       || ' -- ' || greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0)
+                       || ' day(s) from ' || c.counts_from end,
+             coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text, null::jsonb
+        from c
+        left join fv on fv.ucn = c.ucn
+        left join fs on fs.ucn = c.ucn
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, v_days;
+    return;
+  end if;
+
+  -- CUSTOMER FEEDBACK SATISFACTION (0422): one row per feedback counted --
+  -- the call, its visit date (reg_date column), and in `details` each
+  -- question's score and the call's Satisfaction %, so the sheet adds up to
+  -- the figure.
+  if o.calc_key = 'feedback_satisfaction' then
+    return query
+      select 'feedback'::text, f.ucn, f.call_number, (f.visit_at at time zone 'Asia/Kolkata')::date,
+             f.product_name, f.serial, f.party_name, f.call_type, ''::text, coalesce(f.engineer, ''),
+             null::text, null::date, null::date, null::text, null::date, null::date, null::text,
+             null::date, null::date, null::text,
+             jsonb_build_object('Satisfaction %', public.feedback_satisfaction(f.answers, f.call_type),
+                                'Scored on', case when upper(coalesce(f.call_type, '')) like '%INSTALLATION%'
+                                                  then 'Installation questions (out of 20)' else 'PM / Field questions (out of 24)' end)
+               || coalesce((select jsonb_object_agg(q, public.feedback_score(f.answers ->> q))
+                              from unnest(public.feedback_questions(f.call_type)) q), '{}'::jsonb)
+        from public.feedback f
+       where (f.visit_at at time zone 'Asia/Kolkata')::date >= p.period_start
+         and (f.visit_at at time zone 'Asia/Kolkata')::date <= p.period_end
+         and public.feedback_satisfaction(f.answers, f.call_type) is not null
+       order by f.visit_at, f.ucn;
+    return;
+  end if;
+
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+
+    -- ONE ROW PER MACHINE, because that is how the register stores it -- so the
+    -- sheet has MORE rows than the figure and every row says which report it
+    -- belongs to. Collapsing to one row per report here would hide which
+    -- machines it covered, which is the thing 0181 exists to keep.
+    return query
+      select 'ffr'::text, f.ucn, f.ffr_no,
+             f.ffr_date,
+             f.product_name, f.product_serial, f.customer_name,
+             coalesce(f.call_type, ''), coalesce(f.ffr_status, ''),
+             coalesce(f.raised_by_name, ''),
+             ''::text, null::date, null::date, ''::text, null::date, null::date,
+             coalesce(f.cover, ''),
+             f.crn_date, (f.created_at at time zone 'Asia/Kolkata')::date,
+             ''::text,
+             jsonb_strip_nulls(jsonb_build_object(
+               'FFR No', f.ffr_no, 'Source', f.source,
+               'Problem Reported', f.problem_reported,
+               'Service Observation', f.service_observation,
+               'Problem Status', f.problem_status,
+               'CAPA No', f.capa_no, 'CAPA Status', f.capa_status,
+               'Item Code', f.item_code, 'Place', f.place))
+        from public.field_failure_reports f
+       where coalesce(f.product_name, '') ilike v_prod
+         and coalesce(f.product_serial, '') ilike v_serial
+         and f.ffr_date >= p.period_start
+         and f.ffr_date <= p.period_end
+       order by f.ffr_date, f.ffr_no, f.id;
+    return;
+  end if;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0453_objective_with_figures_kept.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0453 — A QUALITY OBJECTIVE THAT CARRIES A FIGURE IS NOT DELETED
 --        (second re-review D-021, FRS-121.7)
 --
 -- Quality Objectives deleted an objective with its twelve figures after a
@@ -56020,7 +57520,7 @@ end $function$;
 -- row erased the measurement with it. FRS-121.7: the database shall refuse to
 -- delete an objective that carries any recorded figure -- a month m01..m12 or
 -- the Total. An objective added in error, with nothing recorded yet, can still
--- be deleted. 0426 images every change and delete in record_audit.
+-- be deleted. 0442 images every change and delete in record_audit.
 -- Not stopped: a connection with no session and a function running as its
 -- owner (a repair in the SQL editor).
 -- In the objective module, last.
@@ -56510,11 +58010,11 @@ begin
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0426_record_audit_on_configuration_objectives_indoor.sql
+-- 0442_record_audit_on_configuration_objectives_indoor.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0426 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
+-- 0442 — CONFIGURATION, QUALITY OBJECTIVES AND THE INDOOR WORKSHOP ARE IMAGED
 --        (second re-review D-067, D-021, D-039)
 --
 -- record_audit (0225, 0314) images fifteen tables. Three groups that decide
@@ -56634,15 +58134,15 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0426: record_audit armed on % of 13 tables.', n;
+  raise notice '0442: record_audit armed on % of 13 tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
--- 0430_cover_registers_imaged.sql
+-- 0446_cover_registers_imaged.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0430 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
+-- 0446 — THE COVER REGISTERS ARE IMAGED (second re-review D-055, FRS-187.3)
 --
 -- sale_entries, sale_items, contract_entries, contract_items,
 -- ownership_transfers and product_additional_entries were outside 0225's
@@ -56650,13 +58150,13 @@ end $on$;
 -- corrected, or an entry deleted with every machine under it left no image of
 -- what was there. FRS-187.3: a correction shall be recorded with its before and
 -- after values by a trigger that cannot be bypassed. The same statement-level
--- triggers as 0225 / 0314 / 0426, so a cover import is one event.
+-- triggers as 0225 / 0314 / 0442, so a cover import is one event.
 --
 -- DELETION ITSELF STAYS -- the user's decision of 2026-10-06 ("Keep deleting,
 -- recorded"): an entry, a machine, a transfer or an additional entry may still
 -- be deleted by the holder of that register's delete authority, and what it
 -- removed is read back from record_audit. FRS-187 was rewritten to match.
--- In data_integrity, after 0426: every cover table is created earlier in
+-- In data_integrity, after 0442: every cover table is created earlier in
 -- ALL_ORDER.
 -- ===========================================================================
 
@@ -56664,7 +58164,7 @@ do $on$
 declare t text; n int := 0;
 begin
   if to_regproc('public.record_audit_fn') is null then
-    raise notice '0430: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
+    raise notice '0446: record_audit_fn() is missing -- run 0048_record_audit.sql first. Nothing armed.';
     return;
   end if;
   foreach t in array array[
@@ -56688,7 +58188,7 @@ begin
       n := n + 1;
     end if;
   end loop;
-  raise notice '0430: record_audit armed on % of 6 cover tables.', n;
+  raise notice '0446: record_audit armed on % of 6 cover tables.', n;
 end $on$;
 
 -- ------------------------------------------------------------------------
@@ -60243,6 +61743,476 @@ end $function$;
 grant execute on function public.spare_insights(date, date) to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0424_call_dates.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0424 -- FIRST ATTENDED, LAST VISIT AND SOLVED DATES ON EVERY CALL (the user,
+-- 2026-10-13: "Add call attended date (First Attended Date), Last Visit Date,
+-- Solved Date - in Field / PM / Installation Call").
+--
+-- Settled with the user the same day, so the three agree with the KPI
+-- Field_INST tab (0128 / 0390) and the "attended within N days" objective:
+--
+--   first_attended_on  the EARLIER of the first visit's date and the first
+--                      spare request's date (or_req_date, else the day the
+--                      request was written);
+--   last_visit_on      the date of the most recent visit (the latest Visit
+--                      Date & Time on the call);
+--   solved_on          the visit date of the entry that set "Solved - Report
+--                      Completed" -- the latest such entry, so a call solved
+--                      twice shows the solve that is standing.
+--
+-- EVERY DATE IS AN INDIA DATE (D-168): `::date` on a timestamptz takes the
+-- session's zone, UTC on the live project, and 29,970 of 31,262 visits are
+-- stored at 00:00 IST -- a bare cast would date nearly all of them a day early.
+--
+-- READ, NOT STORED. call_dates is a view over `calls`, security_invoker, so it
+-- has a row exactly for the calls the reader may see and nothing to keep in
+-- step. Visits come from `reports`, whose read policy follows the call's.
+-- Spare requests do NOT: sr_read is per engineer, so a call re-allotted to
+-- somebody new would show them a later first-attended date than their manager
+-- sees. call_first_spare_on() therefore reads spare_requests as its owner and
+-- answers only for a call the CALLER may see -- the calls_scoped_read rule,
+-- restated -- and returns nothing but a date.
+-- ===========================================================================
+
+create or replace function public.call_first_spare_on(p_ucn text)
+returns date language sql stable security definer set search_path = public as $$
+  select min(coalesce(sq.or_req_date, (sq.created_at at time zone 'Asia/Kolkata')::date))
+    from public.spare_requests sq
+   where coalesce(btrim(p_ucn), '') <> ''
+     and sq.ucn = p_ucn
+     and exists (
+       select 1 from public.calls c
+        where c.ucn = p_ucn
+          and (select public.has_perm('calls.view'))
+          and ((select public.can_view_all_calls())
+               or c.created_by = (select auth.uid())
+               or c.actual_created_by = (select auth.uid())
+               or coalesce(c.allocated_to, '') = ''
+               or lower(btrim(c.allocated_to)) in (select lower(btrim(v.n)) from public.visible_engineer_names() v(n))))
+$$;
+revoke execute on function public.call_first_spare_on(text) from public, anon;
+grant execute on function public.call_first_spare_on(text) to authenticated;
+comment on function public.call_first_spare_on(text) is
+  'The first spare request''s date on a call (or_req_date, else its India creation date), for a call the caller may see; NULL otherwise. Read by call_dates (0424).';
+
+-- DROPPED FIRST: 0433 appends a column to this view, and a bundle replayed on a
+-- project that has it would otherwise stop here with "cannot drop columns
+-- from view". Nothing is built on call_dates; the grant follows below.
+drop view if exists public.call_dates;
+create view public.call_dates as
+select c.ucn,
+       least(v.first_visit_on, public.call_first_spare_on(c.ucn)) as first_attended_on,
+       v.last_visit_on,
+       s.solved_on
+  from public.calls c
+  left join lateral (
+    select min((r.visit_at at time zone 'Asia/Kolkata')::date) as first_visit_on,
+           max((r.visit_at at time zone 'Asia/Kolkata')::date) as last_visit_on
+      from public.reports r
+     where r.ucn = c.ucn and r.visit_at is not null
+  ) v on true
+  left join lateral (
+    select (rs.visit_at at time zone 'Asia/Kolkata')::date as solved_on
+      from public.reports rs
+     where rs.ucn = c.ucn and rs.call_status ilike 'solved%report%complet%'
+     order by rs.updated_at desc nulls last, rs.id desc
+     limit 1
+  ) s on true;
+
+-- `create or replace view` drops security_invoker; without it the view reads
+-- as its owner and every signed-in user sees every call's dates.
+alter view public.call_dates set (security_invoker = on);
+grant select on public.call_dates to authenticated;
+
+comment on view public.call_dates is
+  'Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424). security_invoker: one row per call the reader may see.';
+
+-- ------------------------------------------------------------------------
+-- 0425_kpi_export_india_dates.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0425  KPI EXPORT (Field_INST): INDIA DATES (D-169; the user, 2026-10-13:
+-- "fix the KPI export dates too").
+--
+-- kpi_field_inst took Call Attended On, Call Solved Date, the day the count
+-- starts from and the Failure Month straight off a timestamptz, which uses the
+-- session's zone -- UTC on the live project. 29,970 of 31,262 visits are
+-- stored at 00:00 IST, so nearly every Attended and Solved date in the export
+-- read a day early, and disagreed with the First Attended and Solved Dates the
+-- registers show since 0424. Each date is now taken in India time, the same
+-- fix 0423 made to the objectives (D-168).
+--
+-- The first spare request is read through call_first_spare_on() (0424), so the
+-- export and the register agree for every reader -- see the note in the view.
+-- That function is created in this module by 0424, which runs before this.
+--
+-- RESTATED FROM 0390 WORD FOR WORD apart from those dates and that function:
+-- `create or replace` keeps the column list identical; security_invoker is
+-- re-asserted because create-or-replace drops it (0040, 0050, 0057).
+-- ===========================================================================
+
+create or replace view public.kpi_field_inst as
+with c as (
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.field_calls where cancelled_at is null
+  union all
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.installation_calls where cancelled_at is null
+  union all
+  -- PM CALLS TOO (0390, the user 2026-10-06: "In KPI Export - KPI workbook --
+  -- Field_INST; Add PM Calls also"). The same columns and the same rules;
+  -- cancelled PM calls are left out like every other cancelled call.
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.pm_calls where cancelled_at is null
+),
+r as (
+  select
+    c.*,
+    l.call_status, l.pending_reason, l.engineer,
+    -- INDIA DATES (0425, D-169): a date taken straight off a timestamptz is
+    -- the session's day, UTC on the live project, and a visit stored at
+    -- 00:00 IST is the day before there.
+    (s.visit_at at time zone 'Asia/Kolkata')::date  as solved_on,
+    least((fv.at at time zone 'Asia/Kolkata')::date,
+          public.call_first_spare_on(c.ucn))      as attended_on,
+    -- The count runs from the LATER of complaint and registration: MIN of the
+    -- two differences is the same thing said the workbook's way.
+    greatest(c.complaint_date, coalesce((c.reg_at at time zone 'Asia/Kolkata')::date, c.reg_date))
+                                                  as counts_from,
+    coalesce(nullif(btrim(l.call_status), ''), 'Unattended') as status_now
+    from c
+    -- THE LATEST ENTRY, per call. Not the latest VISIT: a report written up
+    -- late is still the latest thing the register was told (0032).
+    left join lateral (
+      select rl.call_status, rl.pending_reason, rl.engineer
+        from public.reports rl
+       where rl.ucn = c.ucn
+       order by rl.updated_at desc, rl.id desc
+       limit 1
+    ) l on true
+    left join lateral (
+      select rs.visit_at
+        from public.reports rs
+       where rs.ucn = c.ucn
+         and rs.call_status ilike 'solved%report%complet%'
+       order by rs.updated_at desc, rs.id desc
+       limit 1
+    ) s on true
+    left join lateral (
+      select min(rf.visit_at) as at
+        from public.reports rf
+       where rf.ucn = c.ucn and rf.visit_at is not null
+    ) fv on true
+    -- THE FIRST SPARE REQUEST comes from call_first_spare_on() (0424), the
+    -- one the call registers use: it counts a request whoever raised it, for
+    -- any reader who may see the call. Read here through spare_requests'
+    -- own per-engineer policy, an engineer's export dated a re-allotted call
+    -- later than their manager's, and later than their own register. The
+    -- function keeps the blank-ucn guard and India's day.
+)
+select
+  r.ucn                                          as "UC Number",
+  r.call_number                                  as "Call Number",
+  coalesce(r.reg_at, r.reg_date::timestamptz)    as "Call Registeration Date",
+  r.complaint_date                               as "Complaint Date",
+  r.party_name                                   as "Party Name",
+  r.city                                         as "City",
+  r.state                                        as "State",
+  r.product_name                                 as "Product Name",
+  r.serial                                       as "Product Serial Number",
+  r.item_status                                  as "Item Status",
+  r.warranty_number                              as "Warranty Number",
+  r.warranty_start                               as "Warranty Start Date",
+  r.warranty_end                                 as "Warranty End Date",
+  r.contract_number                              as "Contract Number",
+  r.contract_start                               as "Contract Start Date",
+  r.contract_end                                 as "Contract End Date",
+  r.contract_type                                as "Contract Type",
+  r.call_type                                    as "Call Type",
+  r.standard_complaint                           as "Standard Complaint",
+  r.complaint_reported                           as "Complaint Reported",
+  r.allocated_to                                 as "Call Allocated To",
+  r.breakdown_date                               as "Breakdown Date",
+  -- DECISION 3: any Solved... status is Close, report-pending included.
+  case when r.status_now ilike 'solved%' then 'Close' else 'Open' end
+                                                 as "Open/Close",
+  r.status_now                                   as "Call Status",
+  coalesce(r.pending_reason, '')                 as "CALL PENDING REASON",
+  coalesce(r.engineer, '')                       as "Visiting Service Engineer",
+  r.attended_on                                  as "Call Attended On",
+  r.solved_on                                    as "Call Solved Date & Time",
+  -- AC / AD. NULL when the thing being measured has not happened, rather than
+  -- the sheet's 0 — see decision 1.
+  --
+  -- THE GUARD IS NOT DECORATION. `greatest()` IGNORES NULLs in Postgres, so
+  -- `greatest(null - date, 0)` is 0, not null — and an unattended call would
+  -- read "attended in 0 days, 00-03D", which is precisely the sheet behaviour
+  -- this decision exists to undo. Caught by test 10, which was written for it.
+  -- (It is the same property `least()` has, and there it is what we want: see
+  -- Call Attended On in 0128.)
+  case when r.attended_on is null or r.counts_from is null then null
+       else greatest((r.attended_on - r.counts_from)::int, 0) end as "Attended in Days",
+  case when r.solved_on is null or r.counts_from is null then null
+       else greatest((r.solved_on - r.counts_from)::int, 0) end   as "Solved in Days",
+  public.kpi_days_band(
+    case when r.attended_on is null or r.counts_from is null then null
+         else greatest((r.attended_on - r.counts_from)::int, 0) end)      as "TTA ( R )",
+  public.kpi_days_band(
+    case when r.solved_on is null or r.counts_from is null then null
+         else greatest((r.solved_on - r.counts_from)::int, 0) end)        as "TTS ( R )",
+  to_char(coalesce(r.reg_at at time zone 'Asia/Kolkata', r.reg_date::timestamp), 'YYYY Mon') as "Failure Month",
+  -- The column the workbook does not have. How long an OPEN call has been
+  -- waiting, today — the question the sheet answered with a 0 that read as
+  -- "attended and solved the same day".
+  case when r.status_now ilike 'solved%' or r.counts_from is null then null
+       else greatest(((now() at time zone 'Asia/Kolkata')::date - r.counts_from)::int, 0)
+  end                                            as "Pending Days"
+  from r;
+
+-- RE-ASSERTED, because create-or-replace drops it. Without this the export
+-- reads as the view's OWNER and every signed-in user gets every call —
+-- silently, with no error. Three times in this project (0040, 0050, 0057).
+alter view public.kpi_field_inst set (security_invoker = on);
+grant select on public.kpi_field_inst to authenticated;
+
+comment on view public.kpi_field_inst is
+  'The KPI workbook''s Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425). The per-call lookups into reports and spare_requests are LATERAL so the caller''s date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).';
+
+-- ------------------------------------------------------------------------
+-- 0433_call_pending_reason.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0433 -- THE CALL PENDING REASON ON EVERY OPEN CALL (the user, 2026-10-13:
+-- "i want the Call pending Reason and Cancellation Reason in Field,
+-- Installation, PM Calls").
+--
+-- Settled with the user the same day: the reason is the one on the LATEST
+-- VISIT ENTRY -- the same entry the call's status comes from
+-- (sync_call_last_visit(): updated_at desc, id desc) -- and it is shown ONLY
+-- WHILE THE CALL IS OPEN. A Solved call is pending nothing, and a Cancelled
+-- one is not waiting for anybody, so both read blank rather than carrying the
+-- reason a visit gave before it was closed. Open is pending_calls' own rule:
+-- not cancelled, and not Solved unless re-opened.
+--
+-- The Cancellation Reason needs nothing here: cancel_reason has been on all
+-- three call tables since 0108 and comes with the call.
+--
+-- APPENDED to call_dates (0424), not a view of its own: the registers already
+-- read that view for the calls on screen, so this is one column more on the
+-- same request. `create or replace view` may only add columns at the END, and
+-- it DROPS security_invoker, which is re-asserted below.
+-- ===========================================================================
+
+create or replace view public.call_dates as
+select c.ucn,
+       least(v.first_visit_on, public.call_first_spare_on(c.ucn)) as first_attended_on,
+       v.last_visit_on,
+       s.solved_on,
+       case when c.cancelled_at is null
+             and (coalesce(c.open_state, '') <> 'Solved' or c.reopened_at is not null)
+            then nullif(btrim(p.pending_reason), '')
+       end as pending_reason
+  from public.calls c
+  left join lateral (
+    select min((r.visit_at at time zone 'Asia/Kolkata')::date) as first_visit_on,
+           max((r.visit_at at time zone 'Asia/Kolkata')::date) as last_visit_on
+      from public.reports r
+     where r.ucn = c.ucn and r.visit_at is not null
+  ) v on true
+  left join lateral (
+    select (rs.visit_at at time zone 'Asia/Kolkata')::date as solved_on
+      from public.reports rs
+     where rs.ucn = c.ucn and rs.call_status ilike 'solved%report%complet%'
+     order by rs.updated_at desc nulls last, rs.id desc
+     limit 1
+  ) s on true
+  left join lateral (
+    select rp.pending_reason
+      from public.reports rp
+     where rp.ucn = c.ucn
+     order by rp.updated_at desc nulls last, rp.id desc
+     limit 1
+  ) p on true;
+
+alter view public.call_dates set (security_invoker = on);
+grant select on public.call_dates to authenticated;
+
+comment on view public.call_dates is
+  'Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424); and the Call Pending Reason of the latest visit entry while the call is open (0433). security_invoker: one row per call the reader may see.';
+
+-- ------------------------------------------------------------------------
+-- 0437_kpi_counts_from_breakdown.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0437 -- THE KPI EXPORT COUNTS ITS DAYS FROM THE BREAKDOWN DATE (the user,
+-- 2026-10-14: "For Reports and Calculation, the Timer should be calculated
+-- from the Breakdown Date").
+--
+-- Attended in Days, Solved in Days, TTA, TTS and Pending Days all count from
+-- `counts_from`, which was the later of the Complaint Date and the
+-- registration day (the workbook's formula). It is now the call's Breakdown
+-- Date -- the day the machine failed -- falling back to that rule only where a
+-- call carries no breakdown date.
+--
+-- RESTATED FROM 0425 WORD FOR WORD apart from that one expression;
+-- security_invoker re-asserted because create-or-replace drops it.
+-- ===========================================================================
+
+create or replace view public.kpi_field_inst as
+with c as (
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.field_calls where cancelled_at is null
+  union all
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.installation_calls where cancelled_at is null
+  union all
+  -- PM CALLS TOO (0390, the user 2026-10-06: "In KPI Export - KPI workbook --
+  -- Field_INST; Add PM Calls also"). The same columns and the same rules;
+  -- cancelled PM calls are left out like every other cancelled call.
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.pm_calls where cancelled_at is null
+),
+r as (
+  select
+    c.*,
+    l.call_status, l.pending_reason, l.engineer,
+    -- INDIA DATES (0425, D-169): a date taken straight off a timestamptz is
+    -- the session's day, UTC on the live project, and a visit stored at
+    -- 00:00 IST is the day before there.
+    (s.visit_at at time zone 'Asia/Kolkata')::date  as solved_on,
+    least((fv.at at time zone 'Asia/Kolkata')::date,
+          public.call_first_spare_on(c.ucn))      as attended_on,
+    -- The count runs from the LATER of complaint and registration: MIN of the
+    -- two differences is the same thing said the workbook's way.
+    -- FROM THE BREAKDOWN DATE (0437, the user 2026-10-14), else the later
+    -- of complaint and registration as the workbook had it.
+    coalesce(c.breakdown_date,
+             greatest(c.complaint_date, coalesce((c.reg_at at time zone 'Asia/Kolkata')::date, c.reg_date)))
+                                                  as counts_from,
+    coalesce(nullif(btrim(l.call_status), ''), 'Unattended') as status_now
+    from c
+    -- THE LATEST ENTRY, per call. Not the latest VISIT: a report written up
+    -- late is still the latest thing the register was told (0032).
+    left join lateral (
+      select rl.call_status, rl.pending_reason, rl.engineer
+        from public.reports rl
+       where rl.ucn = c.ucn
+       order by rl.updated_at desc, rl.id desc
+       limit 1
+    ) l on true
+    left join lateral (
+      select rs.visit_at
+        from public.reports rs
+       where rs.ucn = c.ucn
+         and rs.call_status ilike 'solved%report%complet%'
+       order by rs.updated_at desc, rs.id desc
+       limit 1
+    ) s on true
+    left join lateral (
+      select min(rf.visit_at) as at
+        from public.reports rf
+       where rf.ucn = c.ucn and rf.visit_at is not null
+    ) fv on true
+    -- THE FIRST SPARE REQUEST comes from call_first_spare_on() (0424), the
+    -- one the call registers use: it counts a request whoever raised it, for
+    -- any reader who may see the call. Read here through spare_requests'
+    -- own per-engineer policy, an engineer's export dated a re-allotted call
+    -- later than their manager's, and later than their own register. The
+    -- function keeps the blank-ucn guard and India's day.
+)
+select
+  r.ucn                                          as "UC Number",
+  r.call_number                                  as "Call Number",
+  coalesce(r.reg_at, r.reg_date::timestamptz)    as "Call Registeration Date",
+  r.complaint_date                               as "Complaint Date",
+  r.party_name                                   as "Party Name",
+  r.city                                         as "City",
+  r.state                                        as "State",
+  r.product_name                                 as "Product Name",
+  r.serial                                       as "Product Serial Number",
+  r.item_status                                  as "Item Status",
+  r.warranty_number                              as "Warranty Number",
+  r.warranty_start                               as "Warranty Start Date",
+  r.warranty_end                                 as "Warranty End Date",
+  r.contract_number                              as "Contract Number",
+  r.contract_start                               as "Contract Start Date",
+  r.contract_end                                 as "Contract End Date",
+  r.contract_type                                as "Contract Type",
+  r.call_type                                    as "Call Type",
+  r.standard_complaint                           as "Standard Complaint",
+  r.complaint_reported                           as "Complaint Reported",
+  r.allocated_to                                 as "Call Allocated To",
+  r.breakdown_date                               as "Breakdown Date",
+  -- DECISION 3: any Solved... status is Close, report-pending included.
+  case when r.status_now ilike 'solved%' then 'Close' else 'Open' end
+                                                 as "Open/Close",
+  r.status_now                                   as "Call Status",
+  coalesce(r.pending_reason, '')                 as "CALL PENDING REASON",
+  coalesce(r.engineer, '')                       as "Visiting Service Engineer",
+  r.attended_on                                  as "Call Attended On",
+  r.solved_on                                    as "Call Solved Date & Time",
+  -- AC / AD. NULL when the thing being measured has not happened, rather than
+  -- the sheet's 0 — see decision 1.
+  --
+  -- THE GUARD IS NOT DECORATION. `greatest()` IGNORES NULLs in Postgres, so
+  -- `greatest(null - date, 0)` is 0, not null — and an unattended call would
+  -- read "attended in 0 days, 00-03D", which is precisely the sheet behaviour
+  -- this decision exists to undo. Caught by test 10, which was written for it.
+  -- (It is the same property `least()` has, and there it is what we want: see
+  -- Call Attended On in 0128.)
+  case when r.attended_on is null or r.counts_from is null then null
+       else greatest((r.attended_on - r.counts_from)::int, 0) end as "Attended in Days",
+  case when r.solved_on is null or r.counts_from is null then null
+       else greatest((r.solved_on - r.counts_from)::int, 0) end   as "Solved in Days",
+  public.kpi_days_band(
+    case when r.attended_on is null or r.counts_from is null then null
+         else greatest((r.attended_on - r.counts_from)::int, 0) end)      as "TTA ( R )",
+  public.kpi_days_band(
+    case when r.solved_on is null or r.counts_from is null then null
+         else greatest((r.solved_on - r.counts_from)::int, 0) end)        as "TTS ( R )",
+  to_char(coalesce(r.reg_at at time zone 'Asia/Kolkata', r.reg_date::timestamp), 'YYYY Mon') as "Failure Month",
+  -- The column the workbook does not have. How long an OPEN call has been
+  -- waiting, today — the question the sheet answered with a 0 that read as
+  -- "attended and solved the same day".
+  case when r.status_now ilike 'solved%' or r.counts_from is null then null
+       else greatest(((now() at time zone 'Asia/Kolkata')::date - r.counts_from)::int, 0)
+  end                                            as "Pending Days"
+  from r;
+
+-- RE-ASSERTED, because create-or-replace drops it. Without this the export
+-- reads as the view's OWNER and every signed-in user gets every call —
+-- silently, with no error. Three times in this project (0040, 0050, 0057).
+alter view public.kpi_field_inst set (security_invoker = on);
+grant select on public.kpi_field_inst to authenticated;
+
+comment on view public.kpi_field_inst is
+  'The KPI workbook''s Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425); the day counts run from the Breakdown Date (0437). The per-call lookups into reports and spare_requests are LATERAL so the caller''s date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).';
+
+-- ------------------------------------------------------------------------
 -- 0218_product_database_v2.sql
 -- ------------------------------------------------------------------------
 
@@ -63426,7 +65396,7 @@ end $$;
 --
 --   calls, pending_calls, calls_view_insert/update   <- 0114_call_registrant_split.sql
 --   field_failure_register                           <- 0197_review_actual_product.sql
---   indoor_job_list                                  <- 0434_indoor_parts_accessories_checks_voided.sql
+--   indoor_job_list                                  <- 0450_indoor_parts_accessories_checks_voided.sql
 --   tracker_list                                     <- 0143_tracker.sql
 --   export_schedule_state                            <- 0228_export_schedules.sql
 --
@@ -63574,8 +65544,8 @@ left join public.call_reviews r on r.ucn = f.ucn;
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
 
--- ---- indoor_job_list (0434, verbatim) --------------------------------------
--- GUARDED BY 0323's AND 0434's COLUMNS (0434 restates 0323's definition with
+-- ---- indoor_job_list (0450, verbatim) --------------------------------------
+-- GUARDED BY 0323's AND 0450's COLUMNS (0450 restates 0323's definition with
 -- voided accessories left out, D-039). Applied in FILE order (the test harness, a
 -- rebuild from the migrations folder) this file runs BEFORE 0323, whose
 -- definition it copies, and the columns that definition names do not exist

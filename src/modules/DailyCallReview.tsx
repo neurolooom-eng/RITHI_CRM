@@ -28,7 +28,7 @@ import {
 } from '../lib/dccr';
 import './dccr.css';
 import './fieldcalls.css';
-import { Ucn } from '../lib/callstate';
+import { Ucn, callStatusText } from '../lib/callstate';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
 import { MachineHistoryDialog } from '../components/machine/MachineHistoryDialog';
@@ -610,7 +610,7 @@ export function DailyCallReview() {
     { key: 'review_status', header: 'Review Status', width: 150, wrap: false,
       render: (r) => (mayReadReview ? statusBadge(r.review_status, REVIEW_STATUS_TONES)
         : <span className="muted">{reviewStatusAsSeen(r.review_status, false) || '—'}</span>) },
-    { key: 'ucn', header: 'UC Number', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.last_status || r.open_state} /> },
+    { key: 'ucn', header: 'UC Number', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStatusText(r.open_state, r.last_status)} /> },
     { key: 'call_number', header: 'Call Number', width: 130, wrap: false },
     { key: 'reg_date', header: 'Call Date', width: 105, wrap: false, render: (r) => fmtLongDate(r.reg_date) },
     { key: 'party_name', header: 'Customer', width: 200 },

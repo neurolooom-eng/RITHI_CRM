@@ -30,7 +30,7 @@ import { partial } from '../../lib/exportscope';
 
 const SOURCES: MachineEvent['source'][] = [
   'Product Database', 'Call', 'Visit', 'Spare', 'Field Failure', 'Feedback',
-  'Sale / warranty', 'Contract', 'Ownership', 'Additional entry', 'Workshop',
+  'Sale / warranty', 'Contract', 'Ownership', 'Additional entry', 'Workshop', 'Call history',
 ];
 
 export const MACHINE_SOURCES = SOURCES;

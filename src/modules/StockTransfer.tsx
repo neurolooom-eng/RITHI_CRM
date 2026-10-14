@@ -14,6 +14,9 @@ import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped, useFilingNames, useActivePeople } from '../lib/access';
 import './fieldcalls.css';
 import { cappedAt } from '../lib/exportscope';
+import { DocPreview } from '../components/doc/DocPreview';
+import { PendingFiles, SavedFiles, useStockFiles, type PickedFile } from './stockFiles';
+import { addStockRecordFiles } from '../lib/supabase';
 
 // ===========================================================================
 // STOCK TRANSFER — engineer to engineer.
@@ -50,7 +53,7 @@ function TransferDrawer({
 }: {
   open: boolean;
   onClose: () => void;
-  onSaved: (uid?: string) => void;
+  onSaved: (uid?: string, fileError?: string) => void;
   /** The signed-in person's own name, used as the From default when it is on the list. */
   selfName: string;
 }) {
@@ -74,6 +77,9 @@ function TransferDrawer({
   const [err, setErr] = useState('');
   const { can } = useAuth();
   const mayTransferOthers = can('stock.transfer.others');
+  // FILES (0426), optional: uploaded to Drive as each is chosen, saved with
+  // the transfer once it has its Transfer No.
+  const [files, setFiles] = useState<PickedFile[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,7 +154,17 @@ function TransferDrawer({
       logAudit({ action: 'stock.transfer', target: res.uid || '', status: res.ok ? 'ok' : 'error',
                  error: res.ok ? undefined : res.error,
                  meta: { from: from.trim(), to: to.trim(), lines: lines.length } });
-      if (res.ok) { onSaved(res.uid); onClose(); }
+      if (res.ok) {
+        // The transfer is recorded whatever happens to the files; a file that
+        // did not attach is said so, and can be attached from the list.
+        let fileError: string | undefined;
+        if (files.length && res.uid) {
+          const fr = await addStockRecordFiles('stock_transfer', res.uid, files);
+          if (!fr.ok) fileError = fr.error;
+        }
+        setFiles([]);
+        onSaved(res.uid, fileError); onClose();
+      }
       else setErr(res.error ?? 'Could not save the transfer.');
     } catch (e) {
       setErr(`Transfer failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -244,6 +260,9 @@ function TransferDrawer({
           )}
         </section>
 
+        <PendingFiles kind="stock_transfer" label={`MTN - ${from} to ${to}`} files={files} onChange={setFiles} disabled={busy}
+          hint="The signed MTN, a photo, anything to keep with this transfer. Saved to the Stock Transfers folder in Drive; more can be attached later from the list." />
+
         <section className="rep-sec">
           <div className="rep-sec-title">Remarks</div>
           <textarea className="input" rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Why the stock is moving…" />
@@ -327,6 +346,10 @@ export function StockTransfer() {
   }, []);
 
   const navigate = useNavigate();
+  // FILES KEPT WITH EACH TRANSFER (0426): read for the transfers on screen,
+  // shown on every line of a transfer, attachable by whoever may transfer.
+  const { files: transferFiles, reload: reloadFiles } = useStockFiles('stock_transfer', transfers.map((r) => g(r, 'uid')));
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   // THE MTN, R/SER/STR/003 -- one per transfer, printed from its own route
   // (/mtn/<transfer no>), so every line of a transfer offers the same note.
   const columns = useMemo<Column<Row>[]>(() => [
@@ -335,7 +358,14 @@ export function StockTransfer() {
       <button className="btn btn-sm" title="Print the Material Transfer Note"
         onClick={(e) => { e.stopPropagation(); navigate(`/mtn/${encodeURIComponent(g(r, 'uid'))}`); }}>🖨 MTN</button>
     ) : null) },
-  ], [navigate]);
+    { key: '_files', header: 'Files', width: 190, wrap: false, sortable: false, render: (r) => (g(r, 'uid') ? (
+      <SavedFiles compact kind="stock_transfer" refNo={g(r, 'uid')} label={`MTN - ${g(r, 'uid')}`}
+        files={transferFiles.get(g(r, 'uid')) ?? []} canAttach={can('stock.transfer')}
+        onOpen={(f) => setPreview({ url: f.url, title: `${g(r, 'uid')} — ${f.file_name}` })}
+        onAttached={(text, ok) => { setMsg({ tone: ok ? 'ok' : 'error', text }); if (ok) reloadFiles(); }} />
+    ) : null) },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [navigate, transferFiles]);
   const exportColumns = TRANSFER_COLUMNS;
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -352,7 +382,7 @@ export function StockTransfer() {
         onRefresh={() => void load()}
         refreshing={busy}
         syncedAt={lastSync}
-        title="Stock Transfer"
+        title="Stock Transfer (MTN)"
         subtitle="Move hand-stock between engineers. Balances live in Hand Stock."
         icon="🔄"
         count={visible.length}
@@ -390,9 +420,15 @@ export function StockTransfer() {
       <TransferDrawer
         open={drawer}
         onClose={() => setDrawer(false)}
-        onSaved={(uid) => { setMsg({ tone: 'ok', text: `Stock transfer ${uid ?? ''} recorded.` }); void load(); }}
+        onSaved={(uid, fileError) => {
+          setMsg(fileError
+            ? { tone: 'error', text: `Stock transfer ${uid ?? ''} recorded, but its files were not attached: ${fileError} Attach them from the Files column.` }
+            : { tone: 'ok', text: `Stock transfer ${uid ?? ''} recorded.` });
+          void load(); reloadFiles();
+        }}
         selfName={(viewAs ?? user)?.fullName ?? ''}
       />
+      {preview && <DocPreview url={preview.url} title={preview.title} onClose={() => setPreview(null)} />}
     </div>
   );
 }

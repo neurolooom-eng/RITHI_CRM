@@ -351,6 +351,14 @@ export function CallReportDrawer({
   const complaintISO = localIsoDate(call?.complaintDate ?? call?.['complaint_date'])
     ?? toIsoDate(call?.complaintDate ?? call?.['complaint_date'])
     ?? '';
+  // THE LOWER BOUND IS THE BREAKDOWN DATE (the user, 2026-10-14: "Reports can
+  // allow a Dates between the Breakdown Date and Today"), else the complaint
+  // date as before -- the database's rule (0436), word for word.
+  const breakdownISO = localIsoDate(call?.breakdownDate ?? call?.['breakdown_date'])
+    ?? toIsoDate(call?.breakdownDate ?? call?.['breakdown_date'])
+    ?? '';
+  const visitFromISO = breakdownISO || complaintISO;
+  const visitFromWhat: 'breakdown' | 'complaint' = breakdownISO ? 'breakdown' : 'complaint';
   const [engineer, setEngineer] = useState('');
   // THE INDOOR VISIT'S ENGINEER IS PICKED (the user, 2026-10-03): any active
   // person on the User Master, defaulting to the signed-in Indoor engineer, and
@@ -656,7 +664,7 @@ export function CallReportDrawer({
     if (!ucn) return 'This call has no UC Number to report against.';
     // Checked here as well as on the input: `min`/`max` stop the PICKER, not a
     // typed or pasted value, and this is a quality record.
-    const whenProblem = visitDateProblem(visitDate, complaintISO, todayISO());
+    const whenProblem = visitDateProblem(visitDate, visitFromISO, todayISO(), visitFromWhat);
     if (whenProblem) return whenProblem;
     // MANDATORY (the user, 2026-09-09). A visit with no engineer on it is a
     // service record that cannot say WHO performed the service — §7.5.4 asks
@@ -929,12 +937,12 @@ export function CallReportDrawer({
                 <input
                   type="date" className="input" value={visitDate}
                   max={todayISO()}
-                  min={complaintISO || undefined}
+                  min={visitFromISO || undefined}
                   onChange={(e) => setVisitDate(e.target.value)}
                 />
                 <span className="muted rep-hint">
-                  {complaintISO
-                    ? <>Not in the future, and not before the complaint ({fmtLongDate(complaintISO)}).</>
+                  {visitFromISO
+                    ? <>Not in the future, and not before the {visitFromWhat} ({fmtLongDate(visitFromISO)}).</>
                     : <>Not in the future.</>}
                 </span>
               </label>

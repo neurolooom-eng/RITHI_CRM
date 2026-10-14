@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase';
+import { localIsoDate } from './dates';
 import { allRows } from './paging';
 import { machineKey, withEventKeys } from './machine';
 
@@ -25,8 +26,11 @@ import { machineKey, withEventKeys } from './machine';
 // different policies and filled by different people; a single undifferentiated
 // list would promise one standard of evidence for all of them.
 //
-// WHAT THIS CANNOT SEE: anything before the migration into this system. That
-// lives in a separate archive project and is not reachable from here.
+// WHAT THIS CANNOT SEE: anything before the migration into this system that
+// has not been loaded as CALL HISTORY (0429) -- the calls up to 2025, kept
+// apart from every workflow. Those are shown as their own group, read-only,
+// with the file's own status: they are history, not live calls, and their UCN
+// is not offered as a link into a register that does not hold it.
 // ===========================================================================
 
 export interface MachineEvent {
@@ -39,7 +43,8 @@ export interface MachineEvent {
   on: string;
   /** Which register. Also the group heading on screen. */
   source: 'Product Database' | 'Call' | 'Visit' | 'Spare' | 'Field Failure' | 'Feedback'
-        | 'Sale / warranty' | 'Contract' | 'Ownership' | 'Additional entry' | 'Workshop';
+        | 'Sale / warranty' | 'Contract' | 'Ownership' | 'Additional entry' | 'Workshop'
+        | 'Call history';
   /** What happened, in a word or two. */
   what: string;
   /** The number somebody would quote: a UCN, an FFR number, an MC number. */
@@ -221,7 +226,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
   const bySerial = (source: MachineEvent['source'], table: string, cols: string, col: string, order: string) =>
     readAll<R>(source, (f, t) => c.from(table).select(cols).eq(col, ser).order(order).range(f, t) as unknown as PromiseLike<Res<R>>, unread);
 
-  const [master, visits, spares, ffrs, feedback, sale, contract, owner, extra, indoor] = await Promise.all([
+  const [master, visits, spares, ffrs, feedback, sale, contract, owner, extra, indoor, history] = await Promise.all([
     // THE MASTER IS A ROW IN THE LIST TOO (the user, 2026-09-14: "in the list
     // add Product Database also"), not only the heading. It is a register like
     // the others — somebody put the machine on it, and what it says about the
@@ -237,6 +242,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
     bySerial('Ownership', 'ownership_transfers', 'id,reference_no,item_name,serial_number,from_party,to_party,transfer_date,reason,remarks', 'serial_number', 'id'),
     bySerial('Additional entry', 'product_additional_entries', 'id,item_name,serial_number,party_name,warranty_number,contract_number,source_note,remarks,created_at', 'serial_number', 'id'),
     bySerial('Workshop', 'indoor_jobs', 'id,job_no,ucn,product_name,serial,party_name,received_at,status,activity,work_done,disposition', 'serial', 'id'),
+    bySerial('Call history', 'call_history', 'id,ucn,call_no,call_at,call_type,party_name,item_name,serial,standard_complaint,complaint_reported,engineer,call_status,solved_at,source,record_year,duplicate,duplicates', 'serial', 'id'),
   ]);
 
   for (const r of sameMachineRows(master, 'item_name', product, ser)) out.push({
@@ -318,6 +324,21 @@ export async function machineHistory(product: string, serial: string): Promise<M
     ref: s(r.job_no), ucn: s(r.ucn), party: s(r.party_name),
     detail: [s(r.activity), s(r.work_done), s(r.disposition) && `disposition: ${s(r.disposition)}`]
       .filter(Boolean).join(' · '),
+  });
+
+  // CALL HISTORY (0429): the file's own status and solved date, as written.
+  for (const r of sameMachineRows(history, 'item_name', product, ser)) out.push({
+    on: localIsoDate(r.call_at) ?? '', source: 'Call history', what: s(r.call_type) || 'Call',
+    ref: [s(r.ucn), s(r.call_no) && `call ${s(r.call_no)}`].filter(Boolean).join(' · '), ucn: '', party: s(r.party_name),
+    detail: [s(r.call_status), s(r.solved_at) && `solved ${localIsoDate(r.solved_at) ?? ''}`,
+             s(r.standard_complaint) || s(r.complaint_reported),
+             s(r.engineer) && `engineer ${s(r.engineer)}`,
+             // WHERE IT CAME FROM (0432), and the DUPLICATE flag with the other
+             // records it is kept beside -- shown, never acted on.
+             [s(r.source), s(r.record_year)].filter(Boolean).join(' '),
+             r.duplicate === true && `DUPLICATE — also in ${(Array.isArray(r.duplicates) ? r.duplicates : [])
+               .map((d) => [s((d as Record<string, unknown>).source), s((d as Record<string, unknown>).record_year)].filter(Boolean).join(' ')).join(', ') || 'another record'}`,
+             'history — not a live call'].filter(Boolean).join(' · '),
   });
 
   // NEWEST FIRST, and a row with no date sorts LAST rather than first: an

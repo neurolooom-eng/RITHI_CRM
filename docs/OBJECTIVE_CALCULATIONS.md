@@ -45,8 +45,17 @@ figure.
 ### 1.5 How a figure is shown
 - A figure whose target contains **%** is a percentage, shown to **two decimal places** (0.010101 → 1.01%).
 - It is coloured **good** or **bad** against a target written `<x%` or `>x%`.
-- The **Total** column is **not calculated** — it holds the figure typed in when the objectives were
-  loaded from the sheet.
+- The **Total** column is **calculated** for every computed objective (0428, 13-Oct-2026), the way
+  the shared sheet works it out:
+  - **FFR count** — the **sum** of its months. Sheet 2026: 0 + 9 + 7 + 6 + 2 + 4 + 6 = **34**.
+  - **Every percentage objective** — the plain **average of the months (or quarters) that carry a
+    figure**. A blank or NA month is in neither the sum nor the count. Sheet 2026: CPXcare
+    (1% + 1% + 0 + 0 + 0 + 0 + 0) ÷ 7 = **0.29%**; attended within 3 days (92 + 93 + 94 + 95 + 96 + 94 + 96) ÷ 7
+    = **94.29%**; Preventive Maintenance (10% + 10%) ÷ 2 = **10%**.
+  - It is an average of the monthly figures, **not** the year's calls pooled into one rate.
+  - It moves by itself whenever a month changes — Re-Calculate or a month typed over by hand. A
+    **typed** objective (no calculation) keeps the Total typed in.
+  - **Check by hand:** add the month figures shown and divide by how many there are (FFR: just add).
 
 ---
 
@@ -159,7 +168,9 @@ and a note where the visit came after the cut-off.
 
 1. **The calls (denominator):** every call registered in the period in the objective's register
    (Field), not cancelled, of the call type in the setting.
-2. **Counts from:** the later of the **complaint date** and the **registration date**.
+2. **Counts from:** the call's **Breakdown Date** (0438, 2026-10-14: *"the Timer should be
+   calculated from the Breakdown Date"*). A call with no Breakdown Date counts from the later of
+   its **complaint date** and **registration date**, as before.
 3. **Attended on:** the **earlier** of
    - the call's **first visit date**, and
    - the date of the call's **first spare request**.
@@ -168,8 +179,8 @@ and a note where the visit came after the cut-off.
 
 **Figure = calls attended in time ÷ calls.** N = **3** (the *days* setting). Blank when no calls.
 
-*Example:* complaint 10-Mar, registered 11-Mar → counts from 11-Mar; first visit 13-Mar, spare
-requested 12-Mar → attended 12-Mar → 1 day → in time.
+*Example:* breakdown 09-Mar, complaint 10-Mar, registered 11-Mar → counts from 09-Mar; first
+visit 13-Mar, spare requested 12-Mar → attended 12-Mar → 3 days → in time (N = 3).
 
 ### 3.5 Customer feedback satisfaction — "b. Customer feedback"
 **Answers:** the average satisfaction of the customers whose feedback was taken in the period —
@@ -246,8 +257,9 @@ calculated.)*
 | Open-call rate | `open_rate_monthly` | 0132 (first), 0136–0139 (periods, cut-offs), 0418 (Missed PM) |
 | Attended within N days | `attended_within_days` | 0136 |
 | Customer feedback satisfaction | `feedback_satisfaction` | 0422 |
+| The Total column (every calculated objective) | — | 0428 (`objective_total()`, trigger `zx_quality_objectives_total`) |
 | *(not used in 2026)* failure within N months of installation over a rolling 12 months, by machine | `failure_rate_12m` | 0357, 0359 |
 
 Requirements: FRS-121 (Quality objectives) in `src/lib/validation.ts`; tests in `supabase/tests/`
-(`dccr_failure_cohort_test`, `missed_pm_test`, `feedback_satisfaction_test`, `objective_periods_test`,
+(`dccr_failure_cohort_test`, `missed_pm_test`, `feedback_satisfaction_test`, `objective_total_test`, `objective_periods_test`,
 `objective_ffr_count_test`, `quality_objectives_test`).

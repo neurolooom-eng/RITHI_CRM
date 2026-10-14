@@ -9,7 +9,8 @@ import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
-import { dayAfter, addPeriod, todayLocal } from '../src/lib/dates';
+import { dayAfter, addPeriod, todayLocal, toIsoDate } from '../src/lib/dates';
+import { UPLOADS as ALL_UPLOADS, askedFields, missingAsk } from '../src/lib/uploads';
 import { configFor, contractStatusText, yearsHint, proposeConversion, conversionHeader, conversionItem, headerChanges, withSavedMachine } from '../src/lib/cover';
 import { localIsoDate, formatDayTime, excelSerial, hasClockTime, localDateTimeInput } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
@@ -17,7 +18,7 @@ import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmou
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem,
          upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
-import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
+import { callDateFromRequest, complaintDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT, reqidOrRefusal, attendedDateProblem, correctionProblem, NOTHING_SAVED } from '../src/lib/callrequest';
 import { harvestedPartProblem, PART_GRADES, isVoided, liveEntries, voidNote } from '../src/lib/indoorforms';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
@@ -28,6 +29,8 @@ import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags, noteMatchesCall, docMatchesCall } from '../src/lib/docmatch';
+import { evaluateCallSla, slaByRule, DEFAULT_SLA_RULES } from '../src/lib/sla';
+import { applyDashPicks, dashTally, dashTrend, dashPeriodKey } from '../src/lib/dashinsights';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callreview';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
@@ -388,6 +391,17 @@ console.log('\n-- the day a call registered from a request is about --');
   // A plain date carries no timezone and must not be shifted by one.
   eq('a plain yyyy-mm-dd is left exactly as it is', localIsoDate('2026-08-31'), '2026-08-31');
   eq('a day-first export date still reads day-first', localIsoDate('31/08/2026'), '2026-08-31');
+  // COMPLAINT DATE = the day the request was RAISED, Breakdown Date = the day it
+  // was attended (the user, 2026-10-14). A request attended on the 6th and
+  // raised on the 7th gives Complaint 7th, Breakdown 6th.
+  eq('Complaint Date is the day the request was raised, not the attended day',
+    complaintDateFromRequest({ loggedAt: '2026-08-07T10:23:00+00:00' }), '2026-08-07');
+  eq('...and Breakdown Date the attended day',
+    d({ attended: 'Yes', attendedDate: '2026-08-06', loggedAt: '2026-08-07T10:23:00+00:00' }), '2026-08-06/attended');
+  eq('...and no readable time leaves the caller to use today', complaintDateFromRequest({}), '');
+  const reg = readFileSync('src/modules/PendingRegistrations.tsx', 'utf8');
+  eq('Pending Registrations fills Complaint Date from the raised day',
+    /complaintDate: requestComplaintDate\(row\)\.iso/.test(reg), true);
 }
 
 // ---------------------------------------------------------------------------
@@ -584,6 +598,134 @@ console.log('\n-- which manuals belong on a call --');
   eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
 }
 
+// THE DASHBOARD READ THE FAILURE INSIGHTS WAY (FRS-116.15-.18): a click
+// narrows every figure, each chart counting the OTHER picks; the trend by
+// year / quarter / month with its numbers; downloads only with export.data.
+console.log('\n-- the Dashboard, the Failure Insights way --');
+{
+  const calls = [
+    { productName: 'VEGA', allocatedTo: 'A', itemStatus: 'WGP', regDate: '2026-01-15' },
+    { productName: 'VEGA', allocatedTo: 'B', itemStatus: 'AMC', regDate: '2026-02-03' },
+    { productName: 'MT60', allocatedTo: 'A', itemStatus: '',    regDate: '2026-04-20' },
+    { productName: 'MT60', allocatedTo: 'A', itemStatus: 'WGP', regDate: '' },
+  ];
+  eq('a period is a month, a quarter or a year', [dashPeriodKey(new Date(2026, 3, 20), 'month'), dashPeriodKey(new Date(2026, 3, 20), 'quarter'), dashPeriodKey(new Date(2026, 3, 20), 'year')], ['2026-04', '2026-Q2', '2026']);
+  eq('a pick narrows the calls', applyDashPicks(calls, { allocatedTo: 'A' }, 'month').length, 3);
+  eq('...but a chart ignores its OWN pick (the cross-filter)', applyDashPicks(calls, { allocatedTo: 'A', productName: 'VEGA' }, 'month', 'productName').length, 3);
+  eq('a blank is counted as (not stated), never dropped', dashTally(calls, 'itemStatus').map((d) => [d.label, d.value]), [['WGP', 2], ['(not stated)', 1], ['AMC', 1]]);
+  const t = dashTrend(calls, 'quarter');
+  eq('the trend: oldest first, change on the one before (none for the first), running total',
+    t.rows.map((r) => [r.label, r.value, r.change, r.running]), [['2026-Q1', 2, null, 2], ['2026-Q2', 1, -1, 3]]);
+  eq('...and an undated call is in no period, and counted as such', [t.total, t.undated], [3, 1]);
+  eq('a period pick selects the bucket the chart shows', applyDashPicks(calls, { period: '2026-Q1' }, 'quarter').length, 2);
+  const dash = readFileSync('src/modules/Dashboard.tsx', 'utf8');
+  eq('the download buttons exist only for a role holding export.data',
+    /const mayDownload = can\('export\.data'\)/.test(dash) && /const dl = \(fn: \(\) => void\) => \(mayDownload \? fn : undefined\)/.test(dash), true);
+  eq('...and the download itself refuses without it', /const download = [^\n]*\n\s*if \(!can\('export\.data'\)\) return;/.test(dash), true);
+  eq('every block offers its download through that gate', (dash.match(/onDownload=\{dl\(/g) ?? []).length >= 6, true);
+}
+
+// A SIGN-IN LANDS ON THE DASHBOARD (FRS-116.14, the user, 2026-10-13).
+console.log('\n-- a sign-in lands on the Dashboard --');
+{
+  const login = readFileSync('src/modules/Login.tsx', 'utf8');
+  const app = readFileSync('src/App.tsx', 'utf8');
+  eq('a successful sign-in goes to #/', /if \(!res\.ok\) \{[^}]*return; \}\s*(\/\/[^\n]*\n\s*)*window\.location\.hash = '#\/';/.test(login), true);
+  eq('...and / is the Dashboard', /<Route path="\/" element=\{<Dashboard \/>\} \/>/.test(app), true);
+}
+
+// ONE TILE AND ONE LIST PER SLA, UNDER ITS NAME (FRS-116.13, the user,
+// 2026-10-13: "Segregate the SLA Breach ... Every SLA should display a List
+// separately").
+console.log('\n-- one list per SLA, under its name --');
+{
+  const rules = DEFAULT_SLA_RULES.map((r) => (r.key === 'first_visit' ? { ...r, label: 'Reach the customer' } : r));
+  const now = Date.parse('2026-10-13T12:00:00+05:30');
+  const judge = (ucn: string, regAt: string, openState: string) =>
+    ({ item: ucn, sla: evaluateCallSla(rules, { regAt, openState }, now) });
+  const lists = slaByRule(rules, [
+    judge('LATE-BOTH', '2026-09-01T10:00:00+05:30', 'Unattended'),   // late for first visit AND closure
+    judge('LATE-CLOSE', '2026-09-01T10:00:00+05:30', 'Unsolved'),    // visited, late for closure only
+    judge('FRESH', '2026-10-13T10:00:00+05:30', 'Unattended'),       // on track for both
+    judge('GONE', '2026-09-01T10:00:00+05:30', 'Cancelled'),         // no SLA at all
+  ]);
+  eq('a list per rule that has late calls, in the rules\' order', lists.map((l) => l.rule.key), ['first_visit', 'closure']);
+  eq('each list carries the name given to the SLA', lists[0].rule.label, 'Reach the customer');
+  eq('a call late for two rules is on both lists',
+    [lists[0].items.map((x) => x.item), lists[1].items.map((x) => x.item).sort()], [['LATE-BOTH'], ['LATE-BOTH', 'LATE-CLOSE']]);
+  eq('counts are per list', lists.map((l) => [l.breached, l.due]), [[1, 0], [2, 0]]);
+  const dash = readFileSync('src/modules/Dashboard.tsx', 'utf8');
+  eq('the Dashboard titles each list and tile with the rule\'s name',
+    /slaLists\.map\(\(l\) =>/.test(dash) && /\$\{l\.rule\.label\}/.test(dash) && /\$\{t\.rule\.label\}/.test(dash), true);
+  eq('SLA Targets lets the name be edited', /aria-label="SLA name"/.test(readFileSync('src/modules/SlaRulesCard.tsx', 'utf8')), true);
+}
+
+// FILES KEPT WITH A TRANSFER AND A RETURN (FRS-277): both screens offer them
+// on the New form and on the saved record, through the one shared component.
+console.log('\n-- files on stock transfers and material returns --');
+{
+  const st = readFileSync('src/modules/StockTransfer.tsx', 'utf8');
+  const mr = readFileSync('src/modules/MaterialReturns.tsx', 'utf8');
+  eq('Stock Transfer offers files on the form and on the list',
+    /<PendingFiles kind="stock_transfer"/.test(st) && /<SavedFiles compact kind="stock_transfer"/.test(st), true);
+  eq('Material Returns offers files on the form, the list and the opened MRN',
+    /<PendingFiles kind="material_return"/.test(mr) && /<SavedFiles compact kind="material_return"/.test(mr)
+      && /<SavedFiles kind="material_return"/.test(mr), true);
+  eq('a record saves whatever happens to its files',
+    /addStockRecordFiles\('stock_transfer', res\.uid, files\)/.test(st) && /addStockRecordFiles\('material_return', res\.uid, files\)/.test(mr), true);
+  eq('the screen is Stock Transfer (MTN)', /title="Stock Transfer \(MTN\)"/.test(st), true);
+}
+
+// CALL HISTORY IS KEPT APART (FRS-278, 0429): its own table, its own
+// register, no workflow; Excel's Long Date read for its warranty start.
+console.log('\n-- call history, kept apart --');
+{
+  eq('Excel Long Date reads, with or without the weekday',
+    [toIsoDate('Thursday, March 31, 2016'), toIsoDate('November 01, 2019'), toIsoDate('Someday, Foo 01, 2019')], ['2016-03-31', '2019-11-01', null]);
+  const def = ALL_UPLOADS.find((d) => d.key === 'call_history');
+  eq('the register writes call_history and nothing else, keyed by UC No. + Call No.',
+    [def?.table, def?.conflict, def?.group], ['call_history', 'ucn,call_no', 'Calls']);
+  const mig = readFileSync('supabase/migrations/0429_call_history.sql', 'utf8');
+  eq('the table has no trigger but the loader stamp',
+    (mig.match(/create trigger/g) ?? []).length === 1 && /create trigger call_history_stamp/.test(mig), true);
+  eq('...and touches no live call table',
+    /insert into public\.(field_calls|installation_calls|pm_calls|reports|call_reviews)/.test(mig), false);
+  const asks = def?.asks ?? [];
+  eq('the upload asks the Source always, and the Year for a yearly sheet',
+    [missingAsk(asks, {}), missingAsk(asks, { source: 'Yearly sheet' }), missingAsk(asks, { source: 'WinMax' }), missingAsk(asks, { source: 'Yearly sheet', record_year: '23' })],
+    ['Source', 'Year', '', 'Year (a four-digit year)']);
+  eq('...and writes them on every row, the year as a number',
+    askedFields(asks, { source: 'Yearly sheet', record_year: '2023' }), { source: 'Yearly sheet', record_year: 2023 });
+  eq('Machine History reads it as its own group, never as a live call',
+    /bySerial\('Call history', 'call_history'/.test(readFileSync('src/lib/machineHistory.ts', 'utf8')), true);
+}
+
+// HAND STOCK HIDES PEOPLE WHO HAVE LEFT, ON A SWITCH (FRS-276).
+console.log('\n-- Hand Stock hides inactive users --');
+{
+  const hs = readFileSync('src/modules/HandStock.tsx', 'utf8');
+  const acc = readFileSync('src/lib/access.ts', 'utf8');
+  eq('Hand Stock reads useInactiveNames() and filters the list on it',
+    /useInactiveNames\(\)/.test(hs) && /filter\(\(r\) => !\(hideInactive && isInactive\(r\)\)\)/.test(hs), true);
+  eq('the switch is ON unless the device remembers it off',
+    /getItem\('rithi\.handstock\.hideInactive'\) !== '0'/.test(hs), true);
+  eq('inactive = on the User Master with no active row (a name it does not carry is never hidden)',
+    /seen\]\.filter\(\(n\) => !active\.has\(n\)\)/.test(acc), true);
+}
+
+// A CANCELLED CALL IS NOT ON THE SLA LIST (the user, 2026-10-13). A call
+// cancelled long ago read "SLA breached · Call closure · 273d over".
+console.log('\n-- a cancelled call has no SLA --');
+{
+  const old = '2026-01-08T10:00:00+05:30';
+  eq('an Unsolved call registered in January is breached',
+    evaluateCallSla(DEFAULT_SLA_RULES, { regAt: old, openState: 'Unsolved' }).worst, 'breach');
+  eq('the same call Cancelled is not assessed',
+    evaluateCallSla(DEFAULT_SLA_RULES, { regAt: old, openState: 'Cancelled' }).worst, 'na');
+  eq('a Solved call is still not assessed',
+    evaluateCallSla(DEFAULT_SLA_RULES, { regAt: old, openState: 'Solved' }).worst, 'na');
+}
+
 // ONLY A TECHNICAL NOTE TAGGED LATEST IS OFFERED ON A CALL (the user,
 // 2026-10-12), and Latest FOR THE PRODUCT THAT BROUGHT IT THERE -- the mark is
 // per product (0354), so a two-product note can be Latest for one only.
@@ -714,10 +856,15 @@ console.log('\n-- a visit date that could not have happened --');
   // submit, because min/max stop the PICKER, not a pasted value.
   const rep = readFileSync(`${process.cwd()}/src/modules/CallReporting.tsx`, 'utf8');
   eq('the visit date picker cannot reach the future', /max=\{todayISO\(\)\}/.test(rep), true);
-  eq('the visit date picker cannot reach before the complaint',
-    /min=\{complaintISO \|\| undefined\}/.test(rep), true);
+  // THE BOUND IS THE BREAKDOWN DATE, else the complaint (the user, 2026-10-14).
+  eq('the visit date picker cannot reach before the breakdown',
+    /min=\{visitFromISO \|\| undefined\}/.test(rep), true);
+  eq('...which is the breakdown date, else the complaint date',
+    /const visitFromISO = breakdownISO \|\| complaintISO;/.test(rep), true);
   eq('and the rule is checked again on submit',
-    /visitDateProblem\(visitDate, complaintISO, todayISO\(\)\)/.test(rep), true);
+    /visitDateProblem\(visitDate, visitFromISO, todayISO\(\), visitFromWhat\)/.test(rep), true);
+  eq('the message names the breakdown',
+    /before the breakdown/.test(visitDateProblem('2026-08-31', C, T)), true);
   // THE LOWER BOUND IS THE COMPLAINT DATE AND NOTHING ELSE. It briefly fell
   // back to the REGISTRATION date, which a PM batch sets to the first of the
   // due month — so an October PM refused a visit entered on 28 September, and
@@ -726,6 +873,28 @@ console.log('\n-- a visit date that could not have happened --');
   // stricter than the rule it claims to enforce.
   eq('the lower bound never falls back to the registration date',
     /complaintISO[\s\S]{0,400}?regDate/.test(rep), false);
+}
+
+// ---------------------------------------------------------------------------
+// AN OPENED CALL (the user, 2026-10-14): its status first and highlighted, its
+// dates readable, its sections collapsible. D-171: a dd-MMM-yyyy value in a
+// browser date input shows NOTHING, which is how every opened call read its
+// Breakdown Date blank.
+console.log('\n-- an opened call: status, dates, collapse --');
+{
+  const fc = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
+  const form = readFileSync(`${process.cwd()}/src/components/form/Form.tsx`, 'utf8');
+  eq('viewing renders every date field as text (D-171)',
+    /f\.type === 'date' \? \{ \.\.\.f, type: 'text' as const \}/.test(fc), true);
+  eq('...and the view uses that list',
+    /drawer\.mode === 'view' \? viewOnlyFields\(/.test(fc), true);
+  eq('the Call Status is shown first, highlighted',
+    /className="call-status-hero"/.test(fc) && /\.call-status-hero \{/.test(readFileSync(`${process.cwd()}/src/modules/fieldcalls.css`, 'utf8')), true);
+  eq('...in the same words as the register', /label=\{callStatusText\(\(drawer\.row as Rec\)\.callState/.test(fc), true);
+  eq('the call form collapses', /sectionOrderKey="callform"\s*\n\s*collapsible/.test(fc), true);
+  eq('...all at once', /Collapse all sections/.test(form), true);
+  eq('...and a section with an error opens on Save',
+    /collapsed\.some\(\(k\) => bad\.has\(k\)\)/.test(form), true);
 }
 
 // ---------------------------------------------------------------------------
@@ -5978,7 +6147,7 @@ console.log('\n-- review batch: D-027, D-030, D-039 (the screen half) --');
   eq('...nothing is blank', localDateTimeInput(null), '');
   eq('...and nonsense is blank', localDateTimeInput('not a date'), '');
 
-  // D-039 / FRS-143.8 (0434): A PART, AN ACCESSORY OR A CHECK IS VOIDED, NEVER
+  // D-039 / FRS-143.8 (0450): A PART, AN ACCESSORY OR A CHECK IS VOIDED, NEVER
   // DELETED. The database refuses the DELETE; the screen must not offer one.
   for (const t of ['indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks']) {
     eq(`D-039: nothing in supabase.ts deletes from ${t}`,
@@ -7444,7 +7613,9 @@ console.log('\n-- a facet row can be put away, and never hides a live filter --'
   // the attribute measured the wrong thing and the check failed on a file that
   // was correct.
   const FACETS: [string, number, string[]][] = [
-    ['src/modules/FieldCalls.tsx', 1, ['engineer']],
+    // Engineer, and the Call Pending Reason (0433). The Cancellation Reason
+    // strip was removed on the user's word (2026-10-14).
+    ['src/modules/FieldCalls.tsx', 2, ['engineer', 'pendingReason']],
     ['src/modules/PendingCalls.tsx', 1, ['pending.engineer']],
     ['src/modules/SpareRequests.tsx', 1, ['spares.engineer']],
     ['src/modules/IndoorService.tsx', 3, ['indoor.status', 'indoor.activity', 'indoor.kind']],
@@ -7914,8 +8085,13 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // not doing so is how "WARRANTY" and "WGP" became two slices of one pie.
   const up = readFileSync('src/lib/uploads.ts', 'utf8');
   eq('the bulk uploader normalises cover', /COVER\('item_status'/.test(up), true);
-  eq('...and no register still takes it as plain text',
-    /TEXT\('item_status'/.test(up), false);
+  // ONE EXCEPTION, NAMED: Call History (0429) keeps the old file's own words
+  // ("Under Contract") because it is history kept apart from every workflow --
+  // the user, 2026-10-13: "the Call Status, Visit, Report can take from the
+  // file directly". Every LIVE register still normalises.
+  eq('...and no register still takes it as plain text, Call History apart',
+    (up.match(/TEXT\('item_status'/g) ?? []).length === 1
+      && /key: 'call_history'[\s\S]{0,5000}TEXT\('item_status'/.test(up), true);
   eq('the PM importer normalises cover',
     /col === 'item_status' \? coverCode\(val\)/.test(readFileSync('src/lib/pmImport.ts', 'utf8')), true);
   eq('the AppSheet cover export normalises its own spelling of it',
@@ -9926,7 +10102,7 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   const fn = sb.slice(sb.indexOf('export async function listPmCallsInMonth('), sb.indexOf('// PM DUE (0401, 0402)'));
   eq('D-038: the month\u2019s PM calls are read paged, in a unique order',
     /allRows</.test(fn) && /\.order\('ucn'\)\.range\(a, b\)/.test(fn), true);
-  eq('D-038: ...asked of EVERY PM call (pm_calls_in_month, 0435), not through the uploader\u2019s row-level security',
+  eq('D-038: ...asked of EVERY PM call (pm_calls_in_month, 0451), not through the uploader\u2019s row-level security',
     /\.rpc\('pm_calls_in_month'/.test(fn) && !/\.from\('pm_calls'\)/.test(fn), true);
 }
 
@@ -11249,7 +11425,7 @@ console.log('\n-- changes that decide what happens next are recorded (D-067) --'
   eq('...a name the User Master holds twice is held back, not guessed', dp.held.map((h) => h.name).join(','), 'Twice');
   eq('...a name the file holds twice is loaded once, from its last row, and said',
     [dp.updates.find((u) => u.id === 4)?.patch.designation, dp.notes.length], ['B', 1]);
-  eq('an MRN line is matched on SI Number + part CODE + line, as 0439 keys it',
+  eq('an MRN line is matched on SI Number + part CODE + line, as 0455 keys it',
     lp.splitByKey([{ uid: 'S1', part: 'ky1|a', row_no: 1 }, { uid: 'S1', part: 'KY1|other words', row_no: 2 }], lp.mrnKey,
       new Set([lp.mrnKey({ uid: 'S1', part: 'KY1|A', row_no: 1 })])), { fresh: 1, overwrite: 1 });
   eq('the Normalise question names each field and says there is no undo',
