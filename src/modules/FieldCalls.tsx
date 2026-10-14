@@ -68,6 +68,7 @@ const CALL_ALL_FIELDS = [
   { key: 'pendingReason', header: 'Call Pending Reason' },
   { key: 'cancellationReason', header: 'Cancellation Reason' },
   { key: 'cancelledAt', header: 'Cancellation Date', render: (r: Rec) => formatDayTime(r.cancelledAt) },
+  { key: 'cancelledByWho', header: 'Cancelled By' },
   // Not sheet columns — the database's own stamp of who registered the call:
   // the Hotline desk it belongs to, and the person who actually typed it in.
   { key: 'createdBy', header: 'Created By (Hotline Desk)' },
@@ -136,6 +137,7 @@ const STATUS_VIEW_FIELDS: FieldDef[] = [
     help: 'Typed when the call was cancelled. Shown while it is cancelled.', span: 1 },
   { name: 'cancellationDate', label: 'Cancellation Date', section: 'Registration', readOnly: true,
     help: 'When the call was cancelled.', span: 1 },
+  { name: 'cancelledByWho', label: 'Cancelled By', section: 'Registration', readOnly: true, span: 1 },
 ];
 
 // ===========================================================================
@@ -305,6 +307,8 @@ const COLUMNS: Column<Rec>[] = [
   // the second. Restoring a call clears it (0108), so it shows exactly while
   // the call is cancelled.
   { key: 'cancelledAt', header: 'Cancellation Date', width: 190, render: (r) => formatDayTime(r.cancelledAt) },
+  // The login that cancelled it, or the name an old-system file gave (0439).
+  { key: 'cancelledByWho', header: 'Cancelled By', width: 200 },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
   { key: 'city', header: 'City', width: 110 },
@@ -1057,6 +1061,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Only while cancelled: a restored call keeps the reason on its record (0108)
   // but is not cancelled any more.
   const cancellationReasonOf = (row: Rec) => (row.cancelledAt ? String(row.cancelReason ?? '').trim() : '');
+  // Only while cancelled; a login's name where there is one, else the file's.
+  const cancelledByOf = (row: Rec) => (!row.cancelledAt ? ''
+    : row.cancelledBy ? nameForUserId(String(row.cancelledBy), userNameMap) : String(row.cancelledByName ?? ''));
   const [pendingReasonFilter, setPendingReasonFilter] = useState('');
   const [cancelReasonFilter, setCancelReasonFilter] = useState('');
 
@@ -1203,9 +1210,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         solvedOn: d?.solvedOn ?? '',
         pendingReason: (d?.pendingReason ?? '').trim(),
         cancellationReason: cancellationReasonOf(r),
+        cancelledByWho: cancelledByOf(r),
       };
     }),
-    [visibleRows, regionOf, callDates],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleRows, regionOf, callDates, userNameMap],
   );
 
 
@@ -1696,6 +1705,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     pendingReason: pendingReasonOf(drawer.row as Rec),
                     cancellationReason: cancellationReasonOf(drawer.row as Rec),
                     cancellationDate: formatDayTime(drawer.row?.cancelledAt),
+                    cancelledByWho: cancelledByOf(drawer.row as Rec),
                   } : {}),
                   // The row carries the UUID; the form shows the person. A call
                   // loaded before the stamp existed has none, and says so
