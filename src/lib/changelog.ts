@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.194',
+    date: '2026-10-14',
+    title: 'Day counts: the lower of from-complaint and from-breakdown; reasons off the opened call',
+    changes: [
+      'Every day count now works out the days from the Complaint Date and the days from the Breakdown Date, and takes the lower one that is not negative; if both are negative it is 0. A call with only one of the two dates counts from that one; with neither, from its registration.',
+      'This applies to Aging on the Field, Installation and PM registers, the KPI Export\'s Attended, Solved and Pending Days, TTA and TTS, the Attended within N days objective (after the next Re-Calculate) and the Dashboard SLA.',
+      'Time taken to attend ends on the earliest date among the call\'s visits and its spare requests (a spare request counts on its Request Date). A visit entered later but dated earlier still counts. This was already the rule.',
+      'An opened call no longer shows Call Pending Reason, Cancellation Reason, Cancellation Date and Cancelled By as fields. They are register columns, and the highlighted status at the top says what the call is pending on or why it was cancelled.',
+    ],
+  },
+  {
     version: '0.10.193',
     date: '2026-10-14',
     title: 'Cancellation Reason chips removed',

@@ -2248,13 +2248,18 @@ with checks(sort_order, bundle, provides, present) as (
     (354, 'A visit may be dated from the Breakdown Date', 'reports_visit_date_guard() (0436): a visit entered on the form cannot be dated before the call''s Breakdown Date, else its Complaint Date, nor after today. NO means a visit made between the breakdown and the request is refused. Restore: reports.sql (0436)',
         coalesce((select p.prosrc like '%coalesce(c.breakdown_date, c.complaint_date)%'
                     from pg_proc p where p.oid = to_regprocedure('public.reports_visit_date_guard()')), false)),
-    (355, 'KPI export counts its days from the Breakdown Date', 'kpi_field_inst (0437): Attended / Solved / Pending Days, TTA and TTS count from the call''s Breakdown Date, else the later of complaint and registration; the view stays security_invoker. NO means the export still counts from the complaint. Restore: performance.sql (0437)',
-        coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%COALESCE(c.breakdown_date%'
+    (355, 'KPI export: every day count the lower of complaint-to and breakdown-to', 'call_days() + kpi_field_inst (0440): Attended / Solved / Pending Days, TTA and TTS take the lower of the days from the Complaint Date and from the Breakdown Date that is not negative, 0 when both are, the registration day where a call has neither; the view stays security_invoker. TESTED BY VALUE. NO means the export counts from one date only. Restore: performance.sql (0440)',
+        (to_regprocedure('public.call_days(date,date,date,date)') is not null
+     and public.call_days(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-09') = 2
+     and public.call_days(date '2026-08-10', date '2026-08-06', null, date '2026-08-08') = 2
+     and public.call_days(date '2026-08-07', date '2026-08-06', null, date '2026-08-01') = 0
+     and public.call_days(null, null, date '2026-08-08', date '2026-08-09') = 1
+     and coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%call_days(%'
                      and 'security_invoker=on' = any (c.reloptions)
-                    from pg_class c where c.oid = to_regclass('public.kpi_field_inst')), false)),
-    (356, 'Attended-within-N-days objectives count from the Breakdown Date', 'objective_value() and objective_evidence() (0438): days to the first attendance count from the call''s Breakdown Date, else the later of complaint and registration. NO means the objective still counts from the complaint. Restore: objective.sql (0438)',
-        (coalesce((select p.prosrc like '%coalesce(cc.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
-     and coalesce((select p.prosrc like '%coalesce(cc.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
+                    from pg_class c where c.oid = to_regclass('public.kpi_field_inst')), false))),
+    (356, 'Attended-within-N-days objectives: the lower of complaint-to and breakdown-to', 'objective_value() and objective_evidence() (0441): days to the first attendance are call_days() (0440). NO means the objective counts from one date only. Restore: objective.sql (0441)',
+        (coalesce((select p.prosrc like '%public.call_days(c.complaint_date, c.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
+     and coalesce((select p.prosrc like '%public.call_days(c.complaint_date, c.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
