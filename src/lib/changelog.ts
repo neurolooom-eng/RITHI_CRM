@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.190',
+    date: '2026-10-14',
+    title: 'Cancelled calls read Cancelled; Cancellation Date on the registers',
+    changes: [
+      'A call cancelled in RITHI now shows its Call Status as Cancelled, in grey, everywhere: the Field, Installation and PM registers, Pending Registrations, the DCCR and the Call Report. Before, it kept showing its last visit\'s status, such as Unsolved.',
+      'Restoring a cancelled call puts its status back to what its visits say.',
+      'New column on the three registers: Cancellation Date, the date and time the call was cancelled. Also shown when a call is opened, and in Export CSV.',
+      'Cancelled calls are left out of the KPI Export, as before.',
+    ],
+  },
+  {
     version: '0.10.189',
     date: '2026-10-13',
     title: 'Call Pending Reason and Cancellation Reason on every call',

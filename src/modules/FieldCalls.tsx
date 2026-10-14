@@ -29,11 +29,11 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { formatDay } from '../lib/dates';
+import { formatDay, formatDayTime } from '../lib/dates';
 import { supabaseConfigured, callDatesFor, type CallDates, searchCalls, callByUcn, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, refreshCallsParty, refreshCallsProduct, type CallServiceReport } from '../lib/supabase';
 import { useAuditMode } from '../lib/auditMode';
 import { useCallFieldMasters } from './callFields';
-import { StateBadge, Ucn } from '../lib/callstate';
+import { StateBadge, Ucn, callStatusText } from '../lib/callstate';
 import { useUserNames, nameForUserId } from '../lib/userNames';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -67,6 +67,7 @@ const CALL_ALL_FIELDS = [
   // the reason it was cancelled while it is cancelled (0108).
   { key: 'pendingReason', header: 'Call Pending Reason' },
   { key: 'cancellationReason', header: 'Cancellation Reason' },
+  { key: 'cancelledAt', header: 'Cancellation Date', render: (r: Rec) => formatDayTime(r.cancelledAt) },
   // Not sheet columns — the database's own stamp of who registered the call:
   // the Hotline desk it belongs to, and the person who actually typed it in.
   { key: 'createdBy', header: 'Created By (Hotline Desk)' },
@@ -126,6 +127,8 @@ const STATUS_VIEW_FIELDS: FieldDef[] = [
     help: 'From the latest visit entry, while the call is open.', span: 1 },
   { name: 'cancellationReason', label: 'Cancellation Reason', section: 'Registration', readOnly: true,
     help: 'Typed when the call was cancelled. Shown while it is cancelled.', span: 1 },
+  { name: 'cancellationDate', label: 'Cancellation Date', section: 'Registration', readOnly: true,
+    help: 'When the call was cancelled.', span: 1 },
 ];
 
 // ===========================================================================
@@ -232,7 +235,7 @@ const COLUMNS: Column<Rec>[] = [
   },
   // The UCN carries its call's status everywhere it is shown (the user's
   // standing rule, 2026-09-06). Here the register already knows it.
-  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.lastStatus || r.callState} /> },
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStatusText(r.callState, r.lastStatus)} /> },
   {
     // Filled from the `call_state` view after the register loads — a call is
     // Solved / Unsolved / Report pending / Unattended by its LATEST visit.
@@ -240,7 +243,9 @@ const COLUMNS: Column<Rec>[] = [
     render: (r) => (
       <StateBadge
         state={String(r.callState ?? '')}
-        label={String(r.callState) === 'Reopened' ? 'Reopened' : String(r.lastStatus || r.callState || '')}
+        // Cancelled and Reopened are the call's own; otherwise the latest
+        // visit's wording (callStatusText, the user 2026-10-14).
+        label={callStatusText(r.callState, r.lastStatus)}
         title={Number(r.reopenCount ?? 0) > 0 ? `Re-opened ${r.reopenCount}×` : undefined}
       />
     ),
@@ -289,6 +294,10 @@ const COLUMNS: Column<Rec>[] = [
   // keeps the reason on its record but is no longer cancelled.
   { key: 'pendingReason', header: 'Call Pending Reason', width: 190 },
   { key: 'cancellationReason', header: 'Cancellation Reason', width: 200 },
+  // CANCELLATION DATE (the user, 2026-10-14): when the call was cancelled, to
+  // the second. Restoring a call clears it (0108), so it shows exactly while
+  // the call is cancelled.
+  { key: 'cancelledAt', header: 'Cancellation Date', width: 190, render: (r) => formatDayTime(r.cancelledAt) },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
   { key: 'city', header: 'City', width: 110 },
@@ -1660,6 +1669,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     breakdownDate: formatDay(drawer.row?.breakdownDate),
                     pendingReason: pendingReasonOf(drawer.row as Rec),
                     cancellationReason: cancellationReasonOf(drawer.row as Rec),
+                    cancellationDate: formatDayTime(drawer.row?.cancelledAt),
                   } : {}),
                   // The row carries the UUID; the form shows the person. A call
                   // loaded before the stamp existed has none, and says so

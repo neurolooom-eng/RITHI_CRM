@@ -2240,7 +2240,11 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgname = 'call_history_zz_keep_latest' and tgrelid = to_regclass('public.call_history')))),
     (352, 'Call registers show the Call Pending Reason of each open call', 'call_dates.pending_reason (0433): the pending reason on the latest visit entry, only while the call is open (not cancelled, not Solved unless re-opened); the view stays security_invoker. NO means the Call Pending Reason column on the Field, Installation and PM registers reads blank. Restore: performance.sql (0433)',
         (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_dates' and column_name = 'pending_reason')
-     and coalesce((select 'security_invoker=on' = any (c.reloptions) from pg_class c where c.oid = to_regclass('public.call_dates')), false)))
+     and coalesce((select 'security_invoker=on' = any (c.reloptions) from pg_class c where c.oid = to_regclass('public.call_dates')), false))),
+    (353, 'A call cancelled in RITHI reads Cancelled', 'call_open_state_stamp() (0434): a call with cancelled_at set is stamped open_state = Cancelled whatever its latest visit says, and goes back to its visits'' state when restored. NO means a cancelled call still shows Unsolved on the registers, the call report and the DCCR. Restore: call_requests.sql (0434)',
+        (coalesce((select p.prosrc like '%cancelled_at is not null then ''Cancelled''%'
+                     from pg_proc p where p.oid = to_regprocedure('public.call_open_state_stamp()')), false)
+     and not exists (select 1 from public.calls where cancelled_at is not null and open_state is distinct from 'Cancelled')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
