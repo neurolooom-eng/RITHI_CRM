@@ -70,6 +70,7 @@
 --   0347_feedback_read_once_and_no_machine_delete.sql
 --   0350_delete_guard_counts_every_name.sql
 --   0381_master_reads_once_per_query.sql
+--   0458_unmatched_login_holds_nothing.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -140,6 +141,7 @@
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
 --   0441_user_master_keeps_history.sql
+--   0461_training_acknowledged_by_the_trainee.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -225,6 +227,7 @@
 --   0400_pm_spare_blank_review.sql
 --   0452_review_answers_read_key.sql
 --   0443_ffr_customer_and_problem_required.sql
+--   0460_ffr_caller_rules.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
@@ -329,6 +332,8 @@
 --   0420_drop_or44271_ky550200.sql
 --   0421_delete_voided_ky550200_consumption.sql
 --   0426_stock_record_files.sql
+--   0459_spare_receipt_by_the_raiser.sql
+--   0462_stock_reload_replaces_the_group.sql
 --   0384_handstock_balance_all.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
@@ -415,6 +420,7 @@
 --   0431_failure_rate_reads_dccr_history.sql
 --   0438_objective_attended_from_breakdown.sql
 --   0453_objective_with_figures_kept.sql
+--   0457_objective_feedback_evidence_gate.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -483,6 +489,7 @@
 --   0245_sys_columns_view_tail.sql
 --   0248_lock_down_internal_functions.sql
 --   0338_helpers_not_public.sql
+--   0463_unused_definers_revoked.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -5920,6 +5927,73 @@ begin
     execute format('create policy %1$s_read on public.%1$s for select '
                    'using ((select auth.role()) = ''authenticated'')', t);
   end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0458_unmatched_login_holds_nothing.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-172 (re-review 5; the user's decision, 2026-10-14: "Nothing until added").
+-- A REGRESSION OF D-074: a sign-in whose email is on no User Master row was
+-- given an ENGINEER profile the first time it signed in.
+--
+-- sbCurrentProfile() calls ensure_my_profile() for every login with no
+-- profile, and the function (0033) inserted coalesce(<the User Master role>,
+-- 'engineer') whether or not a User Master row matched -- so D-074's "an
+-- unknown login holds nothing" path ran only when the call failed. Measured: a
+-- login with no profile and no User Master row went from has_perm(calls.report)
+-- = false to true on its first sign-in.
+--
+-- From here the function makes a profile ONLY from a User Master row that
+-- carries the login's email or gmail. With none it creates nothing and returns
+-- NULL; the client then shows the one "not set up" page and the database holds
+-- the login to nothing (0300) until an administrator adds the person to the
+-- User Master. Profiles already created this way are left as they are (the
+-- user's decision); supabase/apply/_profiles_without_a_user_master_row.sql
+-- lists them.
+--
+-- Restated from 0033 (the latest definition); only the early return is new.
+-- ===========================================================================
+create or replace function public.ensure_my_profile()
+returns public.profiles
+language plpgsql security definer set search_path = public as $$
+declare
+  me   uuid := auth.uid();
+  mail text := lower(coalesce(auth.email(), ''));
+  dir  public.user_directory;
+  p    public.profiles;
+  want text;
+begin
+  if me is null then return null; end if;
+
+  select * into p from public.profiles where id = me;
+  if found then return p; end if;
+
+  select * into dir from public.user_directory
+   where mail <> '' and (lower(email) = mail or lower(gmail) = mail)
+   limit 1;
+  -- 0458 (D-172): no User Master row, no profile -- and so no permission.
+  if not found then return null; end if;
+
+  want := nullif(btrim(coalesce(dir.role, '')), '');
+  if want is not null and not exists (select 1 from public.app_roles where role = want) then
+    want := null;  -- not a role the matrix knows: fall back rather than guess
+  end if;
+
+  insert into public.profiles (id, email, full_name, role, designation, active)
+  values (
+    me,
+    coalesce(auth.email(), ''),
+    coalesce(nullif(btrim(coalesce(dir.name, '')), ''), coalesce(auth.email(), '')),
+    coalesce(want, 'engineer'),
+    coalesce(dir.designation, ''),
+    coalesce(dir.validity, true)
+  )
+  on conflict do nothing;   -- id or email already taken: leave what is there
+
+  select * into p from public.profiles where id = me;
+  return p;   -- null if the email belongs to another profile; the caller copes
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -16829,6 +16903,61 @@ drop trigger if exists user_directory_keeps_history on public.user_directory;
 create trigger user_directory_keeps_history
   before delete on public.user_directory
   for each row execute function public.user_directory_keeps_history();
+
+-- ------------------------------------------------------------------------
+-- 0461_training_acknowledged_by_the_trainee.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-176 (re-review 5, 2026-10-12): "read and understood" is the trainee's to
+-- say, and a training assignment is imaged.
+--
+-- tg_update lets a holder of training.manage write every column of
+-- training_assignments, acknowledged_at and dir_id included; training_touch()
+-- protects only assigned_at and assigned_by; training_status reads Completed
+-- as soon as acknowledged_at is set; and the table is not under record_audit.
+-- Measured: a role holding only training.manage set acknowledged_at to a
+-- month ago (UPDATE 1), the trainee read Completed back-dated, and nothing
+-- recorded it.
+--
+-- 1. A trigger running AS THE CALLER keeps acknowledged_at and dir_id as they
+--    were on a direct signed-in update (current_user = authenticated), for
+--    everybody but an importer. acknowledge_training() -- the trainee's own
+--    acknowledgement, checked against their own email -- runs as the owner and
+--    is unaffected; so is cancelling, which stays the manager's action.
+-- 2. record_audit on training_assignments: who, when, before and after.
+-- ===========================================================================
+create or replace function public.training_ack_by_trainee()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user <> 'authenticated' or auth.uid() is null
+     or public.has_perm('bulk.upload') or public.has_perm('import.panel') then
+    return new;
+  end if;
+  new.acknowledged_at := old.acknowledged_at;
+  new.dir_id := old.dir_id;
+  return new;
+end $$;
+revoke execute on function public.training_ack_by_trainee() from public, anon;
+
+drop trigger if exists a_training_ack_by_trainee on public.training_assignments;
+create trigger a_training_ack_by_trainee
+  before update on public.training_assignments
+  for each row execute function public.training_ack_by_trainee();
+
+do $on$
+begin
+  if to_regprocedure('public.record_audit_fn()') is null then return; end if;
+  drop trigger if exists record_audit_i on public.training_assignments;
+  drop trigger if exists record_audit_u on public.training_assignments;
+  drop trigger if exists record_audit_d on public.training_assignments;
+  create trigger record_audit_i after insert on public.training_assignments
+    referencing new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_u after update on public.training_assignments
+    referencing old table as old_rows new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_d after delete on public.training_assignments
+    referencing old table as old_rows for each statement execute function public.record_audit_fn();
+end $on$;
 
 -- ------------------------------------------------------------------------
 -- 0008_calls_creator_read.sql
@@ -28507,6 +28636,61 @@ drop trigger if exists ffr_customer_and_problem_required on public.field_failure
 create trigger ffr_customer_and_problem_required
   before insert or update of customer_name, problem_reported on public.field_failure_reports
   for each row execute function public.ffr_customer_and_problem_required();
+
+-- ------------------------------------------------------------------------
+-- 0460_ffr_caller_rules.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-175 (re-review 5, 2026-10-12): an FFR's number, its imported marker and
+-- its raiser's name are not the caller's to choose.
+--
+-- ffr_stamp() kept a caller-supplied ffr_no on insert and blanked raised_by
+-- whenever imported_from was non-blank, with no check that the caller is an
+-- importer; ffr_history_created() then dated the "Report raised" entry at the
+-- FFR Date under the caller's raised_by_name -- and for an ordinary raise the
+-- log's "Who" was also the client's raised_by_name. Measured: an RM holding
+-- ffr.manage and not bulk.upload raised FFR - 001/20 dated 2020, marked
+-- imported under SOMEBODY ELSE, and the same number again on another machine.
+--
+-- A trigger running AS THE CALLER (not as the owner) applies three rules to a
+-- signed-in caller writing DIRECTLY (current_user = authenticated) who is not
+-- an importer (bulk.upload / import.panel):
+--   * on insert the number is the database's: a supplied ffr_no is discarded,
+--     so ffr_stamp issues the next one;
+--   * imported_from is cleared on insert and kept as it was on an update, so
+--     the import treatment (raised_by blank, the log dated at the FFR Date)
+--     applies to imports alone;
+--   * raised_by_name is the session's own name (my_display_name()), so the
+--     log's "Who" is the person who raised it.
+-- The reviewer's Raise FFR (ffr_from_review / raise_ffr) runs as the owner, so
+-- current_user is not authenticated there and nothing it writes changes; the
+-- FFR Register upload is an importer's. Named a_* so it fires before
+-- ffr_customer_and_problem_required and zz_ffr_stamp (triggers fire by name).
+-- ===========================================================================
+create or replace function public.ffr_caller_rules()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user <> 'authenticated' or auth.uid() is null
+     or public.has_perm('bulk.upload') or public.has_perm('import.panel') then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    new.ffr_no := null;
+    new.imported_from := '';
+    new.raised_by_name := coalesce(nullif(btrim(public.my_display_name()), ''), new.raised_by_name);
+  else
+    new.imported_from := old.imported_from;
+    new.raised_by_name := old.raised_by_name;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.ffr_caller_rules() from public, anon;
+
+drop trigger if exists a_ffr_caller_rules on public.field_failure_reports;
+create trigger a_ffr_caller_rules
+  before insert or update on public.field_failure_reports
+  for each row execute function public.ffr_caller_rules();
 
 -- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
@@ -41536,6 +41720,230 @@ begin
     perform public.sys_columns_attach('public.stock_record_files'::regclass);
   end if;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0459_spare_receipt_by_the_raiser.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-174 (re-review 5, 2026-10-12): a shipment is acknowledged by the engineer
+-- who raised the request, under the session's own name.
+--
+-- receive_spare_shipments() is SECURITY DEFINER and asked only spare.receive.
+-- It updated spare_dispatch_lines by line id with no requester check, and on a
+-- PARTIAL shipment it leaves the request line's received_* columns alone -- so
+-- the requester rule in spare_request_lines_guard, which fires on those
+-- columns, never ran. The receiver's name was the caller's p_actor. Measured:
+-- an engineer holding spare.receive who could not even see the line
+-- acknowledged its shipment as "The Real Engineer".
+--
+-- Now, for every line asked about, the function applies the line guard's own
+-- receipt rule before it writes anything: the caller is the raiser
+-- (is_spare_requester) or an administrator, and a shipment of the line exists
+-- (a partial dispatch leaves the line's status at Pending, so the status is not
+-- the test).
+-- A signed-in caller's name is the session's (my_display_name(), as 0393 does
+-- for the request lines); p_actor is used only with nobody signed in (an owner
+-- run). Restated from 0056 (the latest definition); the arithmetic is unchanged.
+-- ===========================================================================
+create or replace function public.receive_spare_shipments(p_line_ids bigint[], p_actor text default '', p_remarks text default '')
+returns integer
+language plpgsql security definer set search_path = public as $$
+declare n integer := 0; lid bigint; got numeric; v_name text; r public.spare_requests;
+begin
+  if not (public.is_admin() or public.has_perm('spare.receive')) then
+    raise exception 'RBAC: acknowledging a receipt requires the spare.receive permission';
+  end if;
+  if p_line_ids is null or array_length(p_line_ids, 1) is null then
+    raise exception 'Nothing to acknowledge: no spares selected';
+  end if;
+  v_name := case when auth.uid() is not null then coalesce(nullif(btrim(public.my_display_name()), ''), btrim(coalesce(p_actor, '')))
+                 else btrim(coalesce(p_actor, '')) end;
+
+  -- 0459: the receipt rule of spare_request_lines_guard, for every line,
+  -- before anything is written.
+  foreach lid in array p_line_ids loop
+    select q.* into r
+      from public.spare_request_lines l join public.spare_requests q on q.uid = l.request_uid
+     where l.id = lid;
+    if not found then
+      raise exception 'Spare line % does not exist', lid;
+    end if;
+    if auth.uid() is not null and not public.is_admin() and not coalesce(public.is_spare_requester(r), false) then
+      raise exception 'RBAC: only the engineer who raised the request may acknowledge it (line %)', lid;
+    end if;
+    -- A shipment is the proof of dispatch: a PARTIAL dispatch leaves the line's
+    -- stores_status at Pending, so the status cannot be the test here.
+    if not exists (select 1 from public.spare_dispatch_lines d where d.line_id = lid) then
+      raise exception 'RBAC: a spare can only be acknowledged after it is dispatched (line %)', lid;
+    end if;
+  end loop;
+
+  foreach lid in array p_line_ids loop
+    update public.spare_dispatch_lines d
+       set received_at     = now(),
+           received_by     = v_name,
+           receipt_remarks = coalesce(p_remarks, '')
+     where d.line_id = lid and d.received_at is null;
+    get diagnostics got = row_count;
+    n := n + got;
+
+    -- how much of this line has now been acknowledged
+    select coalesce(sum(d.qty), 0) into got
+      from public.spare_dispatch_lines d
+     where d.line_id = lid and d.received_at is not null;
+
+    update public.spare_request_lines l
+       set received_qty = got,
+           -- only a fully acknowledged line becomes Received
+           received_at     = case when got >= coalesce(l.qty, 0) then now() else l.received_at end,
+           received_by     = case when got >= coalesce(l.qty, 0) then v_name else l.received_by end,
+           receipt_remarks = case when got >= coalesce(l.qty, 0)
+                                  then coalesce(p_remarks, '') else l.receipt_remarks end
+     where l.id = lid;
+  end loop;
+
+  return n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0462_stock_reload_replaces_the_group.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-177 (re-review 5; the user's decision, 2026-10-14: "Replace the whole SI /
+-- transfer"), D-178 (part), D-195, D-200.
+--
+-- D-071's fix (0455) matched a re-loaded MRN or transfer line on its SI Number
+-- (or transfer) and its LINE NUMBER -- the file's, or its position. A corrected
+-- file that drops or reorders a line shifts every later line's number, so a
+-- re-load doubled or dropped stock (measured: a transfer loaded A, B, C and
+-- re-loaded B, C read B, C, C). The user's rule now: an SI Number (or a
+-- transfer) is loaded AS A WHOLE. Its imported lines are replaced by the
+-- file's; a line the file no longer carries is removed.
+--
+--   1. reload_imported_stock_lines(p_kind, p_rows): for each SI Number ('mrn')
+--      or transfer ('stl') the rows name, in ONE transaction: refuse if any
+--      line under it was entered in RITHI (source <> import) -- a file never
+--      replaces a return or transfer somebody recorded; remove the imported
+--      lines under it; insert the file's. Only an importer (bulk.upload, or
+--      import.panel for the legacy importer) may call it. It runs as the owner,
+--      so a second importer may re-load what somebody else loaded (D-195), and
+--      every statement is per group, so record_audit keeps every row's image
+--      (a >150-row statement keeps none -- D-178 (3)).
+--   2. The direct-overwrite door 0455 opened is closed again (D-200): the
+--      importer UPDATE policies go, and material_returns_immutable is 0310's
+--      rule again (part_key left out of its comparison, as 0310 now does).
+--   3. stock_transfer_lines is put under record_audit (D-178 (2)); 0455's header
+--      claimed it already was.
+-- The natural-key indexes of 0455 stay: a line number is still one line.
+-- ===========================================================================
+
+create or replace function public.reload_imported_stock_lines(p_kind text, p_rows jsonb)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_tab   text;
+  v_key   text;
+  g       text;
+  r       jsonb;
+  v_cols  text;
+  n_rem   int := 0;
+  n_ins   int := 0;
+  n_grp   int := 0;
+  k       int;
+begin
+  if auth.uid() is not null and not (public.has_perm('bulk.upload') or public.has_perm('import.panel')) then
+    raise exception 'RBAC: re-loading imported stock lines needs Bulk Uploads (bulk.upload) or the Data Import panel (import.panel)'
+      using errcode = '42501';
+  end if;
+  if p_kind = 'mrn' then v_tab := 'material_returns'; v_key := 'uid';
+  elsif p_kind = 'stl' then v_tab := 'stock_transfer_lines'; v_key := 'transfer_uid';
+  else raise exception 'Unknown kind %: expected mrn or stl', p_kind;
+  end if;
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 then
+    return jsonb_build_object('groups', 0, 'removed', 0, 'written', 0);
+  end if;
+
+  for g in select distinct btrim(e->>v_key) from jsonb_array_elements(p_rows) e loop
+    if coalesce(g, '') = '' then
+      raise exception 'A row names no % -- it could never be matched again, so nothing was loaded', v_key;
+    end if;
+    n_grp := n_grp + 1;
+    if p_kind = 'mrn' then
+      if exists (select 1 from public.material_returns m where m.uid = g and coalesce(m.source, '') <> 'import') then
+        raise exception 'SI Number % holds a return entered in RITHI; a file does not replace it -- nothing was loaded', g;
+      end if;
+      delete from public.material_returns m where m.uid = g;
+    else
+      if not exists (select 1 from public.stock_transfers t where t.uid = g and coalesce(t.source, '') = 'import') then
+        raise exception 'Transfer % is not an imported transfer (or is not loaded); its lines are not replaced by a file -- nothing was loaded', g;
+      end if;
+      delete from public.stock_transfer_lines l where l.transfer_uid = g;
+    end if;
+    get diagnostics k = row_count; n_rem := n_rem + k;
+
+    for r in select e from jsonb_array_elements(p_rows) e where btrim(e->>v_key) = g loop
+      if p_kind = 'mrn' then r := r || jsonb_build_object('source', 'import'); end if;
+      -- Only the columns the row carries, so every other one keeps its default.
+      select string_agg(quote_ident(c.column_name), ', ' order by c.ordinal_position) into v_cols
+        from information_schema.columns c
+       where c.table_schema = 'public' and c.table_name = v_tab
+         and c.column_name <> 'id' and c.column_name not like 'sys\_%'
+         and c.is_generated = 'NEVER' and c.is_identity = 'NO'
+         and r ? c.column_name;
+      execute format('insert into public.%I (%s) select %s from jsonb_populate_record(null::public.%I, $1)',
+                     v_tab, v_cols, v_cols, v_tab) using r;
+      n_ins := n_ins + 1;
+    end loop;
+  end loop;
+  return jsonb_build_object('groups', n_grp, 'removed', n_rem, 'written', n_ins);
+end $$;
+revoke execute on function public.reload_imported_stock_lines(text, jsonb) from public;
+do $$ begin
+  revoke execute on function public.reload_imported_stock_lines(text, jsonb) from anon;
+exception when undefined_object then null; end $$;
+grant execute on function public.reload_imported_stock_lines(text, jsonb) to authenticated;
+
+-- 2. The direct-overwrite door closed again.
+drop policy if exists mr_import_update on public.material_returns;
+drop policy if exists stl_import_update on public.stock_transfer_lines;
+
+create or replace function public.material_returns_immutable()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  -- A PART RENAME (0310): only the part changed, exactly as the ticket that
+  -- rename_part_records() filed in this transaction says. Nothing else on a
+  -- return may change, by anybody but an administrator. part_key is generated
+  -- from part and not yet computed in a BEFORE trigger, so it is left out.
+  -- (0462: a re-loaded imported return is REPLACED, not edited, so 0455's
+  -- import exemption is gone.)
+  if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
+     and exists (select 1 from public.part_rename_ticket t
+                  where t.txid = txid_current()
+                    and t.old_key = lower(btrim(old.part))
+                    and t.new_detail = new.part) then
+    return new;
+  end if;
+  raise exception 'A material return cannot be edited — raise a correcting entry instead';
+end $$;
+
+-- 3. Transfer lines imaged.
+do $on$
+begin
+  if to_regprocedure('public.record_audit_fn()') is null then return; end if;
+  drop trigger if exists record_audit_i on public.stock_transfer_lines;
+  drop trigger if exists record_audit_u on public.stock_transfer_lines;
+  drop trigger if exists record_audit_d on public.stock_transfer_lines;
+  create trigger record_audit_i after insert on public.stock_transfer_lines
+    referencing new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_u after update on public.stock_transfer_lines
+    referencing old table as old_rows new table as new_rows for each statement execute function public.record_audit_fn();
+  create trigger record_audit_d after delete on public.stock_transfer_lines
+    referencing old table as old_rows for each statement execute function public.record_audit_fn();
+end $on$;
 
 -- ------------------------------------------------------------------------
 -- 0384_handstock_balance_all.sql
@@ -57545,6 +57953,309 @@ create trigger quality_objective_keeps_figures
   for each row execute function public.quality_objective_keeps_figures();
 
 -- ------------------------------------------------------------------------
+-- 0457_objective_feedback_evidence_gate.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-173 (re-review 5, 2026-10-12): the Customer feedback objective's evidence
+-- follows the FEEDBACK register's read rule.
+--
+-- objective_evidence() admitted every objective but the FFR one on calls.view
+-- or reports.view -- including feedback_satisfaction, whose evidence returns
+-- every answer, the party, the UCN and the engineer. Measured: a calls.view
+-- holder who reads 0 feedback rows directly read them here, and a feedback.view
+-- holder who reads them directly was refused here. The function's own comment
+-- states the rule this breaks: the gate follows the register the figure is
+-- counted from.
+--
+-- The body below is the DATABASE'S definition (pg_get_functiondef on a database
+-- built from every migration, latest 0438), with the one branch added to the
+-- gate; nothing else changes.
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)
+ RETURNS TABLE(role text, ucn text, call_number text, reg_date date, product_name text, serial text, party_name text, call_type text, status text, allocated_to text, warranty_number text, warranty_start date, warranty_end date, contract_number text, contract_start date, contract_end date, contract_type text, closure_date date, closure_recorded_on date, after_cutoff text, details jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_type   text;
+  v_days   integer;
+  v_from   date;
+  v_upto   date;
+  v_win    integer;
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found then return; end if;
+  -- THE GATE FOLLOWS THE REGISTER THE FIGURE IS COUNTED FROM. An FFR objective
+  -- reads the Field Failure Register, which has had its own right since 0176
+  -- (`ffr.view`); asking for `calls.view` instead would let somebody who may
+  -- not open that register read every report through this door, and refuse
+  -- somebody who may.
+  if o.calc_key = 'ffr_count_monthly' then
+    if not (public.has_perm('ffr.view') or public.has_perm('ffr.manage')) then
+      raise exception 'RBAC: you cannot read the Field Failure Reports behind this figure';
+    end if;
+  -- 0457 (D-173): the Customer feedback objective is counted from the FEEDBACK
+  -- register, so its evidence -- every answer, party and engineer -- follows
+  -- that register's read rule (fb_read: feedback.view or visit.feedback), not
+  -- the calls' rule.
+  elsif o.calc_key = 'feedback_satisfaction' then
+    if not (public.has_perm('feedback.view') or public.has_perm('visit.feedback')) then
+      raise exception 'RBAC: you cannot read the customer feedback behind this figure';
+    end if;
+  elsif not (public.has_perm('calls.view') or public.has_perm('reports.view')) then
+    raise exception 'RBAC: you cannot read the calls behind this figure';
+  end if;
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return; end if;
+  v_type := coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%');
+
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    v_upto   := p.period_end;
+    v_from   := (v_upto - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date;
+    v_win    := public.objective_setting('failure_window_months', 3);
+
+    -- (The outer alias is `c`, as on every call branch, so _status.sql row
+    -- 193's tiebreak check -- `reg_date desc, c.ucn` -- reads it.)
+    -- SHEET 1: ONE ROW PER FAILED MACHINE -- its FIRST field call inside the
+    -- window -- so the sheet counts to the numerator. `details` says when the
+    -- machine was installed, how many days later it failed, and how many calls
+    -- fell inside the window.
+    -- EXECUTE for the same reason as objective_value: the app pages this
+    -- function, re-running it per thousand rows, and the sixth page would get
+    -- the generic plan.
+    return query execute $q$
+      with base as (
+        select pr.*
+          from public.products pr
+         where pr.item_name ilike $1
+           and coalesce(pr.serial_number, '') ilike $2
+           and btrim(coalesce(pr.serial_number, '')) <> ''
+           and pr.warranty_start > $3
+           and pr.warranty_start <= $4
+      ),
+      hits as (
+        select b.id as machine_id, b.warranty_start as installed_on, c.*,
+               count(*) over (partition by b.id) as calls_in_window,
+               row_number() over (partition by b.id order by c.reg_date, c.ucn) as rn
+          from base b
+          join public.field_calls c
+            on upper(btrim(coalesce(c.serial, ''))) = upper(btrim(b.serial_number))
+         where c.cancelled_at is null
+           and c.product_name ilike $1
+           and c.reg_date > $3
+           and c.reg_date <= $4
+           and c.reg_date >= b.warranty_start
+           and c.reg_date <= (b.warranty_start + make_interval(months => $5))::date
+      )
+      select 'failure'::text, c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text,
+             jsonb_build_object(
+               'Installed (warranty start)', c.installed_on,
+               'Days after installation', (c.reg_date - c.installed_on),
+               'Field calls in the window', c.calls_in_window)
+        from hits c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.rn = 1
+       order by c.reg_date desc, c.ucn
+    $q$ using v_prod, v_serial, v_from, v_upto, v_win;
+
+    return query
+      select 'filter'::text, ''::text, ''::text, p.period_end,
+             'Product Master, Product like ' || v_prod,
+             case when v_serial = '%' then '(no serial filter -- product only)'
+                  else 'Serial like ' || v_serial end,
+             p.label, 'Field calls'::text, ''::text, ''::text,
+             ''::text, null::date, null::date, ''::text, null::date, null::date, ''::text,
+             null::date, null::date,
+             'Installed (warranty start) in the '
+               || public.objective_setting('failure_rolling_months', 12)
+               || ' months to ' || p.period_end
+               || '; failed = a field call within '
+               || public.objective_setting('failure_window_months', 3)
+               || ' months of installation',
+             null::jsonb;
+
+    -- SHEET 2: THE MACHINES INSTALLED IN THE WINDOW -- the denominator -- each
+    -- carrying its whole Product Master row.
+    return query
+      select 'machine'::text, ''::text, ''::text, null::date,
+             pr.item_name, pr.serial_number, pr.party_name, ''::text,
+             coalesce(pr.item_status, ''), ''::text,
+             pr.warranty_number, pr.warranty_start, pr.warranty_end,
+             pr.contract_number, pr.contract_start, pr.contract_end, pr.contract_type,
+             null::date, null::date, ''::text,
+             coalesce(pr.extra, '{}'::jsonb)
+        from public.products pr
+       where pr.item_name ilike v_prod
+         and coalesce(pr.serial_number, '') ilike v_serial
+         and btrim(coalesce(pr.serial_number, '')) <> ''
+         and pr.warranty_start > v_from
+         and pr.warranty_start <= v_upto
+       order by pr.serial_number, pr.item_name, pr.id;
+    return;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    return query execute format($q$
+      select case when cl.counts_on is not null and cl.counts_on <= $4
+                  then 'closed' else 'open' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on,
+             concat_ws(' ',
+               case when cl.counts_on is not null and cl.counts_on > $4
+                    then 'YES -- solved on ' || cl.counts_on
+                         || ', after the cut-off of ' || $4 || ', so it is counted as OPEN'
+               end,
+               case when cl.counts_on is not null and cl.closed_on is null
+                    then 'NOTE -- no visit date on the solving report; the date it was '
+                         'ENTERED (' || cl.recorded_on || ') was used instead'
+               end),
+             null::jsonb
+        from %s c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on,
+                     coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date) as counts_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+         -- A MISSED PM (0418) is left out of the evidence exactly as it is
+         -- left out of the figure, unless the objective counts it.
+         and ($5 or c.added_on is null
+              or c.added_on <= (date_trunc('month', c.reg_date) + interval '1 month - 1 day')::date)
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, p.solve_cutoff,
+            (lower(btrim(coalesce(o.calc_params->>'family', ''))) <> 'pm'
+                or lower(btrim(coalesce(o.calc_params->>'missed_pm', ''))) = 'include');
+    return;
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    return query execute format($q$
+      with c as (
+        select cc.*, coalesce(cc.breakdown_date, greatest(cc.complaint_date,
+                              coalesce((cc.reg_at at time zone 'Asia/Kolkata')::date, cc.reg_date))) as counts_from
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min((visit_at at time zone 'Asia/Kolkata')::date) as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, (created_at at time zone 'Asia/Kolkata')::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select case when least(fv.on_date, fs.on_date) is not null
+                   and c.counts_from is not null
+                   and greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0) <= $4
+                  then 'attended' else 'late' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             case when least(fv.on_date, fs.on_date) is null then 'never attended'
+                  else 'attended on ' || least(fv.on_date, fs.on_date)
+                       || ' -- ' || greatest((least(fv.on_date, fs.on_date) - c.counts_from)::int, 0)
+                       || ' day(s) from ' || c.counts_from end,
+             coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text, null::jsonb
+        from c
+        left join fv on fv.ucn = c.ucn
+        left join fs on fs.ucn = c.ucn
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, v_days;
+    return;
+  end if;
+
+  -- CUSTOMER FEEDBACK SATISFACTION (0422): one row per feedback counted --
+  -- the call, its visit date (reg_date column), and in `details` each
+  -- question's score and the call's Satisfaction %, so the sheet adds up to
+  -- the figure.
+  if o.calc_key = 'feedback_satisfaction' then
+    return query
+      select 'feedback'::text, f.ucn, f.call_number, (f.visit_at at time zone 'Asia/Kolkata')::date,
+             f.product_name, f.serial, f.party_name, f.call_type, ''::text, coalesce(f.engineer, ''),
+             null::text, null::date, null::date, null::text, null::date, null::date, null::text,
+             null::date, null::date, null::text,
+             jsonb_build_object('Satisfaction %', public.feedback_satisfaction(f.answers, f.call_type),
+                                'Scored on', case when upper(coalesce(f.call_type, '')) like '%INSTALLATION%'
+                                                  then 'Installation questions (out of 20)' else 'PM / Field questions (out of 24)' end)
+               || coalesce((select jsonb_object_agg(q, public.feedback_score(f.answers ->> q))
+                              from unnest(public.feedback_questions(f.call_type)) q), '{}'::jsonb)
+        from public.feedback f
+       where (f.visit_at at time zone 'Asia/Kolkata')::date >= p.period_start
+         and (f.visit_at at time zone 'Asia/Kolkata')::date <= p.period_end
+         and public.feedback_satisfaction(f.answers, f.call_type) is not null
+       order by f.visit_at, f.ucn;
+    return;
+  end if;
+
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+
+    -- ONE ROW PER MACHINE, because that is how the register stores it -- so the
+    -- sheet has MORE rows than the figure and every row says which report it
+    -- belongs to. Collapsing to one row per report here would hide which
+    -- machines it covered, which is the thing 0181 exists to keep.
+    return query
+      select 'ffr'::text, f.ucn, f.ffr_no,
+             f.ffr_date,
+             f.product_name, f.product_serial, f.customer_name,
+             coalesce(f.call_type, ''), coalesce(f.ffr_status, ''),
+             coalesce(f.raised_by_name, ''),
+             ''::text, null::date, null::date, ''::text, null::date, null::date,
+             coalesce(f.cover, ''),
+             f.crn_date, (f.created_at at time zone 'Asia/Kolkata')::date,
+             ''::text,
+             jsonb_strip_nulls(jsonb_build_object(
+               'FFR No', f.ffr_no, 'Source', f.source,
+               'Problem Reported', f.problem_reported,
+               'Service Observation', f.service_observation,
+               'Problem Status', f.problem_status,
+               'CAPA No', f.capa_no, 'CAPA Status', f.capa_status,
+               'Item Code', f.item_code, 'Place', f.place))
+        from public.field_failure_reports f
+       where coalesce(f.product_name, '') ilike v_prod
+         and coalesce(f.product_serial, '') ilike v_serial
+         and f.ffr_date >= p.period_start
+         and f.ffr_date <= p.period_end
+       order by f.ffr_date, f.ffr_no, f.id;
+    return;
+  end if;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0048_record_audit.sql
 -- ------------------------------------------------------------------------
 
@@ -65765,6 +66476,38 @@ begin
     exception when undefined_object then null;   -- a plain Postgres has no service_role
     end;
   end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0463_unused_definers_revoked.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- D-185 and D-202 (re-review 5, 2026-10-12): two owner-rights functions the
+-- application never calls were callable through the API.
+--
+--   next_ffr_no(smallint) (0169) advances the FFR series and checks nothing; 0248
+--   revoked every other numbered-series generator and missed it. Measured: an
+--   engineer without ffr.manage drew FFR - 001/26 and 002/26, and the next
+--   report raised became 003/26 -- gaps in a controlled series.
+--   spare_request_rollup(text) (0025) rewrites a spare request's stage past the
+--   stage guard and checks nothing. Measured: the public key reset a request
+--   with no lines from Received to RM Approval.
+--
+-- Neither is called from src/; ffr_stamp, ffr_from_review and the spare
+-- triggers that use them run as the owner and are unaffected. The 0248 rule:
+-- a SECURITY DEFINER function the app does not call loses EXECUTE for public,
+-- anon and authenticated. Guarded, so a project without one skips it.
+-- ===========================================================================
+do $$
+declare fn text;
+begin
+  foreach fn in array array['public.next_ffr_no(smallint)', 'public.spare_request_rollup(text)'] loop
+    if to_regprocedure(fn) is null then continue; end if;
+    execute format('revoke execute on function %s from public', fn);
+    begin execute format('revoke execute on function %s from anon, authenticated', fn);
+    exception when undefined_object then null; end;
+  end loop;
 end $$;
 
 commit;

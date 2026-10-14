@@ -3,7 +3,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
-import { uploadRows, planUpload, applyUploadPlan, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
+import { uploadRows, planUpload, applyUploadPlan, reloadImportedStockLines, countImportedStockLines, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { UPLOADS, masterUpload, shapeUpload, uploadGroups, soldThroughNotDealers, prepWritesQuestion, askedFields, missingAsk,
   type UploadDef, type ShapeResult, type UploadPlan } from '../lib/uploads';
 import { dealerParties } from '../lib/cover';
@@ -145,9 +145,22 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
         }
       } catch { flag = '⚑ Could not read the Party Master\'s dealers, so Sold Through was not checked.'; }
     }
-    const warn = def.conflict
-      ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
-      : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
+    // D-177: a register that replaces each group whole says how much it will
+    // replace -- read before the question, so the number asked about is real.
+    let warn: string;
+    const rg = def.replaceGroups;
+    if (rg) {
+      const keys = [...new Set(rows.map((r) => String(r[rg.by] ?? '').trim()).filter(Boolean))];
+      let had = '';
+      try { had = `${await countImportedStockLines(rg.kind, keys)} line(s) already loaded under them`; }
+      catch { had = 'the lines already loaded under them (they could not be counted)'; }
+      const what = rg.kind === 'mrn' ? 'SI Number' : 'transfer';
+      warn = `This file names ${keys.length} ${what}(s). Each is loaded WHOLE: ${had} will be REPLACED by the file's ${n} — a line the file no longer carries is removed. A ${what} holding a line entered in RITHI is refused, and the upload stops there.`;
+    } else {
+      warn = def.conflict
+        ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
+        : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
+    }
     const first = prepWritesQuestion(plan.writes);
     if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${askedNote}${first ? `${first}\n\n` : ''}${note ? `${note}\n\n` : ''}${flag ? `${flag}\n\n` : ''}${warn}`)) {
       const unrecorded = await record(p, { outcome: 'cancelled', ready: n, toWrite: n, written: 0, why: 'Cancelled at the confirmation — nothing was written.', started });
@@ -166,7 +179,9 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       wroteFirst = pre.done;
     }
     setBusy(`Writing 0 / ${n}…`);
-    const res = await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
+    const res = rg
+      ? await reloadImportedStockLines(rg.kind, rg.by, rows, (d, t) => setBusy(`Writing ${d} / ${t}…`))
+      : await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     const firstNote = wroteFirst ? ` Written first: ${wroteFirst}.` : '';
     if (!res.ok) {
@@ -231,7 +246,7 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       )}
       {def.note && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{def.note}</div>}
       {def.requires && <div className="muted" style={{ fontSize: 12 }}>Load <b>{def.requires}</b> first — these rows point at it.</div>}
-      {!def.conflict && (
+      {!def.conflict && !def.replaceGroups && (
         <div className="muted" style={{ fontSize: 12 }}>
           ⚠ No natural key: a second run adds rows rather than correcting them.
         </div>

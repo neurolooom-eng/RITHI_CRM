@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { Link } from 'react-router-dom';
 import { applyDirectory, bulkInsert, detectTable, directoryColumns, existingKeys, parseCSV, previewNormalise, readDirectory, shapeRows, tableCount, type ImportTable } from '../lib/dataImport';
+import { countImportedStockLines, reloadImportedStockLines } from '../lib/supabase';
 import { legacyConfirmText, normaliseQuestion, planDirectory, splitByKey, type DirectoryPlan, type FilePlanLine } from '../lib/legacyImportPlan';
 import { finishCoverImport } from '../lib/cover';
 import { supabaseConfigured } from '../lib/supabase';
@@ -157,11 +158,16 @@ export function DataImport() {
           plans[i] = plan;
           lines.push({ file: f.name, table: f.table, inFile: f.inFile ?? f.total, fresh: plan.inserts.length, overwrite: plan.updates.length,
             held: held + plan.held.length, why: [...plan.held.map((h) => `${h.name}: ${h.why}`), ...plan.notes] });
+        } else if (f.table === 'material_returns') {
+          // D-177 (the user's decision, 2026-10-14): an SI Number is loaded
+          // WHOLE -- what is already under it is replaced, as on Bulk Uploads.
+          const replaces = await countImportedStockLines('mrn', f.rows.map((r) => String(r.uid ?? '')));
+          lines.push({ file: f.name, table: f.table, inFile: f.inFile ?? f.total, fresh: f.rows.length, overwrite: 0, held, replaces,
+            why: held ? ['a row with no Item Code or no SI Number, or the same part twice on one SI Number'] : [] });
         } else {
           const { keys, key } = await existingKeys(f.table, f.rows);
           const sp = splitByKey(f.rows, key, keys);
-          lines.push({ file: f.name, table: f.table, inFile: f.inFile ?? f.total, fresh: sp.fresh, overwrite: sp.overwrite, held,
-            why: held && f.table === 'material_returns' ? ['a row with no Item Code or no SI Number, or the same part twice on one SI Number'] : [] });
+          lines.push({ file: f.name, table: f.table, inFile: f.inFile ?? f.total, fresh: sp.fresh, overwrite: sp.overwrite, held });
         }
       }
     } catch (e) {
@@ -198,7 +204,9 @@ export function DataImport() {
       const dir = plans[i];
       const res = dir
         ? await applyDirectory(dir, progress).then((r) => ({ ok: r.ok, inserted: r.inserted + r.updated, error: r.error }))
-        : await bulkInsert(fs.table, fs.rows, progress);
+        : fs.table === 'material_returns'
+          ? await reloadImportedStockLines('mrn', 'uid', fs.rows, (d) => progress({ done: d })).then((r) => ({ ok: r.ok, inserted: r.written, error: r.error }))
+          : await bulkInsert(fs.table, fs.rows, progress);
       const err = await recordImport(fs, { outcome: res.ok ? 'completed' : 'stopped', written: res.inserted, why: res.error, started });
       const shown = [res.error, err ? unrecordedNote(err).trim() : ''].filter(Boolean).join(' ');
       setFiles((cur) => cur.map((x, j) => (j === i ? { ...x, status: res.ok ? 'done' : 'error', error: shown || undefined, done: res.inserted } : x)));

@@ -10,6 +10,12 @@
 --             it changed, and is refused to somebody who may not edit cover (0456)
 --
 -- The user's decision, 2026-10-12: "Overwrite with the file".
+-- SUPERSEDED IN PART BY 0462 (D-177, the user's decision of 2026-10-14:
+-- "Replace the whole SI / transfer"): a re-load now goes through
+-- reload_imported_stock_lines(), proved in review_batch_12_test section 6. The
+-- line-by-line upsert sections 1 and 2 relied on is REFUSED since then (0462
+-- dropped its UPDATE policies), so here they prove that it is refused and that
+-- it changes nothing -- not that it overwrites.
 -- Checks raise an unlabelled error when they are wrong, so the harness counts
 -- a failure; an error that is meant to happen is labelled `expect ERROR`.
 -- Run ONCE after _stub.sql + every migration.
@@ -64,8 +70,10 @@ insert into public.material_returns (uid, row_no, part, engineer, good_qty, mrn_
 values ('RB11-SI1', 1, 'RB11-P1|SENSOR', 'RB11 ENG', 1, '2026-01-10', 'import'),
        ('RB11-SI1', 2, 'RB11-P2|VALVE',  'RB11 ENG', 1, '2026-01-10', 'import')
 on conflict (uid, part_key, row_no) do update set good_qty = excluded.good_qty, engineer = excluded.engineer;
--- The same file again, corrected: line 1 returned 3, not 1. The part's words
--- differ -- the key is the part CODE.
+-- The same file again, corrected, sent line by line as 0455 did: since 0462
+-- this is refused whole (a re-load replaces the SI Number through
+-- reload_imported_stock_lines instead), and nothing changes.
+\echo 'expect ERROR: new row violates row-level security policy (USING expression) for table "material_returns" (0462: no line-by-line re-load)'
 insert into public.material_returns (uid, row_no, part, engineer, good_qty, mrn_date, source)
 values ('RB11-SI1', 1, 'rb11-p1|Sensor (corrected)', 'RB11 ENG', 3, '2026-01-10', 'import'),
        ('RB11-SI1', 2, 'RB11-P2|VALVE',  'RB11 ENG', 1, '2026-01-10', 'import')
@@ -90,8 +98,8 @@ do $$ begin
     raise exception 'D-071 FAILED: a re-loaded MRN file left % rows on RB11-SI1, want 2',
       (select count(*) from public.material_returns where uid = 'RB11-SI1');
   end if;
-  if (select good_qty from public.material_returns where uid = 'RB11-SI1' and row_no = 1) <> 3 then
-    raise exception 'D-071 FAILED: the re-loaded line did not take the file''s quantity';
+  if (select good_qty from public.material_returns where uid = 'RB11-SI1' and row_no = 1) <> 1 then
+    raise exception 'D-177 FAILED: a refused line-by-line re-load changed the return';
   end if;
   if (select n from rb11_n where what = 'importer on an app return') <> 0 then
     raise exception 'D-071 FAILED: an importer reached a return raised in the app';
@@ -103,10 +111,9 @@ do $$ begin
      or (select source from public.material_returns where uid = 'RB11-APP1') <> 'app' then
     raise exception 'D-071 FAILED: a return raised in the app was overwritten';
   end if;
-  if not exists (select 1 from public.record_audit where table_name = 'material_returns' and op = 'UPDATE'
-                  and old_data->>'uid' = 'RB11-SI1' and (old_data->>'good_qty')::numeric = 1
-                  and (new_data->>'good_qty')::numeric = 3) then
-    raise exception 'D-071 FAILED: the overwrite was not imaged before and after';
+  if not exists (select 1 from public.record_audit where table_name = 'material_returns' and op = 'INSERT'
+                  and new_data->>'uid' = 'RB11-SI1') then
+    raise exception 'D-071 FAILED: the loaded returns were not imaged';
   end if;
 end $$;
 
@@ -132,6 +139,7 @@ values ('RB11-ST1', 'RB11 A', 'RB11 B', '2026-01-10', 'import');
 insert into public.stock_transfer_lines (transfer_uid, row_no, part, qty) values
   ('RB11-ST1', 1, 'RB11-P1|SENSOR', 1), ('RB11-ST1', 2, 'RB11-P2|VALVE', 2)
 on conflict (transfer_uid, row_no) do update set part = excluded.part, qty = excluded.qty;
+\echo 'expect ERROR: new row violates row-level security policy (USING expression) for table "stock_transfer_lines" (0462: no line-by-line re-load)'
 insert into public.stock_transfer_lines (transfer_uid, row_no, part, qty) values
   ('RB11-ST1', 1, 'RB11-P1|SENSOR', 4), ('RB11-ST1', 2, 'RB11-P2|VALVE', 2)
 on conflict (transfer_uid, row_no) do update set part = excluded.part, qty = excluded.qty;
@@ -143,8 +151,8 @@ call public.nobody();
 
 do $$ begin
   if (select string_agg(row_no || ':' || qty, ',' order by row_no) from public.stock_transfer_lines where transfer_uid = 'RB11-ST1')
-     is distinct from '1:4,2:2' then
-    raise exception 'D-071 FAILED: a re-loaded transfer file left %',
+     is distinct from '1:1,2:2' then
+    raise exception 'D-177 FAILED: a refused line-by-line re-load left %',
       (select string_agg(row_no || ':' || qty, ',' order by row_no) from public.stock_transfer_lines where transfer_uid = 'RB11-ST1');
   end if;
   if (select n from rb11_n where what = 'importer on an app transfer') <> 0 then

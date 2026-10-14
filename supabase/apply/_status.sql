@@ -2198,21 +2198,38 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.pm_calls_in_month(date)') is not null
          and coalesce((select p.prosecdef from pg_proc p where p.oid = to_regprocedure('public.pm_calls_in_month(date)')), false)
          and not has_function_privilege('anon', to_regprocedure('public.pm_calls_in_month(date)'), 'EXECUTE'))),
-    (379, 'A re-loaded MRN line takes the file''s values instead of being added again', 'material_returns.part_key (the part code, kept by the database) and the unique key material_returns_natural_key (uid, part_key, row_no) the MRN Register upload is matched on; mr_import_update lets an importer (bulk.upload or import.panel) overwrite an IMPORTED return, and material_returns_immutable lets it through for that row only (0455, D-071, the user''s decision 2026-10-12). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0455)',
-        (exists (select 1 from information_schema.columns
-                  where table_schema = 'public' and table_name = 'material_returns' and column_name = 'part_key')
-         and to_regclass('public.material_returns_natural_key') is not null
-         and exists (select 1 from pg_policies where tablename = 'material_returns' and policyname = 'mr_import_update')
-         and coalesce((select p.prosrc like '%import.panel%' and p.prosrc like '%part_key%' from pg_proc p
+    (379, 'A re-loaded MRN file replaces each SI Number it names', 'reload_imported_stock_lines(kind, rows) replaces the imported lines of every SI Number (or transfer) a file names in one transaction, refuses one holding a line entered in RITHI, and is an importer''s alone (bulk.upload / import.panel); the direct-overwrite policy mr_import_update is gone and material_returns_immutable has no import exemption again, part_key left out of its rename comparison (0462, D-177 as the user decided 2026-10-14; it replaces 0455''s line-by-line overwrite). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0462)',
+        (to_regprocedure('public.reload_imported_stock_lines(text,jsonb)') is not null
+         and not has_function_privilege('anon', to_regprocedure('public.reload_imported_stock_lines(text,jsonb)'), 'EXECUTE')
+         and not exists (select 1 from pg_policies where tablename = 'material_returns' and policyname = 'mr_import_update')
+         and coalesce((select p.prosrc not like '%import.panel%' and p.prosrc like '%part_key%' from pg_proc p
                         where p.oid = to_regprocedure('public.material_returns_immutable()')), false))),
-    (380, 'A re-loaded stock transfer line takes the file''s values instead of being added again', 'the unique key stock_transfer_lines_natural_key (transfer_uid, row_no) the Stock Transfer Lines upload is matched on, and stl_import_update for an importer on an IMPORTED transfer (0455, D-071). NO with the policy present means two lines already share a transfer and line number, so 0455 left the key off and said so: _stock_transfer_lines_repeated.sql lists them; resolve them and re-run. NO with neither means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0455)',
+    (380, 'Stock transfer lines: one line per number, imaged, replaced only by a whole re-load', 'the unique key stock_transfer_lines_natural_key (transfer_uid, row_no) (0455) and record_audit on stock_transfer_lines (0462); the direct-overwrite policy stl_import_update is gone, a re-load going through reload_imported_stock_lines (D-177, D-178). NO with the key absent means two lines already share a transfer and line number, so 0455 left the key off and said so: _stock_transfer_lines_repeated.sql lists them; resolve them and re-run. Otherwise NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0462)',
         (to_regclass('public.stock_transfer_lines_natural_key') is not null
-         and exists (select 1 from pg_policies where tablename = 'stock_transfer_lines' and policyname = 'stl_import_update'))),
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.stock_transfer_lines') and tgname = 'record_audit_d')
+         and not exists (select 1 from pg_policies where tablename = 'stock_transfer_lines' and policyname = 'stl_import_update'))),
     (381, 'Normalise cover says what it will hand back before it runs', 'cover_unpin_preview() counts, per register and field, the machine-line values that repeat their entry''s, for the importer to state before it asks; cover_unpin_inherited() touches only those lines, so its count is what it changed (0456, D-071, URS-072). NO means sales_contracts.sql has not been re-run since. Restore: sales_contracts.sql (0456)',
         (to_regprocedure('public.cover_unpin_preview()') is not null
          and not has_function_privilege('anon', to_regprocedure('public.cover_unpin_preview()'), 'EXECUTE')
          and coalesce((select p.prosrc like '%0456%' from pg_proc p
                         where p.oid = to_regprocedure('public.cover_unpin_inherited()')), false))),
+    (382, 'The Customer feedback objective''s evidence follows the feedback read rule', 'objective_evidence() asks feedback.view or visit.feedback for the feedback_satisfaction objective, the feedback register''s own rule (0457, D-173). NO means objective.sql has not been re-run since. Restore: objective.sql (0457)',
+        coalesce((select p.prosrc like '%feedback_satisfaction%' and p.prosrc like '%visit.feedback%' from pg_proc p
+                   where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)),
+    (383, 'A sign-in with no User Master row is given no profile', 'ensure_my_profile() makes a profile only from a User Master row carrying the login''s email or gmail, and returns nothing otherwise, so an unmatched login holds no permission until it is added (0458, D-172 as the user decided 2026-10-14). NO means rbac.sql has not been re-run since. Restore: rbac.sql (0458)',
+        coalesce((select p.prosrc like '%0458%' from pg_proc p where p.oid = to_regprocedure('public.ensure_my_profile()')), false)),
+    (384, 'A spare shipment is acknowledged by the engineer who raised the request', 'receive_spare_shipments() applies the line guard''s receipt rule to every line before it writes -- the raiser or an administrator, after dispatch -- and records the session''s own name (0459, D-174). NO means HandStock_X.sql has not been re-run since. Restore: HandStock_X.sql (0459)',
+        coalesce((select p.prosrc like '%is_spare_requester%' and p.prosrc like '%my_display_name%' from pg_proc p
+                   where p.oid = to_regprocedure('public.receive_spare_shipments(bigint[],text,text)')), false)),
+    (385, 'An FFR''s number, imported marker and raiser are not the caller''s to choose', 'a_ffr_caller_rules on field_failure_reports, run as the caller: a signed-in direct write that is not an importer''s gets the database''s number, no imported marker, and the session''s name as the raiser (0460, D-175). NO means daily_review.sql has not been re-run since. Restore: daily_review.sql (0460)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.field_failure_reports') and tgname = 'a_ffr_caller_rules')),
+    (386, 'Training is acknowledged by the trainee alone, and assignments are imaged', 'a_training_ack_by_trainee keeps acknowledged_at and the person on a direct update (acknowledge_training() still sets it), and record_audit covers training_assignments (0461, D-176). NO means training.sql has not been re-run since. Restore: training.sql (0461)',
+        (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.training_assignments') and tgname = 'a_training_ack_by_trainee')
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.training_assignments') and tgname = 'record_audit_d'))),
+    (387, 'Two owner-rights functions the app never calls are closed to the API', 'next_ffr_no(smallint) and spare_request_rollup(text) are not executable by anon or authenticated (0463, D-185, D-202), the 0248 rule. NO means lockdown.sql has not been re-run since. Restore: lockdown.sql (0463)',
+        (not coalesce(has_function_privilege('authenticated', to_regprocedure('public.next_ffr_no(smallint)'), 'EXECUTE'), false)
+         and not coalesce(has_function_privilege('anon', to_regprocedure('public.spare_request_rollup(text)'), 'EXECUTE'), false)
+         and not coalesce(has_function_privilege('authenticated', to_regprocedure('public.spare_request_rollup(text)'), 'EXECUTE'), false))),
     (319, 'Stores Dispatch Report: the historical stock outs from 2025', 'stores_dispatch_report also reads spare_issue_history for stock outs dated from 1 January 2025 (India time) not already dispatched in RITHI, with a Source column (RITHI / Historical); dmy_ts() reads the file''s day-first dates kept in data (0387, widened to 2026 by 0388). NO means HandStock_X.sql has not been re-run since, or the view lost security_invoker. Restore: HandStock_X.sql (0388)',
         (to_regprocedure('public.dmy_ts(text)') is not null
          and to_regprocedure('public.text_num(text)') is not null

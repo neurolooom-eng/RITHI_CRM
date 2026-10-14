@@ -299,6 +299,9 @@ const MODULES = {
             // once per row (0381). Redefines 0008's, so after it; the tail
             // does not touch them.
             '0381_master_reads_once_per_query.sql',
+            // D-172 (the user's decision, 2026-10-14): a sign-in with no User
+            // Master row is given no profile (0458). Before the tail, which must stay last.
+            '0458_unmatched_login_holds_nothing.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -561,7 +564,10 @@ const MODULES = {
             // once to the roles that held review.edit (0452).
             '0452_review_answers_read_key.sql',
             // D-027: a Field Failure Report names its customer and problem (0443).
-            '0443_ffr_customer_and_problem_required.sql'],
+            '0443_ffr_customer_and_problem_required.sql',
+            // D-175: an FFR's number, imported marker and raiser are not the
+            // caller's to choose (0460).
+            '0460_ffr_caller_rules.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -669,7 +675,10 @@ const MODULES = {
             // restates the two functions 0423 last defined.
             '0438_objective_attended_from_breakdown.sql',
             // D-021: an objective carrying a recorded figure is not deleted (0453).
-            '0453_objective_with_figures_kept.sql'],
+            '0453_objective_with_figures_kept.sql',
+            // D-173: the feedback objective's evidence follows the feedback read
+            // rule (0457); restates main's 0438 objective_evidence, so after it.
+            '0457_objective_feedback_evidence_gate.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -1012,7 +1021,10 @@ const MODULES = {
             '0295_user_profile_details_key.sql',
             // D-059: a User Master entry with a profile or R&R history is not
             // deleted -- set Active to No instead (0441).
-            '0441_user_master_keeps_history.sql'],
+            '0441_user_master_keeps_history.sql',
+            // D-176: training acknowledged by the trainee alone; assignments
+            // imaged (0461).
+            '0461_training_acknowledged_by_the_trainee.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -1259,6 +1271,13 @@ const MODULES = {
             // Files kept with a transfer or a return (0426): a table of its
             // own, reading stock_transfers and material_returns in its policies.
             '0426_stock_record_files.sql',
+            // D-174: a spare shipment is acknowledged by the engineer who raised
+            // the request, under the session's name (0459).
+            '0459_spare_receipt_by_the_raiser.sql',
+            // D-177 (the user's decision, 2026-10-14): a re-loaded MRN or transfer
+            // file replaces each SI Number / transfer it names (0462); restates
+            // 0455's return guard, so after it.
+            '0462_stock_reload_replaces_the_group.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
@@ -1681,7 +1700,10 @@ const MODULES = {
     needs: [],
     files: ['0248_lock_down_internal_functions.sql',
             // D-134: three more helpers the public key could run.
-            '0338_helpers_not_public.sql'],
+            '0338_helpers_not_public.sql',
+            // D-185, D-202: next_ffr_no and spare_request_rollup closed to the
+            // API (0463).
+            '0463_unused_definers_revoked.sql'],
   },
 };
 

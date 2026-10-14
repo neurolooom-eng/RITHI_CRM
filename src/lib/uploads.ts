@@ -145,6 +145,14 @@ export interface UploadDef {
    *  -- the numbers the database gave the first load, which numbered them in
    *  the same order. A number the file does carry is kept. */
   numberLines?: { field: string; within: string };
+  /** A RE-LOAD REPLACES EACH GROUP WHOLE (D-177, the user's decision of
+   *  2026-10-14: "Replace the whole SI / transfer"). The rows go through
+   *  reload_imported_stock_lines() (0462) instead of an upsert: every SI Number
+   *  ('mrn') or transfer ('stl') the file names has its imported lines replaced
+   *  by the file's, and a line the file no longer carries is removed. A line
+   *  NUMBER could not survive an edited file (D-177): dropping line 1 renumbered
+   *  every line after it. `by` is the field that names the group. */
+  replaceGroups?: { kind: 'mrn' | 'stl'; by: string };
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
   /** Headers to DROP rather than keep. `extraInto` keeps everything it does not
@@ -504,6 +512,27 @@ function fold(
     (by.sum ?? []).forEach((f) => { had[f] = (Number(had[f]) || 0) + (Number(r[f]) || 0); });
   });
   return [...out.values()];
+}
+
+/** Split rows into calls of about `max` rows WITHOUT cutting a group in two:
+ *  a group is replaced whole in one transaction (0462), so half of one in a
+ *  call would remove the other half's lines. A group bigger than `max` goes
+ *  alone. Groups keep their file order. Exported for check:uploads. */
+export function chunkByGroup(rows: Record<string, unknown>[], by: string, max = 400): Record<string, unknown>[][] {
+  const groups = new Map<string, Record<string, unknown>[]>();
+  rows.forEach((r) => {
+    const k = String(r[by] ?? '').trim();
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(r);
+  });
+  const out: Record<string, unknown>[][] = [];
+  let cur: Record<string, unknown>[] = [];
+  for (const g of groups.values()) {
+    if (cur.length && cur.length + g.length > max) { out.push(cur); cur = []; }
+    cur = cur.concat(g);
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }
 
 /** Give each row without a `field` the next number not already used in its
@@ -1063,14 +1092,17 @@ export const UPLOADS: UploadDef[] = [
     // 602-row batch. They are not returns; held back by name.
     reject: (r) => (Number(r.good_qty ?? 0) + Number(r.defective_qty ?? 0) > 0
       ? '' : 'nothing returned — good and defective are both zero'),
-    // D-071 (the user's decision, 2026-10-12: "Overwrite with the file"): a line
-    // is matched on SI Number + part code + line number (0455), so loading the
-    // file again gives an IMPORTED return the file's values instead of returning
-    // the stock a second time. The line number is the file's, or its position
-    // within the SI Number -- the number the database gave the first load.
-    conflict: 'uid,part_key,row_no', conflictFrom: ['uid', 'part', 'row_no'],
+    // D-177 (the user's decision, 2026-10-14: "Replace the whole SI /
+    // transfer"): every SI Number the file names is REPLACED whole by
+    // reload_imported_stock_lines() (0462) -- its imported lines become the
+    // file's, a line the file no longer carries is removed -- so loading the
+    // file again never returns the stock twice. (0455 matched line by line,
+    // which an edited file defeated.) The line number is the file's, or its
+    // position within the SI Number; it no longer decides anything.
+    conflictFrom: ['uid', 'part', 'row_no'],
     numberLines: { field: 'row_no', within: 'uid' },
-    note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. Each line is matched on its SI Number, part and line number (its position within the SI Number where the file has no Row No), so loading the file again overwrites those returns with the file\'s values rather than returning the stock twice. A row with no SI Number is held back: it could never be matched again.',
+    replaceGroups: { kind: 'mrn', by: 'uid' },
+    note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. Each SI Number in the file is loaded as a whole: loading the file again REPLACES what was loaded under that SI Number -- a line the file no longer carries is removed -- so the stock is never returned twice. An SI Number holding a return entered in RITHI is refused. A row with no SI Number is held back: it could never be matched again.',
     cols: [
       // `Item Details` is Item Code|Item Name, which is how a part is stored.
       { to: 'part', from: ['item details', 'part details clean', 'part', 'part no', 'spare'], required: true,
@@ -1115,11 +1147,12 @@ export const UPLOADS: UploadDef[] = [
     // and one of those failed the first batch of 500. Held back by name.
     prepare: 'stock-transfer-parents',
     requires: 'Stock Transfer Register',
-    // D-071 (0455): matched on transfer + line number; the line number is the
-    // file's, or its position within the transfer.
-    conflict: 'transfer_uid,row_no', conflictFrom: ['transfer_uid', 'row_no'],
+    // D-177 (0462): every transfer the file names has its lines REPLACED whole
+    // -- a line the file no longer carries is removed.
+    conflictFrom: ['transfer_uid', 'row_no'],
     numberLines: { field: 'row_no', within: 'transfer_uid' },
-    note: 'Each line is matched on its transfer and line number (its position within the transfer where the file has none), so loading the file again overwrites those lines with the file\'s values rather than moving the stock twice.',
+    replaceGroups: { kind: 'stl', by: 'transfer_uid' },
+    note: 'Each transfer in the file is loaded as a whole: loading the file again REPLACES its lines -- a line the file no longer carries is removed -- so the stock never moves twice. Only an imported transfer can be re-loaded.',
     cols: [
       { to: 'transfer_uid', from: ['transfer uid', 'uid', 'stock transfer number'], required: true },
       { to: 'part', from: ['part', 'part no', 'spare'], required: true },

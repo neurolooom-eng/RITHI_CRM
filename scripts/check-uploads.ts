@@ -2,7 +2,7 @@
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
 import { shapeUpload, byColumnSet, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups,
   planConsumptionVisits, planConsumptionVisitUpload, planSpareLineParents, prepWritesQuestion,
-  prepFailureMessage, describeWrite, numberLines } from '../src/lib/uploads';
+  prepFailureMessage, describeWrite, numberLines, chunkByGroup } from '../src/lib/uploads';
 import { parseDateParts, toIsoDate, toIsoTimestamp, parseAnyDate } from '../src/lib/dates';
 import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
@@ -528,8 +528,15 @@ eq('the empty one is held back by name', mr.skipped[0].why, 'nothing returned â€
 // numbers is numbered in file order within its parent -- the numbers the
 // database gave the first load -- so the same file lands on the same rows.
 console.log('\n-- D-071: a re-loaded MRN or transfer line is matched, not added --');
-eq('the MRN Register is keyed on SI Number + part code + line', def('material_returns').conflict, 'uid,part_key,row_no');
-eq('Stock Transfer Lines is keyed on transfer + line', def('stock_transfer_lines').conflict, 'transfer_uid,row_no');
+eq('the MRN Register replaces each SI Number whole (D-177)', JSON.stringify(def('material_returns').replaceGroups), JSON.stringify({ kind: 'mrn', by: 'uid' }));
+eq('Stock Transfer Lines replaces each transfer whole (D-177)', JSON.stringify(def('stock_transfer_lines').replaceGroups), JSON.stringify({ kind: 'stl', by: 'transfer_uid' }));
+eq('...and neither upserts line by line any more', [def('material_returns').conflict, def('stock_transfer_lines').conflict], [undefined, undefined]);
+{
+  const g = (k: string, n: number) => Array.from({ length: n }, () => ({ uid: k }));
+  const calls = chunkByGroup([...g('A', 3), ...g('B', 2), ...g('C', 4)], 'uid', 5);
+  eq('a call never cuts an SI Number in two', calls.map((c) => c.map((r) => r.uid).join('')).join(' '), 'AAABB CCCC');
+  eq('...and a group bigger than a call goes alone', chunkByGroup([...g('A', 7), ...g('B', 1)], 'uid', 5).map((c) => c.length).join(' '), '7 1');
+}
 const mrnFile = [
   { 'SI Number': 'SI-7', 'Item Details': 'KY1|A', 'Good Qty': '1' },
   { 'SI Number': 'SI-8', 'Item Details': 'KY1|A', 'Good Qty': '1' },

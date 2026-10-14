@@ -16,7 +16,7 @@ export { machineKey } from './machine';
 import { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
 import { byColumnSet, planConsumptionVisitUpload, planSpareLineParents, describeWrite, prepFailureMessage,
-  type UploadPlan } from './uploads';
+  chunkByGroup, type UploadPlan } from './uploads';
 import { callFamily, callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { docMatchesCall } from './docmatch';
@@ -5549,6 +5549,46 @@ export async function applyUploadPlan(
     }
   }
   return { ok: true, done: writes.map((w) => describeWrite(w)).join('; ') };
+}
+
+/**
+ * D-177 (the user's decision, 2026-10-14): a re-loaded MRN or transfer-line file
+ * REPLACES each SI Number / transfer it names -- reload_imported_stock_lines()
+ * (0462), a whole group per transaction, never split across calls. A group
+ * holding a line entered in RITHI is refused by the database, and the upload
+ * stops there, saying how much was written before it.
+ */
+export async function reloadImportedStockLines(
+  kind: 'mrn' | 'stl', by: string, rows: Record<string, unknown>[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ ok: boolean; written: number; removed: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, written: 0, removed: 0, error: 'Database not connected.' };
+  let written = 0; let removed = 0;
+  for (const part of chunkByGroup(rows, by)) {
+    const { data, error } = await c.rpc('reload_imported_stock_lines', { p_kind: kind, p_rows: part });
+    if (error) return { ok: false, written, removed, error: errMsg(error) };
+    const d = (data ?? {}) as { written?: number; removed?: number };
+    written += Number(d.written ?? 0); removed += Number(d.removed ?? 0);
+    onProgress?.(written, rows.length);
+  }
+  return { ok: true, written, removed };
+}
+
+/** How many lines are already loaded under the SI Numbers / transfers a file
+ *  names -- what a re-load will replace -- read before the confirmation.
+ *  Counted among what the reader may see (an administrator sees all). */
+export async function countImportedStockLines(kind: 'mrn' | 'stl', keys: string[]): Promise<number> {
+  const c = getSupabase(); if (!c) throw new Error('Database not connected.');
+  const table = kind === 'mrn' ? 'material_returns' : 'stock_transfer_lines';
+  const col = kind === 'mrn' ? 'uid' : 'transfer_uid';
+  const uniq = [...new Set(keys.map((k) => k.trim()).filter(Boolean))];
+  let n = 0;
+  for (let i = 0; i < uniq.length; i += 200) {
+    const { count, error } = await c.from(table).select('id', { count: 'exact', head: true }).in(col, uniq.slice(i, i + 200));
+    if (error) throw new Error(errMsg(error));
+    n += count ?? 0;
+  }
+  return n;
 }
 
 export async function uploadRows(

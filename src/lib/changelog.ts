@@ -14,6 +14,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.204',
+    date: '2026-10-14',
+    title: 'Review fixes: unknown sign-ins hold nothing, re-loads replace whole MRNs and transfers, receipts and training by the right person',
+    changes: [
+      'A sign-in whose email is on no User Master row no longer becomes an Engineer: it sees the "not set up" page and can do nothing until an administrator adds the person to the User Master. Sign-ins already set up this way keep their access; a list of them is available for review.',
+      'Bulk Uploads (MRN Register, Stock Transfer Lines) and the older importer\'s MRN sheet: loading a file again now REPLACES each SI Number or transfer it names as a whole — a line the corrected file no longer carries is removed — so the stock is never returned or moved twice. A file never replaces an MRN or transfer entered in RITHI. The confirmation says how many lines will be replaced.',
+      'A spare shipment can be acknowledged only by the engineer who raised the request, and the receipt carries their own name.',
+      'An FFR raised by hand always gets the next number from the system and the raiser\'s own name; only an import keeps the old register\'s numbers.',
+      'Only the trainee can mark their training read and understood; every change to a training assignment is kept in the history.',
+      'The evidence behind the Customer Feedback objective is shown to those who may read customer feedback.',
+    ],
+  },
+  {
     version: '0.10.203',
     date: '2026-10-12',
     title: 'Fifth re-review of every module recorded (no behaviour changed)',

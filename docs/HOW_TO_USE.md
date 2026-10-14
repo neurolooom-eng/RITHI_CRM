@@ -254,14 +254,14 @@ on Roles & Permissions does not reach another team's calls.
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
   > **Loading the same file again corrects it.** The confirmation says what each
-  > row is matched on. The **MRN Register** and **Stock Transfer Lines** are
-  > matched on the SI Number (or the transfer), the part and the line number —
-  > where the file has no Row No, a line's position within its SI Number or
-  > transfer is its number — so a second load **overwrites** those lines with
-  > the file's values instead of returning or moving the stock twice. Only an
-  > importer can do that, and only to a line that was itself loaded: a return or
-  > transfer entered in RITHI is still corrected by a correcting entry. An MRN
-  > row with no SI Number is held back and named.
+  > row is matched on. The **MRN Register** and **Stock Transfer Lines** load each
+  > SI Number (or transfer) **as a whole**: loading the file again **replaces**
+  > what was loaded under it — a line the corrected file no longer carries is
+  > removed — so the stock is never returned or moved twice, however the file was
+  > edited. The confirmation says how many lines will be replaced. Only an
+  > importer can re-load, and a file never replaces an MRN or transfer entered in
+  > RITHI — that is still corrected by a correcting entry. An MRN row with no SI
+  > Number is held back and named.
   > **Product Database: a Sold Through that is not a dealer is flagged.** Before
   > you confirm and after it is written, the upload names any Sold Through that
   > is not a DEALER on the Party Master. It is still loaded — this is being
@@ -2092,7 +2092,8 @@ typed into a form that reads it.
   importer, for the four AppSheet cover exports, the User Master and the MRN
   sheet) **says, file by file, how many rows are new and how many are already
   there, and asks before it writes anything**; a row already there is
-  **overwritten with the file's values**. A person already on the User Master
+  **overwritten with the file's values** — except the MRN sheet, where each SI
+  Number replaces what was loaded under it, as on Bulk Uploads. A person already on the User Master
   changes only in the columns the file has, keeps their name as it is spelled,
   and a name the User Master lists twice is held back and named. **Normalise
   cover** then says how many machine values it will hand back to their entry,

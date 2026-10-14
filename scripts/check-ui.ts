@@ -11425,9 +11425,6 @@ console.log('\n-- changes that decide what happens next are recorded (D-067) --'
   eq('...a name the User Master holds twice is held back, not guessed', dp.held.map((h) => h.name).join(','), 'Twice');
   eq('...a name the file holds twice is loaded once, from its last row, and said',
     [dp.updates.find((u) => u.id === 4)?.patch.designation, dp.notes.length], ['B', 1]);
-  eq('an MRN line is matched on SI Number + part CODE + line, as 0455 keys it',
-    lp.splitByKey([{ uid: 'S1', part: 'ky1|a', row_no: 1 }, { uid: 'S1', part: 'KY1|other words', row_no: 2 }], lp.mrnKey,
-      new Set([lp.mrnKey({ uid: 'S1', part: 'KY1|A', row_no: 1 })])), { fresh: 1, overwrite: 1 });
   eq('the Normalise question names each field and says there is no undo',
     /Warranty: invoice_no 3, state 1[\s\S]*Contract: status 2[\s\S]*no undo/.test(lp.normaliseQuestion([
       { register: 'Warranty', field: 'invoice_no', n: 3 }, { register: 'Warranty', field: 'state', n: 1 }, { register: 'Contract', field: 'status', n: 2 }])), true);

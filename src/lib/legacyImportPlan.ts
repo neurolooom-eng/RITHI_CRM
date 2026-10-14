@@ -11,7 +11,6 @@
 // OVERWRITTEN WITH THE FILE ("Overwrite with the file"), not added a second
 // time and not skipped.
 // ---------------------------------------------------------------------------
-import { partCode } from './parts';
 
 /** One person on the User Master, as matched: name, case and spacing aside. */
 export const personKey = (name: unknown): string =>
@@ -83,10 +82,6 @@ export function planDirectory(
   return out;
 }
 
-/** The MRN key, as the database builds it (0455): SI Number + part code + line. */
-export const mrnKey = (r: Record<string, unknown>): string =>
-  `${String(r.uid ?? '').trim()}\u0000${partCode(r.part)}\u0000${String(r.row_no ?? '')}`;
-
 /** How many of `rows` the register already holds under `key`, and how many are new. */
 export function splitByKey(
   rows: Record<string, unknown>[], key: (r: Record<string, unknown>) => string, existing: Set<string>,
@@ -108,12 +103,17 @@ export interface FilePlanLine {
   /** Rows not loaded, with why where it is known. */
   held: number;
   why?: string[];
+  /** A register loaded a group at a time (D-177): how many lines already under
+   *  the file's groups the load REPLACES. Set, `overwrite` is not used. */
+  replaces?: number;
 }
 
 /** The question the importer asks before it writes anything (FRS-201.4). */
 export function legacyConfirmText(lines: FilePlanLine[], coverFollows: boolean): string {
   const each = lines.map((l) => {
-    const parts = [`${l.fresh} new`, `${l.overwrite} already there — overwritten with the file's values`];
+    const parts = l.replaces !== undefined
+      ? [`${l.fresh} to write, REPLACING the ${l.replaces} line(s) already loaded under the same SI Numbers — a line the file no longer carries is removed`]
+      : [`${l.fresh} new`, `${l.overwrite} already there — overwritten with the file's values`];
     if (l.held) parts.push(`${l.held} not loaded`);
     const why = (l.why ?? []).slice(0, 8).map((w) => `      · ${w}`).join('\n');
     const more = (l.why ?? []).length > 8 ? `\n      · and ${(l.why ?? []).length - 8} more` : '';

@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
 import { allRows } from './paging';
-import { mrnKey, type DirectoryPlan, type DirectoryRow, type UnpinCount } from './legacyImportPlan';
+import { type DirectoryPlan, type DirectoryRow, type UnpinCount } from './legacyImportPlan';
 import { detectCoverTable, shapeCoverRows, type CoverTable } from './coverImport';
 
 // Only what Bulk Uploads does not do: the four AppSheet cover exports (which
@@ -156,10 +156,6 @@ export interface ImportProgress { done: number; total: number }
 const CONFLICT_KEY: Partial<Record<ImportTable, string>> = {
   sale_entries: 'sa_number', sale_items: 'uid',
   contract_entries: 'mc_number', contract_items: 'uid',
-  // D-071 (0455, the user's decision 2026-10-12: "Overwrite with the file"):
-  // SI Number + part code + line, so a re-loaded MRN line takes the file's
-  // values instead of returning the stock a second time.
-  material_returns: 'uid,part_key,row_no',
 };
 
 // Rows per request. Every sale / contract item syncs the machine it names, so
@@ -213,16 +209,6 @@ const chunks = <T,>(xs: T[], n: number): T[][] => {
  *  them. Counted among what the reader may see -- an administrator sees all. */
 export async function existingKeys(table: ImportTable, rows: Record<string, unknown>[]): Promise<{ keys: Set<string>; key: (r: Record<string, unknown>) => string }> {
   const c = getSupabase(); if (!c) throw new Error('Not connected to Supabase.');
-  if (table === 'material_returns') {
-    const uids = [...new Set(rows.map((r) => String(r.uid ?? '').trim()).filter(Boolean))];
-    const keys = new Set<string>();
-    for (const part of chunks(uids, 100)) {
-      const got = await allRows<Record<string, unknown>>((from, to) => c.from('material_returns')
-        .select('id,uid,part,row_no').in('uid', part).order('id').range(from, to));
-      got.forEach((r) => keys.add(mrnKey(r)));
-    }
-    return { keys, key: mrnKey };
-  }
   const col = CONFLICT_KEY[table];
   if (!col || col.includes(',')) return { keys: new Set(), key: () => '' };
   const key = (r: Record<string, unknown>) => String(r[col] ?? '').trim();
