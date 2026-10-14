@@ -122,6 +122,13 @@ const viewFields = () => FIELD_CALL_FIELDS.filter((f) => !VIEW_HIDDEN.includes(f
 // field of the call somebody types. The pending reason is the latest visit
 // entry's while the call is open (0433); the cancellation reason is the one
 // typed when it was cancelled, while it is (0108).
+// VIEWING, a date is shown as TEXT. The values are formatted dd-MMM-yyyy for
+// the view (below), and a browser date box can only hold yyyy-mm-dd -- given
+// "06-Aug-2026" it shows NOTHING, which is how the Breakdown Date of every
+// opened call read blank while the register held it (the user, 2026-10-14:
+// "Why is the Breakdown date blank?").
+const viewOnlyFields = (): FieldDef[] => [...viewFields(), ...STATUS_VIEW_FIELDS]
+  .map((f) => (f.type === 'date' ? { ...f, type: 'text' as const } : f));
 const STATUS_VIEW_FIELDS: FieldDef[] = [
   { name: 'pendingReason', label: 'Call Pending Reason', section: 'Registration', readOnly: true,
     help: 'From the latest visit entry, while the call is open.', span: 1 },
@@ -266,7 +273,7 @@ const COLUMNS: Column<Rec>[] = [
   // happening. A stopped age says so rather than being coloured — see aging.ts.
   { key: 'agingDays', header: 'Aging', width: 110, wrap: false, align: 'right',
     render: (r) => {
-      const a = callAging(r as { regDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
+      const a = callAging(r as { regDate?: unknown; breakdownDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
       if (a.days == null) return <span className="muted">—</span>;
       const tone = agingTone(a);
       return (
@@ -1571,6 +1578,24 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             {/* The call's actions — the SAME list, in the same order, as the row.
                 They used to be here AND in the form's footer, in two different
                 orders; one place is enough and two was worse than one. */}
+            {/* THE CALL'S STATUS, FIRST AND HIGHLIGHTED (the user, 2026-10-14:
+                "Add the call status in this view. Highlight the Status"): the
+                same chip and colour as the register, large, with what it is
+                pending on or why it was cancelled beside it. */}
+            {drawer.mode === 'view' && drawer.row && !(drawer.row as Rec)._pending && (
+              <div className="call-status-hero">
+                <span className="call-status-hero-label">Call Status</span>
+                <StateBadge
+                  state={String((drawer.row as Rec).callState ?? '')}
+                  label={callStatusText((drawer.row as Rec).callState, (drawer.row as Rec).lastStatus) || 'Unattended'}
+                />
+                {cancellationReasonOf(drawer.row as Rec)
+                  ? <span className="call-status-hero-why">Cancelled {formatDayTime((drawer.row as Rec).cancelledAt)} — {cancellationReasonOf(drawer.row as Rec)}</span>
+                  : pendingReasonOf(drawer.row as Rec)
+                    ? <span className="call-status-hero-why">Pending: {pendingReasonOf(drawer.row as Rec)}</span>
+                    : null}
+              </div>
+            )}
             {drawer.mode === 'view' && callActions(drawer.row as Rec).length > 0 && (
               <div className="call-actions-top">
                 {callActions(drawer.row as Rec).map((a) => (
@@ -1620,6 +1645,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
+              collapsible
               emphasisSections={[VIGILANCE_SECTION]}
               // IN THEIR OWN SECTIONS (the user, 2026-09-30: "Move the Update
               // Party Details to the respective section. I don't need the button
@@ -1646,7 +1672,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               // about a third of the rows without shrinking anything.
               columns={3}
               fields={lockByRight(injectMasters(
-                drawer.mode === 'create' ? buildCreateFields(prefill) : drawer.mode === 'view' ? [...viewFields(), ...STATUS_VIEW_FIELDS] : viewFields(),
+                drawer.mode === 'create' ? buildCreateFields(prefill) : drawer.mode === 'view' ? viewOnlyFields() : viewFields(),
                 // Suggestions belong to the act of registering. See the note in
                 // `callFields.tsx`.
                 { suggest: drawer.mode === 'create' },

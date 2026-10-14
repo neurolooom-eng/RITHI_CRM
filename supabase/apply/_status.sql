@@ -2244,7 +2244,17 @@ with checks(sort_order, bundle, provides, present) as (
     (353, 'A call cancelled in RITHI reads Cancelled', 'call_open_state_stamp() (0434): a call with cancelled_at set is stamped open_state = Cancelled whatever its latest visit says, and goes back to its visits'' state when restored. NO means a cancelled call still shows Unsolved on the registers, the call report and the DCCR. Restore: call_requests.sql (0434)',
         (coalesce((select p.prosrc like '%cancelled_at is not null then ''Cancelled''%'
                      from pg_proc p where p.oid = to_regprocedure('public.call_open_state_stamp()')), false)
-     and not exists (select 1 from public.calls where cancelled_at is not null and open_state is distinct from 'Cancelled')))
+     and not exists (select 1 from public.calls where cancelled_at is not null and open_state is distinct from 'Cancelled'))),
+    (354, 'A visit may be dated from the Breakdown Date', 'reports_visit_date_guard() (0436): a visit entered on the form cannot be dated before the call''s Breakdown Date, else its Complaint Date, nor after today. NO means a visit made between the breakdown and the request is refused. Restore: reports.sql (0436)',
+        coalesce((select p.prosrc like '%coalesce(c.breakdown_date, c.complaint_date)%'
+                    from pg_proc p where p.oid = to_regprocedure('public.reports_visit_date_guard()')), false)),
+    (355, 'KPI export counts its days from the Breakdown Date', 'kpi_field_inst (0437): Attended / Solved / Pending Days, TTA and TTS count from the call''s Breakdown Date, else the later of complaint and registration; the view stays security_invoker. NO means the export still counts from the complaint. Restore: performance.sql (0437)',
+        coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%COALESCE(c.breakdown_date%'
+                     and 'security_invoker=on' = any (c.reloptions)
+                    from pg_class c where c.oid = to_regclass('public.kpi_field_inst')), false)),
+    (356, 'Attended-within-N-days objectives count from the Breakdown Date', 'objective_value() and objective_evidence() (0438): days to the first attendance count from the call''s Breakdown Date, else the later of complaint and registration. NO means the objective still counts from the complaint. Restore: objective.sql (0438)',
+        (coalesce((select p.prosrc like '%coalesce(cc.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
+     and coalesce((select p.prosrc like '%coalesce(cc.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

@@ -360,6 +360,9 @@ const MODULES = {
       // A call cancelled in RITHI reads Cancelled (0434): restates the 0226
       // trigger function, so directly after it.
       '0434_cancelled_call_reads_cancelled.sql',
+      // Calls registered from a request take their Complaint Date from the day it
+      // was raised and their Breakdown Date from the day it was attended (0435).
+      '0435_call_dates_from_request.sql',
       // AFTER 0108 above, which defines the cancel_call() this one loops over:
       // a SQL function body is resolved at CREATION, so filed before it the
       // batch wrapper dies on `function public.cancel_call(text, text) does
@@ -647,7 +650,10 @@ const MODULES = {
             '0428_objective_total_calculated.sql',
             // The Recent Failure Rate reads the 2025 DCCR history through its
             // reviews, now that its calls are in Call History (0431).
-            '0431_failure_rate_reads_dccr_history.sql'],
+            '0431_failure_rate_reads_dccr_history.sql',
+            // Attended within N days counts from the Breakdown Date (0438):
+            // restates the two functions 0423 last defined.
+            '0438_objective_attended_from_breakdown.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -790,7 +796,10 @@ const MODULES = {
       '0425_kpi_export_india_dates.sql',
       // The Call Pending Reason of each open call (0433): appended to 0424's
       // call_dates, so after it.
-      '0433_call_pending_reason.sql'],
+      '0433_call_pending_reason.sql',
+      // The KPI export counts its days from the Breakdown Date (0437): restates
+      // the view 0425 last defined.
+      '0437_kpi_counts_from_breakdown.sql'],
   },
   audit: {
     title: 'Audit Log',
@@ -1020,6 +1029,8 @@ const MODULES = {
     // The `reports` module runs AFTER call_requests in ALL_ORDER, so the `calls`
     // view it reads already exists on a fresh apply.
     files: ['0010_reports_ordering.sql', '0071_report_source_ref.sql', '0115_visit_date_sanity.sql',
+            // A visit may be dated from the Breakdown Date (0436): restates 0115.
+            '0436_visit_date_from_breakdown.sql',
             // HERE RATHER THAN daily_review, AND THAT IS NOT FILING TIDINESS: the
             // view reads `public.reports`, a VIEW IS RESOLVED AT CREATION, and
             // `daily_review` runs BEFORE `reports` in ALL_ORDER. Filed there it

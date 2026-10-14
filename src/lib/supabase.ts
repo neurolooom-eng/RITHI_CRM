@@ -170,7 +170,7 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   // AGE, on the row rather than only in the cell, so the column sorts as a
   // NUMBER. Rendered text would sort "10 d" before "9 d", which on a register
   // people scan for the oldest call is worse than not offering the sort.
-  const age = callAging(out as { regDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
+  const age = callAging(out as { regDate?: unknown; breakdownDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
   out.agingDays = age.days;
   out.agingStopped = age.stopped;
   return out;

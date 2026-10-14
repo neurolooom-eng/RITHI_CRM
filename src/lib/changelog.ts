@@ -14,6 +14,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.191',
+    date: '2026-10-14',
+    title: 'Call dates from the request; every timer from the Breakdown Date; status first on an opened call',
+    changes: [
+      'A call registered from a request now takes its Complaint Date from the day the request was raised and its Breakdown Date from the day it was attended. If the request was never attended, both take the day it was raised. Each field says which date it used.',
+      'Calls already registered from a request were corrected by the same rule. Calls linked to more than one request were left as they were; supabase/apply/_calls_with_several_requests.sql lists them.',
+      'A call registered directly still takes today for the Complaint Date, Breakdown Date and Registration; the Complaint and Breakdown Dates can be changed before saving.',
+      'Every timer now counts from the Breakdown Date: Aging on the registers, the SLA on the Dashboard (from the start of that day), the KPI Export day counts (Attended, Solved and Pending Days, TTA, TTS) and the Attended-within-N-days objectives (after the next Re-Calculate).',
+      'A visit can be dated from the call\'s Breakdown Date up to today. Before, it could not be earlier than the Complaint Date.',
+      'An opened call shows its Call Status at the top, highlighted, with what it is pending on, or when and why it was cancelled.',
+      'The sections of an opened call can be collapsed one at a time or all at once, and stay that way for the next call.',
+      'Fixed: the Breakdown Date showed blank on every opened call, although the call had one.',
+    ],
+  },
+  {
     version: '0.10.190',
     date: '2026-10-14',
     title: 'Cancelled calls read Cancelled; Cancellation Date on the registers',

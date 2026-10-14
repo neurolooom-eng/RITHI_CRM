@@ -30,6 +30,11 @@
 // first called, not since the day somebody re-opened the record.
 // ---------------------------------------------------------------------------
 
+// THE CLOCK STARTS ON THE BREAKDOWN DATE (the user, 2026-10-14: "For Reports
+// and Calculation, the Timer should be calculated from the Breakdown Date"),
+// the day the machine failed -- not the day somebody registered it. A call with
+// no breakdown date recorded starts from its registration, as before.
+
 const DAY = 24 * 60 * 60 * 1000;
 
 /** Midnight, local, for a yyyy-mm-dd or an ISO timestamp. Ages are counted in
@@ -50,9 +55,9 @@ export interface CallAging {
 }
 
 export function callAging(row: {
-  regDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown;
+  regDate?: unknown; breakdownDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown;
 }): CallAging {
-  const start = dayOf(row.regDate);
+  const start = dayOf(row.breakdownDate) ?? dayOf(row.regDate);
   if (!start) return { days: null, stopped: false, on: '' };
 
   const state = String(row.callState ?? '');
