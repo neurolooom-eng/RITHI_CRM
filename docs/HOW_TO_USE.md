@@ -178,7 +178,7 @@ different totals. An empty register usually means access, not emptiness.
   > only while the call is open, so a Solved or Cancelled call reads blank.
   > **Cancellation Reason** is what was typed when the call was cancelled, shown
   > while it is cancelled (turn *Open only* off to see cancelled calls). A chip
-  > row for each counts the calls per reason; click one to see only those.
+  > row counts the calls per **pending** reason; click one to see only those.
   > **Cancellation Date** is when the call was cancelled, to the second, and
   > **Cancelled By** who did it (for the old system's cancelled calls, loaded
   > from its file, the name the file gave). A

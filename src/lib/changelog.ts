@@ -14,6 +14,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.193',
+    date: '2026-10-14',
+    title: 'Cancellation Reason chips removed',
+    changes: [
+      'The Cancellation Reason filter chips above the Field, Installation and PM registers are gone. The Cancellation Reason column stays, and the Call Pending Reason chips stay.',
+    ],
+  },
+  {
     version: '0.10.192',
     date: '2026-10-14',
     title: 'Calls cancelled in the old system are cancelled here; Cancelled By',

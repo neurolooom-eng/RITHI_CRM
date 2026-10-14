@@ -1065,7 +1065,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cancelledByOf = (row: Rec) => (!row.cancelledAt ? ''
     : row.cancelledBy ? nameForUserId(String(row.cancelledBy), userNameMap) : String(row.cancelledByName ?? ''));
   const [pendingReasonFilter, setPendingReasonFilter] = useState('');
-  const [cancelReasonFilter, setCancelReasonFilter] = useState('');
 
   // The strip's counts come from the rows that pass everything else, so a name
   // shows what clicking it would actually give you.
@@ -1140,14 +1139,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       .map((x) => x.row);
   }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter, config.tab]);
 
-  // THE TWO REASON FILTERS, after everything else. Each strip counts the rows
-  // that pass the OTHER one, so a chip shows what clicking it would give.
+  // THE PENDING REASON FILTER, after everything else. (A Cancellation Reason
+  // strip was removed on the user's word, 2026-10-14: "I dont want this
+  // grouping"; the column stays.)
   const pendingOk = (row: Rec) => !pendingReasonFilter || pendingReasonOf(row) === pendingReasonFilter;
-  const cancelOk = (row: Rec) => !cancelReasonFilter || cancellationReasonOf(row) === cancelReasonFilter;
   const visibleRows = useMemo(
-    () => listedRows.filter((row) => pendingOk(row) && cancelOk(row)),
+    () => listedRows.filter(pendingOk),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listedRows, callDates, pendingReasonFilter, cancelReasonFilter],
+    [listedRows, callDates, pendingReasonFilter],
   );
   const countBy = (rows: Rec[], of: (row: Rec) => string) => {
     const c = new Map<string, number>();
@@ -1155,14 +1154,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     return [...c.entries()].map(([key, count]) => ({ key, count }));
   };
   const pendingReasonCounts = useMemo(
-    () => countBy(listedRows.filter(cancelOk), pendingReasonOf),
+    () => countBy(listedRows, pendingReasonOf),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listedRows, callDates, cancelReasonFilter],
-  );
-  const cancelReasonCounts = useMemo(
-    () => countBy(listedRows.filter(pendingOk), cancellationReasonOf),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listedRows, callDates, pendingReasonFilter],
+    [listedRows, callDates],
   );
 
   const refreshFromMasters = async (what: 'party' | 'product', ucns: string[], clear?: () => void) => {
@@ -1447,16 +1441,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         blankLabel="— no pending reason —"
         title="Call Pending Reason"
         storeKey={`calls.${config.callType}.pendingReason`}
-        more={moreAvailable || (searching && searchCapped)}
-      />
-      <FacetChips
-        options={cancelReasonCounts}
-        value={cancelReasonFilter}
-        onChange={setCancelReasonFilter}
-        allLabel="All calls"
-        blankLabel="— not cancelled —"
-        title="Cancellation Reason"
-        storeKey={`calls.${config.callType}.cancelReason`}
         more={moreAvailable || (searching && searchCapped)}
       />
 
