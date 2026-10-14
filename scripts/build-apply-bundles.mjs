@@ -357,6 +357,9 @@ const MODULES = {
       // round the generated column would be put back and the cancelled branch
       // lost, which is the "a bundle must carry the LATEST definition" rule.
       '0226_cancelled_is_not_report_pending.sql',
+      // A call cancelled in RITHI reads Cancelled (0434): restates the 0226
+      // trigger function, so directly after it.
+      '0434_cancelled_call_reads_cancelled.sql',
       // AFTER 0108 above, which defines the cancel_call() this one loops over:
       // a SQL function body is resolved at CREATION, so filed before it the
       // batch wrapper dies on `function public.cancel_call(text, text) does

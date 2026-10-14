@@ -165,6 +165,10 @@ different totals. An empty register usually means access, not emptiness.
   > **Cancellation Reason** is what was typed when the call was cancelled, shown
   > while it is cancelled (turn *Open only* off to see cancelled calls). A chip
   > row for each counts the calls per reason; click one to see only those.
+  > **Cancellation Date** is when the call was cancelled, to the second. A
+  > cancelled call's **Call Status reads Cancelled** (grey) whatever its last
+  > visit said; restoring it puts back the status its visits give. Cancelled
+  > calls are not in the KPI Export.
   > **Listed newest Call Registration Date first** — not in the order a PM
   > month was uploaded, so a back-dated call sits where its date puts it.
   > Click a column heading to sort by something else.

@@ -66,6 +66,19 @@ export function stateBucket(v: unknown): string {
   return '';
 }
 
+// THE STATUS A CALL SHOWS. Its latest visit's exact wording ("Solved - Report
+// Completed") is the more useful text -- except when the call itself has been
+// Cancelled or Re-opened, which no visit says: then that is its status (the
+// user, 2026-10-14: "If a Call is Cancelled, then the Status should also
+// State 'Cancelled'"). `state` is the call's own state (call_state.state /
+// callState); `lastStatus` the latest visit's.
+export function callStatusText(state: unknown, lastStatus: unknown): string {
+  const s = String(state ?? '').trim();
+  const b = stateBucket(s);
+  if (b === 'Cancelled' || b === 'Reopened') return s;
+  return String(lastStatus ?? '').trim() || s;
+}
+
 export function stateColour(v: unknown): StateColour | null {
   const b = stateBucket(v);
   return b ? STATE_COLOUR[b] ?? null : null;

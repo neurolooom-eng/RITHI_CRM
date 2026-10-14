@@ -10,7 +10,7 @@ import { formatDay, formatDayTime } from '../lib/dates';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
-import { StateBadge } from '../lib/callstate';
+import { StateBadge, callStatusText } from '../lib/callstate';
 import { productToCallPrefill, callDateFromRequest } from '../lib/fieldcall';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO, fmtLongDate } from '../lib/format';
@@ -802,7 +802,7 @@ function RequestActions({
                   <div className={`req-open-row ${c.solved ? 'req-open-done' : ''}`} key={c.ucn}>
                     <div className="req-open-main">
                       <button className="linklike" onClick={() => onOpenCall(c as unknown as OpenCall)}>{c.ucn}</button>
-                      <StateBadge state={c.state} label={c.lastStatus || c.state} />
+                      <StateBadge state={c.state} label={callStatusText(c.state, c.lastStatus)} />
                       <span className="muted">{c.callType} · {c.regDate || '—'} · {c.allocatedTo || 'unallocated'}</span>
                       {c.complaint && <div className="muted req-open-cmp">{c.complaint}</div>}
                     </div>

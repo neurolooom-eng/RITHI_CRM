@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { listPendingCalls, reallocateCalls, callFamily, supabaseConfigured, type CallState, type CallFamily } from '../lib/supabase';
-import { StateBadge, Ucn } from '../lib/callstate';
+import { StateBadge, Ucn, callStatusText } from '../lib/callstate';
 import { allowsAllottee, useAccessScope, useTeamEngineers } from '../lib/access';
 import { csvExport, fmtLongDate, fmtLongSmart, timeAgo } from '../lib/format';
 import { useAuth } from '../lib/auth';
@@ -39,13 +39,13 @@ const PAGE = 2000;
 const STATES: (CallState | '')[] = ['', 'Unattended', 'Unsolved', 'Report pending', 'Reopened'];
 
 const COLUMNS: Column<Row>[] = [
-  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.lastStatus || r.callState} /> },
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStatusText(r.callState, r.lastStatus)} /> },
   {
     key: 'state', header: 'Call Status', width: 170, wrap: false,
     render: (r) => (
       <StateBadge
         state={String(r.state ?? '')}
-        label={String(r.state) === 'Reopened' ? 'Reopened' : String(r.lastStatus || r.state || '')}
+        label={callStatusText(r.state, r.lastStatus)}
         title={Number(r.reopenCount ?? 0) > 0 ? `Re-opened ${r.reopenCount}×` : undefined}
       />
     ),

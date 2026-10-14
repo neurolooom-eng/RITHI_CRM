@@ -3546,7 +3546,10 @@ export async function listCallStates(ucns: string[]): Promise<Record<string, str
     if (error) throw new Error(errMsg(error));
     (data ?? []).forEach((r) => {
       const row = r as { ucn?: string; state?: string; last_status?: string };
-      if (row.ucn) out[row.ucn] = String(row.last_status || row.state || '');
+      // Cancelled and Reopened are the call's own state and win over the
+      // latest visit's wording (the user, 2026-10-14) -- callStatusText()'s rule.
+      const st = String(row.state ?? '');
+      if (row.ucn) out[row.ucn] = st === 'Cancelled' || st === 'Reopened' ? st : String(row.last_status || st);
     });
   }
   return out;
