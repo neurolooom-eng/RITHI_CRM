@@ -1,31 +1,54 @@
--- Read-only probe: who changed calls and visits today, and where the
--- "Canceled" visit statuses went.
-select 1 as n, 'calls ' || op || ' by ' || coalesce(actor_email, '(no user)') || ' ' || to_char(min(changed_at) at time zone 'Asia/Kolkata', 'HH24:MI') || '-' || to_char(max(changed_at) at time zone 'Asia/Kolkata', 'HH24:MI') as k, count(*)::text as v
-  from public.record_audit where table_name in ('field_calls', 'installation_calls', 'pm_calls')
-   and changed_at >= timestamptz '2026-10-13 00:00+05:30' group by op, actor_email
-union all
-select 2, 'calls: field changed today -> ' || f.key, count(*)::text
-  from public.record_audit a, jsonb_each(a.new_data) f
- where a.table_name in ('field_calls', 'installation_calls', 'pm_calls') and a.op = 'UPDATE'
-   and a.changed_at >= timestamptz '2026-10-14 00:00+05:30'
-   and f.key not like 'sys_%' and (a.old_data -> f.key) is distinct from f.value
- group by f.key
-union all
-select 3, 'calls: open_state ' || coalesce(a.old_data->>'open_state', '?') || ' -> ' || coalesce(a.new_data->>'open_state', '?'), count(*)::text
-  from public.record_audit a
- where a.table_name in ('field_calls', 'installation_calls', 'pm_calls') and a.op = 'UPDATE'
-   and (a.old_data->>'open_state') is distinct from (a.new_data->>'open_state')
-   and a.changed_at >= timestamptz '2026-09-20 00:00+05:30'
- group by 2
-union all
-select 4, 'reports audit ' || op || ' ' || to_char(changed_at at time zone 'Asia/Kolkata', 'YYYY-MM-DD') || ' by ' || coalesce(actor_email, '(no user)'), count(*)::text
-  from public.record_audit where table_name = 'reports' and changed_at >= timestamptz '2026-10-01 00:00+05:30'
- group by op, to_char(changed_at at time zone 'Asia/Kolkata', 'YYYY-MM-DD'), actor_email
-union all
-select 5, 'reports: call_status was Cancel% in an audited change', count(*)::text
-  from public.record_audit where table_name = 'reports' and old_data->>'call_status' ilike '%cancel%'
-union all
-select 6, 'calls with last_status Cancel%', count(*)::text from public.calls where last_status ilike '%cancel%'
-union all
-select 7, 'call_requests status values: ' || coalesce(status, '(blank)'), count(*)::text from public.call_requests group by status
-order by 1, 2;
+-- Read-only probe: the 39 "Canceled" visits in the user's file (UC Number,
+-- visit UID) against the live calls and visits.
+with f(ucn, uid) as (values
+('25L29F0008','H-926344b1'),
+('26A22F0004','H-88cf8fc4'),
+('26B04F0005','H-94bcc800'),
+('26B03F0031','H-0e7dabbe'),
+('26B04F0024','H-0375f8e4'),
+('25L30F0014','H-8123663b'),
+('25L22F0033','H-d44582e7'),
+('26A08F0002','H-627632f8'),
+('26A05F0001','H-3ccb7626'),
+('26B03F0017','H-ab332f2a'),
+('26B13F0012','H-ee2bf99e'),
+('26B03F0032','H-f8434031'),
+('26A30F0020','H-ca7c6c6e'),
+('26A30F0004','H-ac65988d'),
+('26A30F0006','H-ced8cb85'),
+('26A30F0008','H-910dd5d2'),
+('26A30F0005','H-2b1a98dd'),
+('26A30F0007','H-9894a085'),
+('26B02F0008','H-d78bebdd'),
+('26A28F0008','H-3792e74b'),
+('26B10F0016','H-5be280f2'),
+('26C26I0001','H-e0226aa7'),
+('26C17F0011','H-3bf9cb06'),
+('26C30F0010','H-acf05da5'),
+('26A19F0044','H-9875997c'),
+('26D07F0016','H-0f6d2e26'),
+('26C18F0010','H-efdbb2ac'),
+('26D08F0004','H-8b66cfd4'),
+('26E12F0024','H-94b4ab94'),
+('26B16F0030','H-6afba427'),
+('26C10F0002','H-fb3da293'),
+('26D10F0016','H-20fdfa4d'),
+('26E07F0010','H-d6d7b6ec'),
+('26E07F0012','H-ff247dc7'),
+('26E07F0010','H-3f35a61d'),
+('26C18F0070','H-0b5039a8'),
+('26F01F0007','H-02a41594'),
+('26F01F0008','H-36113ca4'),
+('26G08F0031','H-f30b1087')
+), lv as (
+  select distinct on (r.ucn) r.ucn, r.uid, r.call_status, r.visit_at, r.updated_at
+    from public.reports r join f on f.ucn = r.ucn
+   order by r.ucn, r.updated_at desc nulls last, r.id desc
+)
+select f.ucn, f.uid as file_uid,
+       c.call_type, c.open_state, c.last_status, (c.cancelled_at is not null) as cancelled_in_rithi,
+       (select r.call_status from public.reports r where r.uid = f.uid) as file_visit_status_now,
+       (select count(*) from public.reports r where r.ucn = f.ucn) as visits,
+       lv.uid as latest_uid, lv.call_status as latest_status, (lv.visit_at at time zone 'Asia/Kolkata')::date as latest_visit
+  from f left join public.calls c on c.ucn = f.ucn left join lv on lv.ucn = f.ucn
+ order by f.ucn, f.uid;
