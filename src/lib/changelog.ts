@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.192',
+    date: '2026-10-14',
+    title: 'Calls cancelled in the old system are cancelled here; Cancelled By',
+    changes: [
+      'The cancelled calls from the old system (Canceled_Calls.csv) are now cancelled in RITHI, with the file\'s reason, the date and time the cancellation was entered, and who entered it. Calls that read Solved now are cancelled too; their visits are kept.',
+      'Calls already cancelled in RITHI keep their own reason and date. The three 2025 calls in the file are in Call History and were left as they are.',
+      'New column on the Field, Installation and PM registers: Cancelled By, the person who cancelled the call, or the name the old system\'s file gave. Also shown when a call is opened, and in Export CSV.',
+    ],
+  },
+  {
     version: '0.10.191',
     date: '2026-10-14',
     title: 'Call dates from the request; every timer from the Breakdown Date; status first on an opened call',

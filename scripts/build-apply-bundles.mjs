@@ -363,6 +363,8 @@ const MODULES = {
       // Calls registered from a request take their Complaint Date from the day it
       // was raised and their Breakdown Date from the day it was attended (0435).
       '0435_call_dates_from_request.sql',
+      // The calls cancelled in the old system, cancelled here from its file (0439).
+      '0439_cancel_calls_from_old_system.sql',
       // AFTER 0108 above, which defines the cancel_call() this one loops over:
       // a SQL function body is resolved at CREATION, so filed before it the
       // batch wrapper dies on `function public.cancel_call(text, text) does

@@ -164,6 +164,10 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   out.lastStatus = row.last_status ?? '';
   out.cancelledAt = row.cancelled_at ?? '';
   out.cancelReason = row.cancel_reason ?? '';
+  // WHO CANCELLED IT: the login (cancelled_by), or -- for a cancellation
+  // loaded from the old system (0439) -- the name the file gave.
+  out.cancelledBy = row.cancelled_by ?? '';
+  out.cancelledByName = String((row.extra as Record<string, unknown> | null)?.cancelled_by_name ?? '');
   out.reopenedAt = row.reopened_at ?? '';
   out.reopenCount = Number(row.reopen_count ?? 0);
   out.lastVisitAt = row.last_visit_at ?? '';
