@@ -136,6 +136,12 @@ different totals. An empty register usually means access, not emptiness.
   **Ctrl+V**. Read it and send it from there.
   > The call is filed to the Hotline desk, but the system separately records *who
   > actually typed it in*. The two differing is a finding, not an error.
+  > **The call's dates come from the request:** **Complaint Date** is the day the
+  > request was raised; **Breakdown Date** is the request's *Attended Date* when
+  > it says *Call Attended? Yes*, otherwise the day it was raised. Each field
+  > says which it used. A call registered **directly** (*New Field Call*) takes
+  > today for all three dates; the Complaint and Breakdown Dates can be changed
+  > before saving.
 
 ## The call registers
 
@@ -158,6 +164,14 @@ different totals. An empty register usually means access, not emptiness.
   > filled if the call was solved and later re-opened. The same definitions as
   > the KPI Export's *Call Attended On* and *Call Solved Date*. India dates;
   > they sort, and they are in the CSV.
+  > **Every timer counts from the Breakdown Date** — the day the machine
+  > failed: **Aging** here, the **SLA** on the Dashboard (from the start of that
+  > day), the **KPI Export**'s day counts and the *Attended within N days*
+  > objective. A call with no Breakdown Date counts from its registration.
+  > **Opening a call** shows its **Call Status** at the top, highlighted, with
+  > what it is pending on (or when and why it was cancelled). **▸ Collapse all
+  > sections** folds the form; click a section's name to fold or open just that
+  > one. It stays that way for the next call you open.
   > **Call Pending Reason and Cancellation Reason** (all three registers, also
   > in the opened call and the CSV): **Call Pending Reason** is the reason on
   > the call's latest visit entry — the entry its status comes from — and shows

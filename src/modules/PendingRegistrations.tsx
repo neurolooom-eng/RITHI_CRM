@@ -11,7 +11,7 @@ import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
 import { StateBadge, callStatusText } from '../lib/callstate';
-import { productToCallPrefill, callDateFromRequest } from '../lib/fieldcall';
+import { productToCallPrefill, callDateFromRequest, complaintDateFromRequest } from '../lib/fieldcall';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO, fmtLongDate } from '../lib/format';
 import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, lockCallFields, callPermPrefix, mayEditCallOn, type CallSheetConfig } from './FieldCalls';
@@ -290,8 +290,9 @@ export function PendingRegistrations() {
         // lets the login-derived default apply (see callFields.tsx); the
         // request keeps its own email either way.
         personCalling: 'DIRECT ENGINEER',
-        // NOT today: the day the request is about (see requestCallDate).
-        complaintDate: requestCallDate(row).iso,
+        // NOT today (the user, 2026-10-14): Complaint Date is the day the
+        // request was raised, Breakdown Date the day it was attended.
+        complaintDate: requestComplaintDate(row).iso,
         breakdownDate: requestCallDate(row).iso,
         ...prodFill,
       };
@@ -831,8 +832,9 @@ function RequestActions({
   );
 }
 
-// The day a call registered from a request is ABOUT (rule in lib/fieldcall.ts),
-// with the sentence the form shows so nobody reads a non-today date as a bug.
+// The BREAKDOWN DATE of a call registered from a request: the day it was
+// attended, else the day it was raised (rule in lib/fieldcall.ts), with the
+// sentence the form shows so nobody reads a non-today date as a bug.
 export function requestCallDate(row: Row): { iso: string; why: string } {
   const d = callDateFromRequest({
     attended: row['Call Attended?'],
@@ -841,6 +843,14 @@ export function requestCallDate(row: Row): { iso: string; why: string } {
   });
   if (d.source === 'attended') return { iso: d.iso, why: `From the request — attended on ${fmtLongDate(d.iso)}` };
   if (d.source === 'logged') return { iso: d.iso, why: `From the request — logged on ${fmtLongDate(d.iso)}` };
+  return { iso: todayISO(), why: 'The request carries no date, so today is used' };
+}
+
+// The COMPLAINT DATE of a call registered from a request: the day the request
+// was raised (the user, 2026-10-14).
+export function requestComplaintDate(row: Row): { iso: string; why: string } {
+  const iso = complaintDateFromRequest({ loggedAt: row['Timestamp'] });
+  if (iso) return { iso, why: `From the request — raised on ${fmtLongDate(iso)}` };
   return { iso: todayISO(), why: 'The request carries no date, so today is used' };
 }
 
@@ -869,9 +879,11 @@ function RegisterPanel({
 
   // The two dates come from the REQUEST, so the form says which date and why —
   // a field that quietly disagrees with today looks like a bug otherwise.
+  const raised = requestComplaintDate(row);
   const when = requestCallDate(row);
   const registerFields = masters.inject(buildCreateFields(pf)).map((f) => (
-    f.name === 'complaintDate' || f.name === 'breakdownDate' ? { ...f, help: when.why } : f));
+    f.name === 'complaintDate' ? { ...f, help: raised.why }
+      : f.name === 'breakdownDate' ? { ...f, help: when.why } : f));
 
   const submit = async (v: FormValues) => {
     setBusy(true); setErr('');

@@ -130,3 +130,10 @@
    the move arrows, and not in the header's capitals. */
 .sf-section-action { margin-left: auto; text-transform: none; letter-spacing: normal; font-weight: normal; }
 .sf-section-action + .sf-section-move { margin-left: 4px; }
+
+/* Collapsible sections (the user, 2026-10-14). The header is the button. */
+.sf-fold-all { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+.sf-fold { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; }
+.sf-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.sf-fold-caret { display: inline-block; width: 1em; text-align: center; }

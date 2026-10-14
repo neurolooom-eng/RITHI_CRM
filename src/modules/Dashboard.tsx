@@ -26,6 +26,13 @@ import './ffr.css';
 
 type Rec = Record<string, unknown>;
 const g = (r: Rec, k: string) => String(r[k] ?? '');
+// WHERE A CALL'S SLA CLOCK STARTS: the Breakdown Date (the user, 2026-10-14),
+// from 00:00 India time since it carries no time; else its registration.
+const slaStartOf = (r: Rec): string => {
+  const b = g(r, 'breakdownDate').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(b)) return `${b}T00:00:00+05:30`;
+  return g(r, 'regDate') || g(r, 'complaintDate');
+};
 
 // Dates go through the project's one parser, day-first (finding 4): a private
 // `new Date(s)` fallback read 09-10-2026 as 10 September and put the call in
@@ -168,7 +175,9 @@ export function Dashboard() {
   // rules is on both lists. Narrowed by the picks like everything else.
   const slaJudged = useMemo(() => rows.map((r) => ({
     item: r,
-    sla: evaluateCallSla(slaRules, { regAt: g(r, 'regDate') || g(r, 'complaintDate'), openState: g(r, 'callState'), itemStatus: g(r, 'itemStatus') }),
+    // FROM THE BREAKDOWN DATE (the user, 2026-10-14), from the start of that
+    // day in India -- a breakdown date carries no time -- else registration.
+    sla: evaluateCallSla(slaRules, { regAt: slaStartOf(r), openState: g(r, 'callState'), itemStatus: g(r, 'itemStatus') }),
   })), [rows, slaRules]);
   const slaLists = useMemo(() => slaByRule(slaRules, slaJudged), [slaRules, slaJudged]);
   // A tile for every rule the dashboard judges calls by -- 0 is an answer --

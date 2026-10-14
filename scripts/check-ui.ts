@@ -18,7 +18,7 @@ import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmou
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem,
          upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
-import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
+import { callDateFromRequest, complaintDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, rankSerialHits, PICK_A_PRODUCT } from '../src/lib/callrequest';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
@@ -386,6 +386,17 @@ console.log('\n-- the day a call registered from a request is about --');
   // A plain date carries no timezone and must not be shifted by one.
   eq('a plain yyyy-mm-dd is left exactly as it is', localIsoDate('2026-08-31'), '2026-08-31');
   eq('a day-first export date still reads day-first', localIsoDate('31/08/2026'), '2026-08-31');
+  // COMPLAINT DATE = the day the request was RAISED, Breakdown Date = the day it
+  // was attended (the user, 2026-10-14). A request attended on the 6th and
+  // raised on the 7th gives Complaint 7th, Breakdown 6th.
+  eq('Complaint Date is the day the request was raised, not the attended day',
+    complaintDateFromRequest({ loggedAt: '2026-08-07T10:23:00+00:00' }), '2026-08-07');
+  eq('...and Breakdown Date the attended day',
+    d({ attended: 'Yes', attendedDate: '2026-08-06', loggedAt: '2026-08-07T10:23:00+00:00' }), '2026-08-06/attended');
+  eq('...and no readable time leaves the caller to use today', complaintDateFromRequest({}), '');
+  const reg = readFileSync('src/modules/PendingRegistrations.tsx', 'utf8');
+  eq('Pending Registrations fills Complaint Date from the raised day',
+    /complaintDate: requestComplaintDate\(row\)\.iso/.test(reg), true);
 }
 
 // ---------------------------------------------------------------------------
@@ -840,10 +851,15 @@ console.log('\n-- a visit date that could not have happened --');
   // submit, because min/max stop the PICKER, not a pasted value.
   const rep = readFileSync(`${process.cwd()}/src/modules/CallReporting.tsx`, 'utf8');
   eq('the visit date picker cannot reach the future', /max=\{todayISO\(\)\}/.test(rep), true);
-  eq('the visit date picker cannot reach before the complaint',
-    /min=\{complaintISO \|\| undefined\}/.test(rep), true);
+  // THE BOUND IS THE BREAKDOWN DATE, else the complaint (the user, 2026-10-14).
+  eq('the visit date picker cannot reach before the breakdown',
+    /min=\{visitFromISO \|\| undefined\}/.test(rep), true);
+  eq('...which is the breakdown date, else the complaint date',
+    /const visitFromISO = breakdownISO \|\| complaintISO;/.test(rep), true);
   eq('and the rule is checked again on submit',
-    /visitDateProblem\(visitDate, complaintISO, todayISO\(\)\)/.test(rep), true);
+    /visitDateProblem\(visitDate, visitFromISO, todayISO\(\), visitFromWhat\)/.test(rep), true);
+  eq('the message names the breakdown',
+    /before the breakdown/.test(visitDateProblem('2026-08-31', C, T)), true);
   // THE LOWER BOUND IS THE COMPLAINT DATE AND NOTHING ELSE. It briefly fell
   // back to the REGISTRATION date, which a PM batch sets to the first of the
   // due month — so an October PM refused a visit entered on 28 September, and
@@ -852,6 +868,28 @@ console.log('\n-- a visit date that could not have happened --');
   // stricter than the rule it claims to enforce.
   eq('the lower bound never falls back to the registration date',
     /complaintISO[\s\S]{0,400}?regDate/.test(rep), false);
+}
+
+// ---------------------------------------------------------------------------
+// AN OPENED CALL (the user, 2026-10-14): its status first and highlighted, its
+// dates readable, its sections collapsible. D-171: a dd-MMM-yyyy value in a
+// browser date input shows NOTHING, which is how every opened call read its
+// Breakdown Date blank.
+console.log('\n-- an opened call: status, dates, collapse --');
+{
+  const fc = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
+  const form = readFileSync(`${process.cwd()}/src/components/form/Form.tsx`, 'utf8');
+  eq('viewing renders every date field as text (D-171)',
+    /f\.type === 'date' \? \{ \.\.\.f, type: 'text' as const \}/.test(fc), true);
+  eq('...and the view uses that list',
+    /drawer\.mode === 'view' \? viewOnlyFields\(\)/.test(fc), true);
+  eq('the Call Status is shown first, highlighted',
+    /className="call-status-hero"/.test(fc) && /\.call-status-hero \{/.test(readFileSync(`${process.cwd()}/src/modules/fieldcalls.css`, 'utf8')), true);
+  eq('...in the same words as the register', /label=\{callStatusText\(\(drawer\.row as Rec\)\.callState/.test(fc), true);
+  eq('the call form collapses', /sectionOrderKey="callform"\s*\n\s*collapsible/.test(fc), true);
+  eq('...all at once', /Collapse all sections/.test(form), true);
+  eq('...and a section with an error opens on Save',
+    /collapsed\.some\(\(k\) => bad\.has\(k\)\)/.test(form), true);
 }
 
 // ---------------------------------------------------------------------------
