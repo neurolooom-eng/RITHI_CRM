@@ -119,26 +119,18 @@ export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
 // carries the complaint date, because that is where it is answered.
 const VIEW_HIDDEN = ['complaintDate', 'registeredBy', 'actuallyRegisteredBy'];
 const viewFields = () => FIELD_CALL_FIELDS.filter((f) => !VIEW_HIDDEN.includes(f.name));
-// Shown when a saved call is VIEWED, never on a form that saves: neither is a
-// field of the call somebody types. The pending reason is the latest visit
-// entry's while the call is open (0433); the cancellation reason is the one
-// typed when it was cancelled, while it is (0108).
 // VIEWING, a date is shown as TEXT. The values are formatted dd-MMM-yyyy for
 // the view (below), and a browser date box can only hold yyyy-mm-dd -- given
 // "06-Aug-2026" it shows NOTHING, which is how the Breakdown Date of every
-// opened call read blank while the register held it (the user, 2026-10-14:
-// "Why is the Breakdown date blank?").
-const viewOnlyFields = (): FieldDef[] => [...viewFields(), ...STATUS_VIEW_FIELDS]
+// opened call read blank while the register held it (D-171).
+//
+// The Call Pending Reason, Cancellation Reason / Date and Cancelled By are NOT
+// fields here (the user, 2026-10-14: "I dont want this in the Form view, i want
+// it only on the Register"): they are register columns, and the status band at
+// the top of the opened call says what it is pending on or why it was
+// cancelled.
+const viewOnlyFields = (): FieldDef[] => viewFields()
   .map((f) => (f.type === 'date' ? { ...f, type: 'text' as const } : f));
-const STATUS_VIEW_FIELDS: FieldDef[] = [
-  { name: 'pendingReason', label: 'Call Pending Reason', section: 'Registration', readOnly: true,
-    help: 'From the latest visit entry, while the call is open.', span: 1 },
-  { name: 'cancellationReason', label: 'Cancellation Reason', section: 'Registration', readOnly: true,
-    help: 'Typed when the call was cancelled. Shown while it is cancelled.', span: 1 },
-  { name: 'cancellationDate', label: 'Cancellation Date', section: 'Registration', readOnly: true,
-    help: 'When the call was cancelled.', span: 1 },
-  { name: 'cancelledByWho', label: 'Cancelled By', section: 'Registration', readOnly: true, span: 1 },
-];
 
 // ===========================================================================
 // FIELD CALL REGISTER — operational.
@@ -1686,10 +1678,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     regDate: formatDay(drawer.row?.regDate),
                     complaintDate: formatDay(drawer.row?.complaintDate),
                     breakdownDate: formatDay(drawer.row?.breakdownDate),
-                    pendingReason: pendingReasonOf(drawer.row as Rec),
-                    cancellationReason: cancellationReasonOf(drawer.row as Rec),
-                    cancellationDate: formatDayTime(drawer.row?.cancelledAt),
-                    cancelledByWho: cancelledByOf(drawer.row as Rec),
                   } : {}),
                   // The row carries the UUID; the form shows the person. A call
                   // loaded before the stamp existed has none, and says so

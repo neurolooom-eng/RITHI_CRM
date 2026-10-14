@@ -52,7 +52,7 @@ import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '.
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
-import { callAging, agingTone } from '../src/lib/aging';
+import { callAging, agingTone, callDays } from '../src/lib/aging';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2496,6 +2496,27 @@ console.log('\n-- call aging, and where the clock stops --');
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the age is on the row, so the column sorts as a number',
     /out\.agingDays = age\.days;/.test(sb), true);
+}
+
+// THE LOWER OF COMPLAINT-TO AND BREAKDOWN-TO (the user, 2026-10-14). The SAME
+// cases as supabase/tests/call_days_test.sql asserts of call_days() (0440), so
+// the register's Aging and the KPI export cannot disagree on a rule.
+console.log('\n-- days: the lower of complaint-to and breakdown-to --');
+{
+  const C = '2026-08-07', B = '2026-08-06', R = '2026-08-08';
+  eq('both positive: the lower (from the complaint)', callDays(C, B, R, '2026-08-09'), 2);
+  eq('visit before the complaint: from the breakdown', callDays(C, B, R, '2026-08-06'), 0);
+  eq('...a day after the breakdown, before the complaint', callDays('2026-08-10', B, R, '2026-08-08'), 2);
+  eq('both negative: 0', callDays(C, B, R, '2026-08-01'), 0);
+  eq('breakdown after the complaint: still the lower', callDays('2026-08-01', '2026-08-05', R, '2026-08-09'), 4);
+  eq('only a breakdown date: from it', callDays('', B, R, '2026-08-09'), 3);
+  eq('neither: from the registration', callDays('', '', R, '2026-08-09'), 1);
+  eq('nothing happened yet: no count', callDays(C, B, R, ''), null);
+  eq('Aging uses it: a solved call counts to its visit, the lower of the two',
+    callAging({ regDate: R, complaintDate: C, breakdownDate: B, callState: 'Solved', lastVisitAt: '2026-08-09' }).days, 2);
+  const dash = readFileSync('src/modules/Dashboard.tsx', 'utf8');
+  eq('the Dashboard SLA starts at the later of complaint and breakdown not in the future',
+    /past\.length \? past\[past\.length - 1\]/.test(dash) && /regAt: slaStartOf\(r\)/.test(dash), true);
 }
 
 console.log('\n-- every page in the menu has a permission --');

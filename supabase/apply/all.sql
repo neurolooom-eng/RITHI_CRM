@@ -388,6 +388,7 @@
 --   0428_objective_total_calculated.sql
 --   0431_failure_rate_reads_dccr_history.sql
 --   0438_objective_attended_from_breakdown.sql
+--   0441_objective_days_lower_of_two.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0103_record_audit_not_bulk.sql
@@ -432,6 +433,7 @@
 --   0425_kpi_export_india_dates.sql
 --   0433_call_pending_reason.sql
 --   0437_kpi_counts_from_breakdown.sql
+--   0440_days_lower_of_complaint_and_breakdown.sql
 --   0218_product_database_v2.sql
 --   0220_product_database_2_is_materialised.sql
 --   0221_product_database_2_needs_no_gate.sql
@@ -54868,6 +54870,513 @@ begin
 end $function$;
 
 -- ------------------------------------------------------------------------
+-- 0441_objective_days_lower_of_two.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0441 -- "ATTENDED WITHIN N DAYS" COUNTS THE LOWER OF COMPLAINT-TO AND
+-- BREAKDOWN-TO (the user, 2026-10-14; the rule is call_days(), 0440).
+--
+-- objective_value() and objective_evidence() counted the days to the first
+-- attendance from the Breakdown Date (0438). They now take call_days(): the
+-- lower of (attended - complaint) and (attended - breakdown) that is not
+-- negative, 0 when both are, from the registration day where a call has
+-- neither date. ATTENDED is unchanged and is the user's rule as restated the
+-- same day: the EARLIEST date among all the call's visits and its spare
+-- requests (a spare request dated by its Request Date), so a visit entered
+-- later but dated earlier still counts. The evidence names both dates.
+--
+-- RESTATED FROM A DATABASE built from every migration (0438's definitions,
+-- compared before writing). Stored figures follow on the next Re-Calculate.
+-- ===========================================================================
+
+CREATE OR REPLACE FUNCTION public.objective_value(p_id bigint, p_month integer)
+ RETURNS numeric
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_days   integer;
+  n_num    integer;
+  n_den    integer;
+  v_from   date;     -- the first day of the rolling window
+  v_upto   date;     -- the cut-off
+  v_win    integer;  -- months after installation a call is a failure
+  v_avg    numeric;  -- the DCCR cohort average (0393)
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found or o.calc_key = '' then return null; end if;
+
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return null; end if;
+
+  -- FAILURE WITHIN <window> MONTHS OF INSTALLATION, over the machines installed
+  -- in the rolling <rolling> months to the cut-off (0357). Installation is the
+  -- WARRANTY START. Counted in MACHINES, so a machine called out three times
+  -- inside its window is one failure.
+  -- ONE HASHED JOIN, NOT A SEARCH PER MACHINE (0359). The machines installed
+  -- in the window are joined to the calls of the window on the serial; the
+  -- settings are read once into variables, and the calls are bounded below by
+  -- the window's first day -- a qualifying call is on or after a warranty
+  -- start that is itself inside the window, so the bound removes nothing that
+  -- could count. Same rule, same answer as 0357.
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    v_upto   := p.period_end;
+    v_from   := (v_upto - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date;
+    v_win    := public.objective_setting('failure_window_months', 3);
+    -- EXECUTE, as the other branches here do: a plpgsql query is re-planned
+    -- GENERICALLY after its fifth run in a session, and Re-Calculate runs this
+    -- one sixty times in one statement. The generic plan was ten times slower
+    -- (1.5 s for ten months against 0.16 s); a dynamic query is planned with
+    -- its values every time.
+    execute $q$
+    with base as (
+      select pr.id, upper(btrim(pr.serial_number)) as k, pr.warranty_start as ws
+        from public.products pr
+       where pr.item_name ilike $1
+         and coalesce(pr.serial_number, '') ilike $2
+         and btrim(coalesce(pr.serial_number, '')) <> ''
+         and pr.warranty_start > $3
+         and pr.warranty_start <= $4
+    ),
+    failed as (
+      select distinct b.id
+        from base b
+        join public.field_calls c on upper(btrim(coalesce(c.serial, ''))) = b.k
+       where c.cancelled_at is null
+         and c.product_name ilike $1
+         and c.reg_date > $3
+         and c.reg_date <= $4
+         and c.reg_date >= b.ws
+         and c.reg_date <= (b.ws + make_interval(months => $5))::date
+    )
+    select (select count(*) from base), (select count(*) from failed)
+    $q$ into n_den, n_num using v_prod, v_serial, v_from, v_upto, v_win;
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- nothing installed, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  -- DCCR FAILURE BY COMMISSIONING MONTH (0393, the user 2026-10-06). The
+  -- average of the <window>-month failure rates of the <rolling> commissioning
+  -- months ending in this month; a month still inside its window, or with no
+  -- machine installed, is blank and left out of the average -- the sheet's
+  -- AVERAGE over its blank cells. dccr_failure_cohort_rows() is the table the
+  -- Objective page's Failure Rate tab shows, so the two cannot disagree.
+  -- AS OF TODAY, NOT THE MONTH'S END (0416, the user, 2026-10-12: "For these
+  -- Recent Failures dont need a cutoff date"; asked, "Measure as of today").
+  -- The month still decides WHICH twelve commissioning months are averaged
+  -- (v_upto); every failing call registered up to today counts (v_from holds
+  -- today here), so a past month's figure grows as late failures come in.
+  if o.calc_key = 'dccr_failure_cohort' then
+    v_upto := least(p.period_end, (now() at time zone 'Asia/Kolkata')::date);
+    v_from := (now() at time zone 'Asia/Kolkata')::date;
+    v_win  := public.objective_setting('failure_window_months', 3);
+    select avg(cr.rate)
+      into v_avg
+      from public._dccr_failure_cohort_rows(
+             o.calc_params->>'product',
+             coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%'),
+             v_from, v_win) cr
+     where cr.month >= (date_trunc('month', v_upto)
+                        - make_interval(months => public.objective_setting('failure_rolling_months', 12) - 1))::date
+       and cr.month <= date_trunc('month', v_upto)::date
+       and cr.rate is not null;
+    return case when v_avg is null then null else round(v_avg, 6) end;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    -- THE VISIT DATE decides, not the entry date. A solving report with no
+    -- visit date recorded falls back to when it was entered, so a missing
+    -- keystroke cannot push a closed call back into the open column.
+    execute format($q$
+      select count(*),
+             count(*) filter (where not exists (
+               select 1 from public.reports r
+                where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+                  and coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date) <= $4))
+        from %s c
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+         -- A MISSED PM (0418): a PM call added after the end of the month it
+         -- is registered for. Left out unless the objective says to count it.
+         and ($5 or c.added_on is null
+              or c.added_on <= (date_trunc('month', c.reg_date) + interval '1 month - 1 day')::date)
+    $q$, public.objective_call_table(o.calc_params))
+      into n_den, n_num
+     using p.period_start, p.period_end,
+           coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%'),
+           p.solve_cutoff,
+           (lower(btrim(coalesce(o.calc_params->>'family', ''))) <> 'pm'
+                or lower(btrim(coalesce(o.calc_params->>'missed_pm', ''))) = 'include');
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- no calls, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    execute format($q$
+      with c as (
+        select cc.ucn, cc.complaint_date, cc.breakdown_date,
+               coalesce((cc.reg_at at time zone 'Asia/Kolkata')::date, cc.reg_date) as reg_day
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min((visit_at at time zone 'Asia/Kolkata')::date) as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, (created_at at time zone 'Asia/Kolkata')::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select count(*),
+             count(*) filter (
+               where public.call_days(c.complaint_date, c.breakdown_date, c.reg_day, least(fv.on_date, fs.on_date)) <= $4)
+        from c left join fv on fv.ucn = c.ucn left join fs on fs.ucn = c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      into n_den, n_num
+     using p.period_start, p.period_end,
+           coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%'), v_days;
+    if coalesce(n_den, 0) = 0 then return null; end if;   -- no calls, no rate
+    return round(n_num::numeric / n_den, 6);
+  end if;
+
+  -- CUSTOMER FEEDBACK SATISFACTION (0422) -- the "Customer Feedback" workbook:
+  -- each call's satisfaction % (feedback_satisfaction()), averaged over the
+  -- calls whose VISIT DATE (the workbook's Solved Date) falls in the period.
+  -- A feedback missing one of its questions is left out, as the workbook's
+  -- IFERROR leaves it blank. No feedback, no figure.
+  if o.calc_key = 'feedback_satisfaction' then
+    select round(avg(z.s), 6) into v_avg
+      from (select public.feedback_satisfaction(f.answers, f.call_type) as s
+              from public.feedback f
+             where (f.visit_at at time zone 'Asia/Kolkata')::date >= p.period_start
+               and (f.visit_at at time zone 'Asia/Kolkata')::date <= p.period_end) z
+     where z.s is not null;
+    return v_avg;
+  end if;
+
+  -- -------------------------------------------------------------------------
+  -- ffr_count_monthly -- HOW MANY FIELD FAILURE REPORTS WERE RAISED.
+  --
+  -- A COUNT, not a rate, and the first objective here that is one. Three things
+  -- follow from that and none of them is incidental:
+  --
+  --   * it counts DISTINCT FFR NUMBERS, not rows. 0181 made the register one
+  --     row per MACHINE precisely because one report can cover several -- eight
+  --     FFR numbers over twelve machines, measured -- so counting rows would
+  --     report twelve failures where four reports exist. A report with no
+  --     number counts as itself (`row-<id>`) rather than collapsing with every
+  --     other unnumbered one.
+  --   * ZERO IS AN ANSWER. Every rate above returns null on an empty
+  --     denominator because a rate over nothing is undefined; a count over
+  --     nothing is nought, and that is the whole point of an objective whose
+  --     target is "To Monitor". A blank would read as "not measured yet",
+  --     which is a different and worse claim.
+  --   * the month is the FFR DATE and there is no fallback, because none is
+  --     reachable: 0165 declares `ffr_date date not null default (now() at time
+  --     zone 'Asia/Kolkata')::date`. The first draft here carried a
+  --     coalesce to created_at and a note explaining it -- dead code, and a
+  --     note describing a rule that can never fire is worse than no note in a
+  --     record somebody signs. The test found it by inserting a null.
+  -- -------------------------------------------------------------------------
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    select count(distinct coalesce(nullif(btrim(f.ffr_no), ''), 'row-' || f.id))
+      into n_num
+      from public.field_failure_reports f
+     where coalesce(f.product_name, '') ilike v_prod
+       and coalesce(f.product_serial, '') ilike v_serial
+       and f.ffr_date >= p.period_start
+       and f.ffr_date <= p.period_end;
+    return coalesce(n_num, 0);
+  end if;
+
+  return null;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.objective_evidence(p_id bigint, p_month integer)
+ RETURNS TABLE(role text, ucn text, call_number text, reg_date date, product_name text, serial text, party_name text, call_type text, status text, allocated_to text, warranty_number text, warranty_start date, warranty_end date, contract_number text, contract_start date, contract_end date, contract_type text, closure_date date, closure_recorded_on date, after_cutoff text, details jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  o        public.quality_objectives;
+  p        record;
+  v_serial text;
+  v_prod   text;
+  v_type   text;
+  v_days   integer;
+  v_from   date;
+  v_upto   date;
+  v_win    integer;
+begin
+  select * into o from public.quality_objectives where id = p_id;
+  if not found then return; end if;
+  -- THE GATE FOLLOWS THE REGISTER THE FIGURE IS COUNTED FROM. An FFR objective
+  -- reads the Field Failure Register, which has had its own right since 0176
+  -- (`ffr.view`); asking for `calls.view` instead would let somebody who may
+  -- not open that register read every report through this door, and refuse
+  -- somebody who may.
+  if o.calc_key = 'ffr_count_monthly' then
+    if not (public.has_perm('ffr.view') or public.has_perm('ffr.manage')) then
+      raise exception 'RBAC: you cannot read the Field Failure Reports behind this figure';
+    end if;
+  elsif not (public.has_perm('calls.view') or public.has_perm('reports.view')) then
+    raise exception 'RBAC: you cannot read the calls behind this figure';
+  end if;
+  select * into p from public.objective_period(p_id, p_month);
+  if not found or not p.applies then return; end if;
+  v_type := coalesce(nullif(btrim(o.calc_params->>'call_type'), ''), '%');
+
+  if o.calc_key = 'failure_rate_12m' then
+    v_prod   := o.calc_params->>'product';
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+    v_upto   := p.period_end;
+    v_from   := (v_upto - make_interval(months => public.objective_setting('failure_rolling_months', 12)))::date;
+    v_win    := public.objective_setting('failure_window_months', 3);
+
+    -- (The outer alias is `c`, as on every call branch, so _status.sql row
+    -- 193's tiebreak check -- `reg_date desc, c.ucn` -- reads it.)
+    -- SHEET 1: ONE ROW PER FAILED MACHINE -- its FIRST field call inside the
+    -- window -- so the sheet counts to the numerator. `details` says when the
+    -- machine was installed, how many days later it failed, and how many calls
+    -- fell inside the window.
+    -- EXECUTE for the same reason as objective_value: the app pages this
+    -- function, re-running it per thousand rows, and the sixth page would get
+    -- the generic plan.
+    return query execute $q$
+      with base as (
+        select pr.*
+          from public.products pr
+         where pr.item_name ilike $1
+           and coalesce(pr.serial_number, '') ilike $2
+           and btrim(coalesce(pr.serial_number, '')) <> ''
+           and pr.warranty_start > $3
+           and pr.warranty_start <= $4
+      ),
+      hits as (
+        select b.id as machine_id, b.warranty_start as installed_on, c.*,
+               count(*) over (partition by b.id) as calls_in_window,
+               row_number() over (partition by b.id order by c.reg_date, c.ucn) as rn
+          from base b
+          join public.field_calls c
+            on upper(btrim(coalesce(c.serial, ''))) = upper(btrim(b.serial_number))
+         where c.cancelled_at is null
+           and c.product_name ilike $1
+           and c.reg_date > $3
+           and c.reg_date <= $4
+           and c.reg_date >= b.warranty_start
+           and c.reg_date <= (b.warranty_start + make_interval(months => $5))::date
+      )
+      select 'failure'::text, c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text,
+             jsonb_build_object(
+               'Installed (warranty start)', c.installed_on,
+               'Days after installation', (c.reg_date - c.installed_on),
+               'Field calls in the window', c.calls_in_window)
+        from hits c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.rn = 1
+       order by c.reg_date desc, c.ucn
+    $q$ using v_prod, v_serial, v_from, v_upto, v_win;
+
+    return query
+      select 'filter'::text, ''::text, ''::text, p.period_end,
+             'Product Master, Product like ' || v_prod,
+             case when v_serial = '%' then '(no serial filter -- product only)'
+                  else 'Serial like ' || v_serial end,
+             p.label, 'Field calls'::text, ''::text, ''::text,
+             ''::text, null::date, null::date, ''::text, null::date, null::date, ''::text,
+             null::date, null::date,
+             'Installed (warranty start) in the '
+               || public.objective_setting('failure_rolling_months', 12)
+               || ' months to ' || p.period_end
+               || '; failed = a field call within '
+               || public.objective_setting('failure_window_months', 3)
+               || ' months of installation',
+             null::jsonb;
+
+    -- SHEET 2: THE MACHINES INSTALLED IN THE WINDOW -- the denominator -- each
+    -- carrying its whole Product Master row.
+    return query
+      select 'machine'::text, ''::text, ''::text, null::date,
+             pr.item_name, pr.serial_number, pr.party_name, ''::text,
+             coalesce(pr.item_status, ''), ''::text,
+             pr.warranty_number, pr.warranty_start, pr.warranty_end,
+             pr.contract_number, pr.contract_start, pr.contract_end, pr.contract_type,
+             null::date, null::date, ''::text,
+             coalesce(pr.extra, '{}'::jsonb)
+        from public.products pr
+       where pr.item_name ilike v_prod
+         and coalesce(pr.serial_number, '') ilike v_serial
+         and btrim(coalesce(pr.serial_number, '')) <> ''
+         and pr.warranty_start > v_from
+         and pr.warranty_start <= v_upto
+       order by pr.serial_number, pr.item_name, pr.id;
+    return;
+  end if;
+
+  if o.calc_key = 'open_rate_monthly' then
+    return query execute format($q$
+      select case when cl.counts_on is not null and cl.counts_on <= $4
+                  then 'closed' else 'open' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             coalesce(c.open_state, ''), coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on,
+             concat_ws(' ',
+               case when cl.counts_on is not null and cl.counts_on > $4
+                    then 'YES -- solved on ' || cl.counts_on
+                         || ', after the cut-off of ' || $4 || ', so it is counted as OPEN'
+               end,
+               case when cl.counts_on is not null and cl.closed_on is null
+                    then 'NOTE -- no visit date on the solving report; the date it was '
+                         'ENTERED (' || cl.recorded_on || ') was used instead'
+               end),
+             null::jsonb
+        from %s c
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on,
+                     coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date) as counts_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       where c.cancelled_at is null
+         and c.call_type ilike $3
+         and c.reg_date >= $1 and c.reg_date <= $2
+         -- A MISSED PM (0418) is left out of the evidence exactly as it is
+         -- left out of the figure, unless the objective counts it.
+         and ($5 or c.added_on is null
+              or c.added_on <= (date_trunc('month', c.reg_date) + interval '1 month - 1 day')::date)
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, p.solve_cutoff,
+            (lower(btrim(coalesce(o.calc_params->>'family', ''))) <> 'pm'
+                or lower(btrim(coalesce(o.calc_params->>'missed_pm', ''))) = 'include');
+    return;
+  end if;
+
+  if o.calc_key = 'attended_within_days' then
+    v_days := coalesce((o.calc_params->>'days')::integer, 3);
+    return query execute format($q$
+      with c as (
+        select cc.*, coalesce((cc.reg_at at time zone 'Asia/Kolkata')::date, cc.reg_date) as reg_day
+          from %s cc
+         where cc.cancelled_at is null
+           and cc.call_type ilike $3
+           and cc.reg_date >= $1 and cc.reg_date <= $2
+      ),
+      fv as (select ucn, min((visit_at at time zone 'Asia/Kolkata')::date) as on_date from public.reports
+              where visit_at is not null group by ucn),
+      fs as (select ucn, min(coalesce(or_req_date, (created_at at time zone 'Asia/Kolkata')::date)) as on_date
+               from public.spare_requests
+              where coalesce(btrim(ucn), '') <> '' group by ucn)
+      select case when public.call_days(c.complaint_date, c.breakdown_date, c.reg_day, least(fv.on_date, fs.on_date)) <= $4
+                  then 'attended' else 'late' end,
+             c.ucn, c.call_number, c.reg_date, c.product_name,
+             c.serial, c.party_name, c.call_type,
+             case when least(fv.on_date, fs.on_date) is null then 'never attended'
+                  else 'attended on ' || least(fv.on_date, fs.on_date)
+                       || ' -- ' || public.call_days(c.complaint_date, c.breakdown_date, c.reg_day, least(fv.on_date, fs.on_date))
+                       || ' day(s), the lower of from complaint ' || coalesce(c.complaint_date::text, '-')
+                       || ' and from breakdown ' || coalesce(c.breakdown_date::text, '-') end,
+             coalesce(c.allocated_to, ''),
+             c.warranty_number, c.warranty_start, c.warranty_end,
+             c.contract_number, c.contract_start, c.contract_end, c.contract_type,
+             cl.closed_on, cl.recorded_on, ''::text, null::jsonb
+        from c
+        left join fv on fv.ucn = c.ucn
+        left join fs on fs.ucn = c.ucn
+        left join lateral (
+              select (r.visit_at at time zone 'Asia/Kolkata')::date as closed_on, (r.updated_at at time zone 'Asia/Kolkata')::date as recorded_on
+                from public.reports r
+               where r.ucn = c.ucn and r.call_status ilike 'solved%%'
+               order by coalesce((r.visit_at at time zone 'Asia/Kolkata')::date, (r.updated_at at time zone 'Asia/Kolkata')::date), r.id limit 1) cl on true
+       order by c.reg_date, c.ucn
+    $q$, public.objective_call_table(o.calc_params))
+      using p.period_start, p.period_end, v_type, v_days;
+    return;
+  end if;
+
+  -- CUSTOMER FEEDBACK SATISFACTION (0422): one row per feedback counted --
+  -- the call, its visit date (reg_date column), and in `details` each
+  -- question's score and the call's Satisfaction %, so the sheet adds up to
+  -- the figure.
+  if o.calc_key = 'feedback_satisfaction' then
+    return query
+      select 'feedback'::text, f.ucn, f.call_number, (f.visit_at at time zone 'Asia/Kolkata')::date,
+             f.product_name, f.serial, f.party_name, f.call_type, ''::text, coalesce(f.engineer, ''),
+             null::text, null::date, null::date, null::text, null::date, null::date, null::text,
+             null::date, null::date, null::text,
+             jsonb_build_object('Satisfaction %', public.feedback_satisfaction(f.answers, f.call_type),
+                                'Scored on', case when upper(coalesce(f.call_type, '')) like '%INSTALLATION%'
+                                                  then 'Installation questions (out of 20)' else 'PM / Field questions (out of 24)' end)
+               || coalesce((select jsonb_object_agg(q, public.feedback_score(f.answers ->> q))
+                              from unnest(public.feedback_questions(f.call_type)) q), '{}'::jsonb)
+        from public.feedback f
+       where (f.visit_at at time zone 'Asia/Kolkata')::date >= p.period_start
+         and (f.visit_at at time zone 'Asia/Kolkata')::date <= p.period_end
+         and public.feedback_satisfaction(f.answers, f.call_type) is not null
+       order by f.visit_at, f.ucn;
+    return;
+  end if;
+
+  if o.calc_key = 'ffr_count_monthly' then
+    v_prod   := coalesce(nullif(btrim(o.calc_params->>'product'), ''), '%');
+    v_serial := coalesce(nullif(btrim(o.calc_params->>'serial'), ''), '%');
+
+    -- ONE ROW PER MACHINE, because that is how the register stores it -- so the
+    -- sheet has MORE rows than the figure and every row says which report it
+    -- belongs to. Collapsing to one row per report here would hide which
+    -- machines it covered, which is the thing 0181 exists to keep.
+    return query
+      select 'ffr'::text, f.ucn, f.ffr_no,
+             f.ffr_date,
+             f.product_name, f.product_serial, f.customer_name,
+             coalesce(f.call_type, ''), coalesce(f.ffr_status, ''),
+             coalesce(f.raised_by_name, ''),
+             ''::text, null::date, null::date, ''::text, null::date, null::date,
+             coalesce(f.cover, ''),
+             f.crn_date, (f.created_at at time zone 'Asia/Kolkata')::date,
+             ''::text,
+             jsonb_strip_nulls(jsonb_build_object(
+               'FFR No', f.ffr_no, 'Source', f.source,
+               'Problem Reported', f.problem_reported,
+               'Service Observation', f.service_observation,
+               'Problem Status', f.problem_status,
+               'CAPA No', f.capa_no, 'CAPA Status', f.capa_status,
+               'Item Code', f.item_code, 'Place', f.place))
+        from public.field_failure_reports f
+       where coalesce(f.product_name, '') ilike v_prod
+         and coalesce(f.product_serial, '') ilike v_serial
+         and f.ffr_date >= p.period_start
+         and f.ffr_date <= p.period_end
+       order by f.ffr_date, f.ffr_no, f.id;
+    return;
+  end if;
+end $function$;
+
+-- ------------------------------------------------------------------------
 -- 0048_record_audit.sql
 -- ------------------------------------------------------------------------
 
@@ -59352,6 +59861,184 @@ grant select on public.kpi_field_inst to authenticated;
 
 comment on view public.kpi_field_inst is
   'The KPI workbook''s Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425); the day counts run from the Breakdown Date (0437). The per-call lookups into reports and spare_requests are LATERAL so the caller''s date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).';
+
+-- ------------------------------------------------------------------------
+-- 0440_days_lower_of_complaint_and_breakdown.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0440 -- EVERY DAY COUNT IS THE LOWER OF COMPLAINT-TO AND BREAKDOWN-TO (the
+-- user, 2026-10-14: "For the Time Taken for Attending and Solved - Basically
+-- all Aging -- I want it to Calculate both Complaint to Visit / Solved Date,
+-- Breakdown to Visit / Solved Date - And which ever is lower should be
+-- considered. If the value is going in negative, then take the other date").
+--
+-- Settled with the user the same day, for the register's Aging, the KPI
+-- export, the objectives and the Dashboard SLA alike:
+--
+--   * count END - Complaint Date and END - Breakdown Date;
+--   * keep the LOWER of the two that is not negative;
+--   * both negative -> 0 (never negative, as the workbook was);
+--   * a call with only one of the two dates counts from that one; with
+--     neither, from its registration day;
+--   * NULL when END is NULL -- the thing has not happened.
+--
+-- call_days() is that rule, once. It replaces 0437's single `counts_from`
+-- (the Breakdown Date), because the start now depends on the END: a visit
+-- the day before the complaint counts from the breakdown, a visit after it
+-- from the complaint. The client's copy is callDays() in src/lib/aging.ts;
+-- check:ui compares the two on the same cases.
+--
+-- The KPI view is RESTATED FROM 0437 apart from those expressions;
+-- security_invoker re-asserted because create-or-replace drops it.
+-- ===========================================================================
+
+create or replace function public.call_days(p_complaint date, p_breakdown date, p_registered date, p_on date)
+returns integer language sql immutable set search_path = public as $$
+  select case
+    when p_on is null then null
+    when p_complaint is null and p_breakdown is null then
+      case when p_registered is null then null else greatest(p_on - p_registered, 0) end
+    else coalesce((select min(d) from (values (p_on - p_complaint), (p_on - p_breakdown)) v(d) where d >= 0), 0)
+  end
+$$;
+grant execute on function public.call_days(date, date, date, date) to authenticated;
+comment on function public.call_days(date, date, date, date) is
+  'Days from a call''s start to p_on: the lower of p_on - complaint and p_on - breakdown that is not negative; 0 when both are negative; from the registration day where the call has neither date; NULL when p_on is NULL (0440). The client''s copy is callDays() in src/lib/aging.ts.';
+
+create or replace view public.kpi_field_inst as
+with c as (
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.field_calls where cancelled_at is null
+  union all
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.installation_calls where cancelled_at is null
+  union all
+  -- PM CALLS TOO (0390, the user 2026-10-06: "In KPI Export - KPI workbook --
+  -- Field_INST; Add PM Calls also"). The same columns and the same rules;
+  -- cancelled PM calls are left out like every other cancelled call.
+  select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
+         product_name, serial, item_status, warranty_number, warranty_start, warranty_end,
+         contract_number, contract_start, contract_end, contract_type, call_type,
+         standard_complaint, complaint_reported, allocated_to, breakdown_date
+    from public.pm_calls where cancelled_at is null
+),
+r as (
+  select
+    c.*,
+    l.call_status, l.pending_reason, l.engineer,
+    -- INDIA DATES (0425, D-169): a date taken straight off a timestamptz is
+    -- the session's day, UTC on the live project, and a visit stored at
+    -- 00:00 IST is the day before there.
+    (s.visit_at at time zone 'Asia/Kolkata')::date  as solved_on,
+    least((fv.at at time zone 'Asia/Kolkata')::date,
+          public.call_first_spare_on(c.ucn))      as attended_on,
+    -- The registration day, India's: what the day counts fall back to where a
+    -- call has neither a complaint nor a breakdown date (0440).
+    coalesce((c.reg_at at time zone 'Asia/Kolkata')::date, c.reg_date) as reg_day,
+    coalesce(nullif(btrim(l.call_status), ''), 'Unattended') as status_now
+    from c
+    -- THE LATEST ENTRY, per call. Not the latest VISIT: a report written up
+    -- late is still the latest thing the register was told (0032).
+    left join lateral (
+      select rl.call_status, rl.pending_reason, rl.engineer
+        from public.reports rl
+       where rl.ucn = c.ucn
+       order by rl.updated_at desc, rl.id desc
+       limit 1
+    ) l on true
+    left join lateral (
+      select rs.visit_at
+        from public.reports rs
+       where rs.ucn = c.ucn
+         and rs.call_status ilike 'solved%report%complet%'
+       order by rs.updated_at desc, rs.id desc
+       limit 1
+    ) s on true
+    left join lateral (
+      select min(rf.visit_at) as at
+        from public.reports rf
+       where rf.ucn = c.ucn and rf.visit_at is not null
+    ) fv on true
+    -- THE FIRST SPARE REQUEST comes from call_first_spare_on() (0424), the
+    -- one the call registers use: it counts a request whoever raised it, for
+    -- any reader who may see the call. Read here through spare_requests'
+    -- own per-engineer policy, an engineer's export dated a re-allotted call
+    -- later than their manager's, and later than their own register. The
+    -- function keeps the blank-ucn guard and India's day.
+)
+select
+  r.ucn                                          as "UC Number",
+  r.call_number                                  as "Call Number",
+  coalesce(r.reg_at, r.reg_date::timestamptz)    as "Call Registeration Date",
+  r.complaint_date                               as "Complaint Date",
+  r.party_name                                   as "Party Name",
+  r.city                                         as "City",
+  r.state                                        as "State",
+  r.product_name                                 as "Product Name",
+  r.serial                                       as "Product Serial Number",
+  r.item_status                                  as "Item Status",
+  r.warranty_number                              as "Warranty Number",
+  r.warranty_start                               as "Warranty Start Date",
+  r.warranty_end                                 as "Warranty End Date",
+  r.contract_number                              as "Contract Number",
+  r.contract_start                               as "Contract Start Date",
+  r.contract_end                                 as "Contract End Date",
+  r.contract_type                                as "Contract Type",
+  r.call_type                                    as "Call Type",
+  r.standard_complaint                           as "Standard Complaint",
+  r.complaint_reported                           as "Complaint Reported",
+  r.allocated_to                                 as "Call Allocated To",
+  r.breakdown_date                               as "Breakdown Date",
+  -- DECISION 3: any Solved... status is Close, report-pending included.
+  case when r.status_now ilike 'solved%' then 'Close' else 'Open' end
+                                                 as "Open/Close",
+  r.status_now                                   as "Call Status",
+  coalesce(r.pending_reason, '')                 as "CALL PENDING REASON",
+  coalesce(r.engineer, '')                       as "Visiting Service Engineer",
+  r.attended_on                                  as "Call Attended On",
+  r.solved_on                                    as "Call Solved Date & Time",
+  -- AC / AD. NULL when the thing being measured has not happened, rather than
+  -- the sheet's 0 — see decision 1.
+  --
+  -- THE GUARD IS NOT DECORATION. `greatest()` IGNORES NULLs in Postgres, so
+  -- `greatest(null - date, 0)` is 0, not null — and an unattended call would
+  -- read "attended in 0 days, 00-03D", which is precisely the sheet behaviour
+  -- this decision exists to undo. Caught by test 10, which was written for it.
+  -- (It is the same property `least()` has, and there it is what we want: see
+  -- Call Attended On in 0128.)
+  -- THE LOWER OF COMPLAINT -> AND BREAKDOWN -> (0440, the user 2026-10-14):
+  -- call_days() takes both counts, keeps the lower one that is not negative,
+  -- and is 0 when both are; NULL when the thing has not happened.
+  public.call_days(r.complaint_date, r.breakdown_date, r.reg_day, r.attended_on) as "Attended in Days",
+  public.call_days(r.complaint_date, r.breakdown_date, r.reg_day, r.solved_on)   as "Solved in Days",
+  public.kpi_days_band(
+    public.call_days(r.complaint_date, r.breakdown_date, r.reg_day, r.attended_on)) as "TTA ( R )",
+  public.kpi_days_band(
+    public.call_days(r.complaint_date, r.breakdown_date, r.reg_day, r.solved_on))   as "TTS ( R )",
+  to_char(coalesce(r.reg_at at time zone 'Asia/Kolkata', r.reg_date::timestamp), 'YYYY Mon') as "Failure Month",
+  -- The column the workbook does not have. How long an OPEN call has been
+  -- waiting, today — the question the sheet answered with a 0 that read as
+  -- "attended and solved the same day".
+  case when r.status_now ilike 'solved%' then null
+       else public.call_days(r.complaint_date, r.breakdown_date, r.reg_day, (now() at time zone 'Asia/Kolkata')::date)
+  end                                            as "Pending Days"
+  from r;
+
+-- RE-ASSERTED, because create-or-replace drops it. Without this the export
+-- reads as the view's OWNER and every signed-in user gets every call —
+-- silently, with no error. Three times in this project (0040, 0050, 0057).
+alter view public.kpi_field_inst set (security_invoker = on);
+grant select on public.kpi_field_inst to authenticated;
+
+comment on view public.kpi_field_inst is
+  'The KPI workbook''s Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425); every day count is the lower of complaint-to and breakdown-to that is not negative (call_days(), 0440). The per-call lookups into reports and spare_requests are LATERAL so the caller''s date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).';
 
 -- ------------------------------------------------------------------------
 -- 0218_product_database_v2.sql

@@ -655,7 +655,11 @@ const MODULES = {
             '0431_failure_rate_reads_dccr_history.sql',
             // Attended within N days counts from the Breakdown Date (0438):
             // restates the two functions 0423 last defined.
-            '0438_objective_attended_from_breakdown.sql'],
+            '0438_objective_attended_from_breakdown.sql',
+            // ...the same rule, call_days() (0440, performance), in the two
+            // functions 0438 last defined (0441). plpgsql + EXECUTE, so it is
+            // resolved when an objective is worked out, not at creation.
+            '0441_objective_days_lower_of_two.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -801,7 +805,10 @@ const MODULES = {
       '0433_call_pending_reason.sql',
       // The KPI export counts its days from the Breakdown Date (0437): restates
       // the view 0425 last defined.
-      '0437_kpi_counts_from_breakdown.sql'],
+      '0437_kpi_counts_from_breakdown.sql',
+      // Every day count the lower of complaint-to and breakdown-to: call_days()
+      // and the KPI view restated from 0437 (0440).
+      '0440_days_lower_of_complaint_and_breakdown.sql'],
   },
   audit: {
     title: 'Audit Log',

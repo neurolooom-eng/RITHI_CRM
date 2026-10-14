@@ -8,9 +8,10 @@
 --   BD-3 TWO requests -> left exactly as it was.
 --   Visits (0436): BD-1 may be visited on 06-Aug (before its complaint) and
 --        not on 05-Aug.
---   KPI (0437): BD-1 registered 07-Aug, first visit 09-Aug -> Attended in Days
---        3 from the breakdown, not 2 from the complaint.
---   Objective (0438): attended within 2 days -> BD-1 is NOT (3 days).
+--   KPI and objective: since 0440/0441 the LOWER of complaint-to and
+--        breakdown-to -- BD-1, first visit 09-Aug, is 2 days (from the 07-Aug
+--        complaint), not 3 from the breakdown; attended within 2 days. The
+--        rule itself is call_days_test.sql's.
 --
 -- Run ONCE after _stub.sql + every migration, with the session on UTC. Every
 -- error printed is labelled `expect ERROR` -- anything else is a failure.
@@ -63,19 +64,19 @@ insert into public.reports (uid, ucn, call_status, data, visit_at, updated_at)
   values ('WEB-BD-EARLY', 'BD-1', 'Unsolved', '{}'::jsonb, timestamptz '2025-08-05 00:00+00', now());
 delete from public.reports where uid = 'WEB-BD-OK';
 
-\echo '--- 3. the KPI export counts from the breakdown ---'
+\echo '--- 3. the KPI export: the lower of complaint-to and breakdown-to (0440) ---'
 alter table public.reports disable trigger user;
 insert into public.reports (uid, ucn, call_status, data, visit_at, updated_at)
   values ('BD-V1', 'BD-1', 'Unsolved', '{}'::jsonb, timestamptz '2025-08-09 00:00+05:30', timestamptz '2025-08-09 18:00+05:30');
 alter table public.reports enable trigger user;
-select 'BD-1: Attended in Days 3 (06-Aug to 09-Aug), not 2 from the complaint' as t,
-  "Attended in Days" = 3 as ok from public.kpi_field_inst where "UC Number" = 'BD-1';
+select 'BD-1: Attended in Days 2 (07-Aug complaint to 09-Aug), the lower of 2 and 3' as t,
+  "Attended in Days" = 2 as ok from public.kpi_field_inst where "UC Number" = 'BD-1';
 
-\echo '--- 4. the objective counts from the breakdown ---'
+\echo '--- 4. the objective: the lower of the two (0441) ---'
 insert into public.quality_objectives (year, sort_order, process, parameter, yearly_target, frequency, calc_key, calc_params) values
  (2025, 435, 'TEST', 'BD attended', '>75%', 'Monthly', 'attended_within_days', '{"family":"field","days":2}');
-select 'BD-1 is NOT attended within 2 days of its breakdown (it would be, from its complaint)' as t,
-  bool_and(role = 'late') as ok
+select 'BD-1 IS attended within 2 days -- 2 from its complaint, the lower' as t,
+  bool_and(role = 'attended') as ok
   from public.objective_evidence((select id from public.quality_objectives where parameter = 'BD attended'), 8)
  where ucn = 'BD-1';
 
