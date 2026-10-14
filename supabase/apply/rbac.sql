@@ -56,7 +56,7 @@
 --   0347_feedback_read_once_and_no_machine_delete.sql
 --   0350_delete_guard_counts_every_name.sql
 --   0381_master_reads_once_per_query.sql
---   0458_unmatched_login_holds_nothing.sql
+--   0461_unmatched_login_holds_nothing.sql
 --   0121_rbac_policy_tail.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -3363,7 +3363,7 @@ insert into public.perm_parents (child, parent) values
   ('masters.product_master.edit', 'masters.edit.records'),
   ('masters.product_master.edit', 'masters.edit'),
   ('masters.product_master.delete', 'masters.edit'),
-  -- D-129 (0452, 2026-10-05): an editor of the review reads its answers.
+  -- D-129 (0455, 2026-10-05): an editor of the review reads its answers.
   ('review.view', 'review.edit');
 
 -- has_perm() keeps its shape and its NULL: with no signed-in user
@@ -4172,7 +4172,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0458_unmatched_login_holds_nothing.sql
+-- 0461_unmatched_login_holds_nothing.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -4215,7 +4215,7 @@ begin
   select * into dir from public.user_directory
    where mail <> '' and (lower(email) = mail or lower(gmail) = mail)
    limit 1;
-  -- 0458 (D-172): no User Master row, no profile -- and so no permission.
+  -- 0461 (D-172): no User Master row, no profile -- and so no permission.
   if not found then return null; end if;
 
   want := nullif(btrim(coalesce(dir.role, '')), '');

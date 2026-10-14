@@ -1,19 +1,19 @@
 -- ===========================================================================
--- REVIEW BATCH 11, PROVED ON A DATABASE (0455, 0456).
+-- REVIEW BATCH 11, PROVED ON A DATABASE (0458, 0459).
 -- Each section proves BOTH halves: the hole the review measured is closed,
 -- AND the honest path beside it still works.
 --
 --   1. D-071  a re-loaded MRN line takes the file's values -- one row, not two
---             -- by an importer only, and only an IMPORTED return (0455)
---   2. D-071  the same for a stock transfer line on an imported transfer (0455)
+--             -- by an importer only, and only an IMPORTED return (0458)
+--   2. D-071  the same for a stock transfer line on an imported transfer (0458)
 --   3. D-071  Normalise cover says what it would hand back, counts only what
---             it changed, and is refused to somebody who may not edit cover (0456)
+--             it changed, and is refused to somebody who may not edit cover (0459)
 --
 -- The user's decision, 2026-10-12: "Overwrite with the file".
--- SUPERSEDED IN PART BY 0462 (D-177, the user's decision of 2026-10-14:
+-- SUPERSEDED IN PART BY 0465 (D-177, the user's decision of 2026-10-14:
 -- "Replace the whole SI / transfer"): a re-load now goes through
 -- reload_imported_stock_lines(), proved in review_batch_12_test section 6. The
--- line-by-line upsert sections 1 and 2 relied on is REFUSED since then (0462
+-- line-by-line upsert sections 1 and 2 relied on is REFUSED since then (0465
 -- dropped its UPDATE policies), so here they prove that it is refused and that
 -- it changes nothing -- not that it overwrites.
 -- Checks raise an unlabelled error when they are wrong, so the harness counts
@@ -70,10 +70,10 @@ insert into public.material_returns (uid, row_no, part, engineer, good_qty, mrn_
 values ('RB11-SI1', 1, 'RB11-P1|SENSOR', 'RB11 ENG', 1, '2026-01-10', 'import'),
        ('RB11-SI1', 2, 'RB11-P2|VALVE',  'RB11 ENG', 1, '2026-01-10', 'import')
 on conflict (uid, part_key, row_no) do update set good_qty = excluded.good_qty, engineer = excluded.engineer;
--- The same file again, corrected, sent line by line as 0455 did: since 0462
+-- The same file again, corrected, sent line by line as 0458 did: since 0465
 -- this is refused whole (a re-load replaces the SI Number through
 -- reload_imported_stock_lines instead), and nothing changes.
-\echo 'expect ERROR: new row violates row-level security policy (USING expression) for table "material_returns" (0462: no line-by-line re-load)'
+\echo 'expect ERROR: new row violates row-level security policy (USING expression) for table "material_returns" (0465: no line-by-line re-load)'
 insert into public.material_returns (uid, row_no, part, engineer, good_qty, mrn_date, source)
 values ('RB11-SI1', 1, 'rb11-p1|Sensor (corrected)', 'RB11 ENG', 3, '2026-01-10', 'import'),
        ('RB11-SI1', 2, 'RB11-P2|VALVE',  'RB11 ENG', 1, '2026-01-10', 'import')
@@ -139,7 +139,7 @@ values ('RB11-ST1', 'RB11 A', 'RB11 B', '2026-01-10', 'import');
 insert into public.stock_transfer_lines (transfer_uid, row_no, part, qty) values
   ('RB11-ST1', 1, 'RB11-P1|SENSOR', 1), ('RB11-ST1', 2, 'RB11-P2|VALVE', 2)
 on conflict (transfer_uid, row_no) do update set part = excluded.part, qty = excluded.qty;
-\echo 'expect ERROR: new row violates row-level security policy (USING expression) for table "stock_transfer_lines" (0462: no line-by-line re-load)'
+\echo 'expect ERROR: new row violates row-level security policy (USING expression) for table "stock_transfer_lines" (0465: no line-by-line re-load)'
 insert into public.stock_transfer_lines (transfer_uid, row_no, part, qty) values
   ('RB11-ST1', 1, 'RB11-P1|SENSOR', 4), ('RB11-ST1', 2, 'RB11-P2|VALVE', 2)
 on conflict (transfer_uid, row_no) do update set part = excluded.part, qty = excluded.qty;

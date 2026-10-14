@@ -185,10 +185,16 @@ different totals. An empty register usually means access, not emptiness.
   > filled if the call was solved and later re-opened. The same definitions as
   > the KPI Export's *Call Attended On* and *Call Solved Date*. India dates;
   > they sort, and they are in the CSV.
-  > **Every timer counts from the Breakdown Date** — the day the machine
-  > failed: **Aging** here, the **SLA** on the Dashboard (from the start of that
-  > day), the **KPI Export**'s day counts and the *Attended within N days*
-  > objective. A call with no Breakdown Date counts from its registration.
+  > **Every day count takes the lower of two**: the days from the **Complaint
+  > Date** and the days from the **Breakdown Date**, whichever is lower and not
+  > negative (if both are negative, 0). A call with only one of the two dates
+  > counts from that one; with neither, from its registration. This is
+  > **Aging** here, the **SLA** on the Dashboard (from the start of the day),
+  > the **KPI Export**'s day counts and the *Attended within N days* objective.
+  > **Attending** is the earliest date among the call's visits and its spare
+  > requests (a request counts on its Request Date).
+  > The **KPI Export** says which date each count came from, call by call, in
+  > **Attended Days From**, **Solved Days From** and **Pending Days From**.
   > **Opening a call** shows its **Call Status** at the top, highlighted, with
   > what it is pending on (or when and why it was cancelled). **▸ Collapse all
   > sections** folds the form; click a section's name to fold or open just that

@@ -1,10 +1,10 @@
 -- ===========================================================================
--- 0450 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
+-- 0453 — A HARVESTED PART, AN ACCESSORY AND A CHECK ARE VOIDED, NOT DELETED
 --        (second re-review D-039, FRS-143.8)
 --
 -- The parts, accessories and checks under an indoor job were FOR ALL policies
 -- with DELETE granted (0158), and the screen offered Remove on each, so a
--- harvested part or a recorded check verdict could be erased. 0442 images the
+-- harvested part or a recorded check verdict could be erased. 0445 images the
 -- delete; FRS-143.8 asks for more: they "shall not be deletable through the
 -- application; an entry made in error shall be marked void with the reason,
 -- the person and the time retained".
@@ -222,7 +222,7 @@ begin
     for a in
       select * from public.indoor_job_accessories
        where job_id = j.id and (btrim(name) <> '' or btrim(serial) <> '')
-         and voided_at is null   -- 0450 (D-039): a voided accessory does not travel
+         and voided_at is null   -- 0453 (D-039): a voided accessory does not travel
        order by id
     loop
       v_line := v_line + 1;

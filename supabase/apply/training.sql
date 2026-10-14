@@ -16,8 +16,8 @@
 -- Carries, in order:
 --   0264_people_and_training.sql
 --   0295_user_profile_details_key.sql
---   0441_user_master_keeps_history.sql
---   0461_training_acknowledged_by_the_trainee.sql
+--   0444_user_master_keeps_history.sql
+--   0464_training_acknowledged_by_the_trainee.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -491,11 +491,11 @@ AS $function$
 $function$;
 
 -- ------------------------------------------------------------------------
--- 0441_user_master_keeps_history.sql
+-- 0444_user_master_keeps_history.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0441 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
+-- 0444 — A USER MASTER ENTRY WITH A PROFILE OR R&R HISTORY IS NOT DELETED
 --        (second re-review D-059)
 --
 -- 0264 declares user_profile.dir_id and user_rr.dir_id ON DELETE CASCADE, so
@@ -540,7 +540,7 @@ create trigger user_directory_keeps_history
   for each row execute function public.user_directory_keeps_history();
 
 -- ------------------------------------------------------------------------
--- 0461_training_acknowledged_by_the_trainee.sql
+-- 0464_training_acknowledged_by_the_trainee.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================

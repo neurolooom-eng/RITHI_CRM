@@ -30,10 +30,13 @@
 // first called, not since the day somebody re-opened the record.
 // ---------------------------------------------------------------------------
 
-// THE CLOCK STARTS ON THE BREAKDOWN DATE (the user, 2026-10-14: "For Reports
-// and Calculation, the Timer should be calculated from the Breakdown Date"),
-// the day the machine failed -- not the day somebody registered it. A call with
-// no breakdown date recorded starts from its registration, as before.
+// THE LOWER OF COMPLAINT-TO AND BREAKDOWN-TO (the user, 2026-10-14: "Calculate
+// both Complaint to Visit / Solved Date, Breakdown to Visit / Solved Date - And
+// which ever is lower should be considered. If the value is going in negative,
+// then take the other date"). callDays() is the rule: both counts, the lower
+// one that is not negative, 0 when both are; a call with only one of the two
+// dates counts from that one, with neither from its registration. The
+// database's copy is call_days() (0440); check:ui compares the two.
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -41,6 +44,7 @@ const DAY = 24 * 60 * 60 * 1000;
  *  whole days, so both ends are flattened before subtracting — otherwise a call
  *  raised at 9am and closed at 5pm the same day reads as 0.33 of a day. */
 function dayOf(v: unknown): Date | null {
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : new Date(v.getFullYear(), v.getMonth(), v.getDate());
   const s = String(v ?? '').trim();
   if (!s) return null;
   const d = new Date(s.length <= 10 ? `${s}T00:00:00` : s);
@@ -54,10 +58,24 @@ export interface CallAging {
   on: string;               // the day it stopped, where it has
 }
 
+export function callDays(complaint: unknown, breakdown: unknown, registered: unknown, on: unknown): number | null {
+  const end = dayOf(on);
+  if (!end) return null;
+  const diff = (d: Date | null) => (d ? Math.round((end.getTime() - d.getTime()) / DAY) : null);
+  const c = diff(dayOf(complaint));
+  const b = diff(dayOf(breakdown));
+  if (c == null && b == null) {
+    const r = diff(dayOf(registered));
+    return r == null ? null : Math.max(0, r);
+  }
+  const ok = [c, b].filter((x): x is number => x != null && x >= 0);
+  return ok.length ? Math.min(...ok) : 0;
+}
+
 export function callAging(row: {
-  regDate?: unknown; breakdownDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown;
+  regDate?: unknown; complaintDate?: unknown; breakdownDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown;
 }): CallAging {
-  const start = dayOf(row.breakdownDate) ?? dayOf(row.regDate);
+  const start = dayOf(row.complaintDate) ?? dayOf(row.breakdownDate) ?? dayOf(row.regDate);
   if (!start) return { days: null, stopped: false, on: '' };
 
   const state = String(row.callState ?? '');
@@ -71,7 +89,7 @@ export function callAging(row: {
   const end = !stopped ? new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
     : (cancelled ? dayOf(row.cancelledAt) : dayOf(row.lastVisitAt)) ?? start;
 
-  const days = Math.max(0, Math.round((end.getTime() - start.getTime()) / DAY));
+  const days = callDays(row.complaintDate, row.breakdownDate, row.regDate, end) ?? 0;
   return {
     days,
     stopped,

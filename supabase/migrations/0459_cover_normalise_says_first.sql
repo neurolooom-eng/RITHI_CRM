@@ -94,7 +94,7 @@ begin
   if auth.uid() is not null and not (public.is_admin() or public.has_perm('cover.edit.entries') or public.has_perm('contract.edit.entries')) then
     raise exception 'Only someone who may edit cover (cover.edit) can re-fold cover after an import.';
   end if;
-  -- 0456: only the lines with a value to hand back, so the count is the count
+  -- 0459: only the lines with a value to hand back, so the count is the count
   -- changed -- the same test cover_unpin_preview() counts by.
   update public.sale_items i set
     invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,

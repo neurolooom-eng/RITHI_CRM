@@ -168,19 +168,20 @@ and a note where the visit came after the cut-off.
 
 1. **The calls (denominator):** every call registered in the period in the objective's register
    (Field), not cancelled, of the call type in the setting.
-2. **Counts from:** the call's **Breakdown Date** (0438, 2026-10-14: *"the Timer should be
-   calculated from the Breakdown Date"*). A call with no Breakdown Date counts from the later of
-   its **complaint date** and **registration date**, as before.
+2. **Days:** the **lower** of *attended on − complaint date* and *attended on − breakdown date*
+   that is not negative (0441, 2026-10-14: *"which ever is lower should be considered. If the
+   value is going in negative, then take the other date"*); 0 when both are negative. A call with
+   only one of the two dates counts from that one; with neither, from its registration date.
 3. **Attended on:** the **earlier** of
    - the call's **first visit date**, and
    - the date of the call's **first spare request**.
-4. A call is **attended in time** if `attended on − counts from ≤ N days` (a negative gap counts as 0).
+4. A call is **attended in time** if those days are ≤ N.
    A call never visited and with no spare request is **not** in time.
 
 **Figure = calls attended in time ÷ calls.** N = **3** (the *days* setting). Blank when no calls.
 
-*Example:* breakdown 09-Mar, complaint 10-Mar, registered 11-Mar → counts from 09-Mar; first
-visit 13-Mar, spare requested 12-Mar → attended 12-Mar → 3 days → in time (N = 3).
+*Example:* breakdown 09-Mar, complaint 10-Mar; first visit 13-Mar, spare requested 12-Mar →
+attended 12-Mar → 3 days from the breakdown, 2 from the complaint → **2** → in time (N = 3).
 
 ### 3.5 Customer feedback satisfaction — "b. Customer feedback"
 **Answers:** the average satisfaction of the customers whose feedback was taken in the period —

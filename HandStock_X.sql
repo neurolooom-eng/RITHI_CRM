@@ -68,7 +68,7 @@
 --   0373_stock_movement_dates.sql
 --   0375_stock_transfer_own_or_team.sql
 --   0392_save_records_whole.sql
---   0455_stock_loads_overwrite_on_reload.sql
+--   0458_stock_loads_overwrite_on_reload.sql
 --   0385_stores_dispatch_report.sql
 --   0387_stores_dispatch_2025_history.sql
 --   0388_stores_dispatch_2026_history.sql
@@ -83,8 +83,8 @@
 --   0420_drop_or44271_ky550200.sql
 --   0421_delete_voided_ky550200_consumption.sql
 --   0426_stock_record_files.sql
---   0459_spare_receipt_by_the_raiser.sql
---   0462_stock_reload_replaces_the_group.sql
+--   0462_spare_receipt_by_the_raiser.sql
+--   0465_stock_reload_replaces_the_group.sql
 --   0384_handstock_balance_all.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -5035,10 +5035,10 @@ begin
   -- A PART RENAME (0310): only the part changed, exactly as the ticket that
   -- rename_part_records() filed in this transaction says. Nothing else on a
   -- return may change, by anybody but an administrator.
-  -- 'part_key' (0455, D-071) is the part code, generated from `part` and not
+  -- 'part_key' (0458, D-071) is the part code, generated from `part` and not
   -- yet computed in a BEFORE trigger, so it would never compare equal; left
   -- out here too, so a replay of this file alone does not refuse every rename
-  -- once 0455 has added the column. A no-op where the column is absent.
+  -- once 0458 has added the column. A no-op where the column is absent.
   if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
        = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
      and exists (select 1 from public.part_rename_ticket t
@@ -6441,7 +6441,7 @@ revoke execute on function public.save_material_return(jsonb, jsonb) from public
 grant execute on function public.save_material_return(jsonb, jsonb) to authenticated;
 
 -- ------------------------------------------------------------------------
--- 0455_stock_loads_overwrite_on_reload.sql
+-- 0458_stock_loads_overwrite_on_reload.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -6482,7 +6482,7 @@ grant execute on function public.save_material_return(jsonb, jsonb) to authentic
 alter table public.material_returns
   add column if not exists part_key text generated always as (public.part_code(part)) stored;
 comment on column public.material_returns.part_key is
-  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0455).';
+  'The part code, kept by the database from `part` (part_code()). Part of the key a re-loaded MRN line is matched on: SI Number (uid) + part_key + row_no (D-071, 0458).';
 -- Cannot collide with existing rows: material_returns_uid_part_idx is unique
 -- on (uid, part_code(part), coalesce(row_no, 0)), and row_no is always set.
 create unique index if not exists material_returns_natural_key
@@ -6530,7 +6530,7 @@ create or replace function public.material_returns_immutable()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if public.is_admin() then return new; end if;
-  -- D-071 (0455): an IMPORTED return re-loaded from its file takes the file's
+  -- D-071 (0458): an IMPORTED return re-loaded from its file takes the file's
   -- values, by an importer only. It stays imported -- a return raised in the
   -- app is never reached by this.
   if old.source = 'import' and new.source = 'import'
@@ -8217,7 +8217,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0459_spare_receipt_by_the_raiser.sql
+-- 0462_spare_receipt_by_the_raiser.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -8255,7 +8255,7 @@ begin
   v_name := case when auth.uid() is not null then coalesce(nullif(btrim(public.my_display_name()), ''), btrim(coalesce(p_actor, '')))
                  else btrim(coalesce(p_actor, '')) end;
 
-  -- 0459: the receipt rule of spare_request_lines_guard, for every line,
+  -- 0462: the receipt rule of spare_request_lines_guard, for every line,
   -- before anything is written.
   foreach lid in array p_line_ids loop
     select q.* into r
@@ -8302,14 +8302,14 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0462_stock_reload_replaces_the_group.sql
+-- 0465_stock_reload_replaces_the_group.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
 -- D-177 (re-review 5; the user's decision, 2026-10-14: "Replace the whole SI /
 -- transfer"), D-178 (part), D-195, D-200.
 --
--- D-071's fix (0455) matched a re-loaded MRN or transfer line on its SI Number
+-- D-071's fix (0458) matched a re-loaded MRN or transfer line on its SI Number
 -- (or transfer) and its LINE NUMBER -- the file's, or its position. A corrected
 -- file that drops or reorders a line shifts every later line's number, so a
 -- re-load doubled or dropped stock (measured: a transfer loaded A, B, C and
@@ -8326,12 +8326,12 @@ end $$;
 --      so a second importer may re-load what somebody else loaded (D-195), and
 --      every statement is per group, so record_audit keeps every row's image
 --      (a >150-row statement keeps none -- D-178 (3)).
---   2. The direct-overwrite door 0455 opened is closed again (D-200): the
+--   2. The direct-overwrite door 0458 opened is closed again (D-200): the
 --      importer UPDATE policies go, and material_returns_immutable is 0310's
 --      rule again (part_key left out of its comparison, as 0310 now does).
---   3. stock_transfer_lines is put under record_audit (D-178 (2)); 0455's header
+--   3. stock_transfer_lines is put under record_audit (D-178 (2)); 0458's header
 --      claimed it already was.
--- The natural-key indexes of 0455 stay: a line number is still one line.
+-- The natural-key indexes of 0458 stay: a line number is still one line.
 -- ===========================================================================
 
 create or replace function public.reload_imported_stock_lines(p_kind text, p_rows jsonb)
@@ -8412,7 +8412,7 @@ begin
   -- rename_part_records() filed in this transaction says. Nothing else on a
   -- return may change, by anybody but an administrator. part_key is generated
   -- from part and not yet computed in a BEFORE trigger, so it is left out.
-  -- (0462: a re-loaded imported return is REPLACED, not edited, so 0455's
+  -- (0465: a re-loaded imported return is REPLACED, not edited, so 0458's
   -- import exemption is gone.)
   if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
        = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')

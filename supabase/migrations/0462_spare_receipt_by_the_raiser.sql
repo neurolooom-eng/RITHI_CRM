@@ -33,7 +33,7 @@ begin
   v_name := case when auth.uid() is not null then coalesce(nullif(btrim(public.my_display_name()), ''), btrim(coalesce(p_actor, '')))
                  else btrim(coalesce(p_actor, '')) end;
 
-  -- 0459: the receipt rule of spare_request_lines_guard, for every line,
+  -- 0462: the receipt rule of spare_request_lines_guard, for every line,
   -- before anything is written.
   foreach lid in array p_line_ids loop
     select q.* into r

@@ -356,7 +356,7 @@ export async function pmLatestRegAt(month: string): Promise<string | null> {
  *  a second time. Read under the reader's row-level security. */
 export async function listPmCallsInMonth(month: string): Promise<{ ucn: string; product_name: string; serial: string }[]> {
   // Asked of EVERY PM call of the month, not the ones the uploader's row-level
-  // security shows (0451, D-038): a machine whose call is in somebody else's
+  // security shows (0454, D-038): a machine whose call is in somebody else's
   // team would otherwise be loaded twice. Cancelled calls are not counted, as
   // PM Due does not count them. Paged and ordered: a month can pass 1,000.
   const c = must();
@@ -2819,7 +2819,7 @@ export async function openCallsFor(machines: MachineRef[], parties: string[] = [
 
 // Re-open a closed call (Hotline). The DB checks the permission and that the
 // call really is closed, and counts the re-open on the call.
-// THE REASON IS REQUIRED (0447, D-035, FRS-133.4 / FRS-120.9): no default, and
+// THE REASON IS REQUIRED (0450, D-035, FRS-133.4 / FRS-120.9): no default, and
 // a blank one is refused here in the database's own words before a round trip
 // -- reopen_call() refuses it too and records the reason, the person and the
 // time in public.call_reopens.
@@ -2829,7 +2829,7 @@ export async function reopenCall(ucn: string, reason: string): Promise<{ ok: boo
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-/** One re-open of a call, as reopen_call() recorded it (0447). */
+/** One re-open of a call, as reopen_call() recorded it (0450). */
 export interface CallReopen { id: number; ucn: string; reopenedAt: string; reopenedBy: string; reopenedByName: string; reason: string }
 /** A call's re-opens, newest first (D-035, FRS-133.4). A failed read THROWS:
  *  an empty list here reads as "never re-opened", which is a claim about the
@@ -3846,12 +3846,12 @@ export async function updateMasterItem(id: number, patch: { value?: string; extr
   return { ok: true };
 }
 
-/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0445, D-056, FRS-180.6) — asked
+/** HOW MANY RECORDS CARRY ONE VALUE OF A LIST (0448, D-056, FRS-180.6) — asked
  *  BEFORE a Delete is offered, so a value in use is deactivated instead. The
  *  function counts as its owner, so the number is every record, not only the
  *  ones the reader may see. A count that could not be read is an ERROR, never
  *  0: 0 would offer the delete on exactly the value the count exists to stop
- *  (the database still refuses it, 0445's trigger, and that refusal is shown). */
+ *  (the database still refuses it, 0448's trigger, and that refusal is shown). */
 export async function masterValueUses(name: string, value: string): Promise<{ ok: true; uses: number } | { ok: false; error: string }> {
   const { data, error } = await must().rpc('master_value_uses', { p_name: name, p_value: value });
   if (error) return { ok: false, error: errMsg(error) };
@@ -3862,7 +3862,7 @@ export async function masterValueUses(name: string, value: string): Promise<{ ok
 export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
   // ROWS COUNTED: row-level security refuses a delete by matching nothing, and
   // no error is not "removed" (finding 48). A value records carry is refused
-  // by the database (0445) in its own words, passed on VERBATIM -- it says how
+  // by the database (0448) in its own words, passed on VERBATIM -- it says how
   // many records and to deactivate instead.
   const { data, error } = await must().from('masters').delete().eq('id', id).select('id');
   if (error) return { ok: false, error: errMsg(error) };
@@ -5554,7 +5554,7 @@ export async function applyUploadPlan(
 /**
  * D-177 (the user's decision, 2026-10-14): a re-loaded MRN or transfer-line file
  * REPLACES each SI Number / transfer it names -- reload_imported_stock_lines()
- * (0462), a whole group per transaction, never split across calls. A group
+ * (0465), a whole group per transaction, never split across calls. A group
  * holding a line entered in RITHI is refused by the database, and the upload
  * stops there, saying how much was written before it.
  */
@@ -6337,7 +6337,7 @@ export interface IndoorJob {
   call_status?: string;
   call_pending_reason?: string;
   reported_to_customer_at: string | null;
-  /** Who recorded the damage report to the owner — the database's (0448). */
+  /** Who recorded the damage report to the owner — the database's (0451). */
   reported_to_customer_by: string | null;
   // Rework (§8.3.4)
   nc_reference: string;
@@ -6454,10 +6454,10 @@ export interface IndoorPdt {
   inspected_at: string | null;
 }
 
-/** A VOIDED ENTRY (0450, D-039, FRS-143.8): a harvested part, an accessory or
+/** A VOIDED ENTRY (0453, D-039, FRS-143.8): a harvested part, an accessory or
  *  a check is never deleted -- an entry made in error is marked void with the
  *  reason, and the database stamps when and who. A voided row is kept as it
- *  was and refuses any later change. Absent on a project without 0450. */
+ *  was and refuses any later change. Absent on a project without 0453. */
 export interface IndoorVoid {
   voided_at?: string | null; voided_by?: string | null; void_reason?: string | null;
 }
@@ -6518,7 +6518,7 @@ export async function saveIndoorJob(
     'qc_result', 'qc_notes', 'dispatch_ref', 'damage_note',
     // When the damage was reported to the owner (D-039, FRS-143.9). WHO is not
     // here: the database stamps reported_to_customer_by from the session when
-    // this changes, and clears it when this is cleared (0448).
+    // this changes, and clears it when this is cleared (0451).
     'reported_to_customer_at',
     'nc_reference', 'rework_instruction', 'rework_instruction_rev',
     'rework_authorised_by', 'rework_authorised_at', 'adverse_effect_assessed',
@@ -6538,7 +6538,7 @@ export async function saveIndoorJob(
     'indoor_report_no', 'dc_date', 'remarks', 'cover',
     // The stages (0323). The report FILE and its stamps are not here: the
     // upload is saveIndoorReport(), and the database stamps who and when.
-    // visit_uid / visit_filed_at are the DC approval's (0327, 0440).
+    // visit_uid / visit_filed_at are the DC approval's (0327, 0443).
     'standard_complaint',
   ] as const;
   const rest = Object.fromEntries(
@@ -6683,7 +6683,7 @@ export async function listIndoorDcAuthorisers(): Promise<{ name: string; basis: 
 export async function approveIndoorDc(dcNo: string, checkOnly = false): Promise<{ ok: boolean; error?: string; skipped?: string }> {
   const { data, error } = await must().rpc('approve_indoor_dc', { p_dc_no: dcNo, p_check_only: checkOnly });
   if (error) return { ok: false, error: errMsg(error) };
-  // D-145 (0454): a unit whose call was SOLVED since its visit was drafted is
+  // D-145 (0457): a unit whose call was SOLVED since its visit was drafted is
   // not filed; the function names those calls after a " | ".
   const out = String(data ?? '');
   const i = out.indexOf(' | ');
@@ -6875,7 +6875,7 @@ export async function saveIndoorCheck(
   return { ok: true };
 }
 
-/** VOID A HARVESTED PART, AN ACCESSORY OR A CHECK (0450, D-039, FRS-143.8) --
+/** VOID A HARVESTED PART, AN ACCESSORY OR A CHECK (0453, D-039, FRS-143.8) --
  *  the replacement for deleting one, which the database now refuses. Sends the
  *  reason and a non-null voided_at; the database stamps voided_at = now() and
  *  voided_by from the session whatever is sent, refuses an empty reason, and

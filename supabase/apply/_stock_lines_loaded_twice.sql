@@ -1,7 +1,7 @@
 -- ===========================================================================
 -- READ-ONLY. Imported stock lines that look loaded twice (D-178, 2026-10-14).
 --
--- A file with no row numbers loaded twice before 0455 was numbered 1:A 2:B by
+-- A file with no row numbers loaded twice before 0458 was numbered 1:A 2:B by
 -- the first load and 3:A 4:B by the second (each new line takes the next
 -- number), so the copies do NOT share a line number and
 -- _stock_transfer_lines_repeated.sql cannot see them. This looks for what they
@@ -11,7 +11,7 @@
 -- A pair here is a CANDIDATE, not a proof: one transfer may genuinely carry the
 -- same part twice. What to do with them is the user's decision (D-178). The
 -- simplest remedy once decided: re-load the transfer's (or SI Number's) file --
--- since 0462 a re-load REPLACES the whole group, so the copies go.
+-- since 0465 a re-load REPLACES the whole group, so the copies go.
 --
 -- One result grid: rows 1-2 count the candidate groups, rows 101 onwards name
 -- every line in them.

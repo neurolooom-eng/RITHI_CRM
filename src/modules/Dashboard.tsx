@@ -26,12 +26,19 @@ import './ffr.css';
 
 type Rec = Record<string, unknown>;
 const g = (r: Rec, k: string) => String(r[k] ?? '');
-// WHERE A CALL'S SLA CLOCK STARTS: the Breakdown Date (the user, 2026-10-14),
-// from 00:00 India time since it carries no time; else its registration.
+// WHERE A CALL'S SLA CLOCK STARTS (the user, 2026-10-14): the lower of
+// complaint-to-now and breakdown-to-now that is not negative -- so the LATER
+// of the two days that is not in the future, from 00:00 India time since
+// neither carries a time; now when both are in the future (0, as callDays());
+// the registration where a call has neither. The same rule as callDays() in
+// aging.ts and call_days() (0440), said in hours.
 const slaStartOf = (r: Rec): string => {
-  const b = g(r, 'breakdownDate').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(b)) return `${b}T00:00:00+05:30`;
-  return g(r, 'regDate') || g(r, 'complaintDate');
+  const days = ['complaintDate', 'breakdownDate'].map((k) => g(r, k).trim().slice(0, 10))
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  if (!days.length) return g(r, 'regDate');
+  const now = Date.now();
+  const past = days.map((d) => `${d}T00:00:00+05:30`).filter((t) => Date.parse(t) <= now).sort();
+  return past.length ? past[past.length - 1] : new Date(now).toISOString();
 };
 
 // Dates go through the project's one parser, day-first (finding 4): a private

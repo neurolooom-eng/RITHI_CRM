@@ -19,7 +19,7 @@
 -- Carries, in order:
 --   0248_lock_down_internal_functions.sql
 --   0338_helpers_not_public.sql
---   0463_unused_definers_revoked.sql
+--   0466_unused_definers_revoked.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -174,7 +174,7 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
--- 0463_unused_definers_revoked.sql
+-- 0466_unused_definers_revoked.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================

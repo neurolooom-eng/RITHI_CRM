@@ -1,15 +1,15 @@
 -- ===========================================================================
--- REVIEW BATCH 12, PROVED ON A DATABASE (0457-0463).
+-- REVIEW BATCH 12, PROVED ON A DATABASE (0460-0466).
 -- Each section proves BOTH halves: the hole the re-review measured is closed,
 -- AND the honest path beside it still works.
 --
---   1. D-172  a sign-in with no User Master row gets no profile (0458)
---   2. D-173  the feedback objective's evidence follows the feedback read rule (0457)
---   3. D-174  a shipment is acknowledged by the raiser, under the session's name (0459)
---   4. D-175  an FFR's number, imported marker and raiser are not the caller's (0460)
---   5. D-176  training is acknowledged by the trainee alone, and imaged (0461)
---   6. D-177  a re-load replaces the whole SI Number / transfer; D-178 imaged (0462)
---   7. D-185, D-202  two unused owner-rights functions closed to the API (0463)
+--   1. D-172  a sign-in with no User Master row gets no profile (0461)
+--   2. D-173  the feedback objective's evidence follows the feedback read rule (0460)
+--   3. D-174  a shipment is acknowledged by the raiser, under the session's name (0462)
+--   4. D-175  an FFR's number, imported marker and raiser are not the caller's (0463)
+--   5. D-176  training is acknowledged by the trainee alone, and imaged (0464)
+--   6. D-177  a re-load replaces the whole SI Number / transfer; D-178 imaged (0465)
+--   7. D-185, D-202  two unused owner-rights functions closed to the API (0466)
 --
 -- Checks raise an unlabelled error when they are wrong, so the harness counts
 -- a failure; an error that is meant to happen is labelled `expect ERROR`.

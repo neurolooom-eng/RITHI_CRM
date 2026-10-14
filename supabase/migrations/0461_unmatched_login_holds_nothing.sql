@@ -38,7 +38,7 @@ begin
   select * into dir from public.user_directory
    where mail <> '' and (lower(email) = mail or lower(gmail) = mail)
    limit 1;
-  -- 0458 (D-172): no User Master row, no profile -- and so no permission.
+  -- 0461 (D-172): no User Master row, no profile -- and so no permission.
   if not found then return null; end if;
 
   want := nullif(btrim(coalesce(dir.role, '')), '');

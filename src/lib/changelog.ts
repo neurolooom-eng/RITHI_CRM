@@ -14,7 +14,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.10.204',
+    version: '0.10.206',
     date: '2026-10-14',
     title: 'Review fixes: unknown sign-ins hold nothing, re-loads replace whole MRNs and transfers, receipts and training by the right person',
     changes: [
@@ -27,7 +27,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.203',
+    version: '0.10.205',
     date: '2026-10-12',
     title: 'Fifth re-review of every module recorded (no behaviour changed)',
     changes: [
@@ -37,7 +37,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.202',
+    version: '0.10.204',
     date: '2026-10-12',
     title: 'Review fixes: loading a file again corrects it instead of adding it twice',
     changes: [
@@ -48,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.201',
+    version: '0.10.203',
     date: '2026-10-12',
     title: 'Review fixes: workshop entries are voided, not removed; PM upload checks its rows',
     changes: [
@@ -57,7 +57,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.200',
+    version: '0.10.202',
     date: '2026-10-06',
     title: 'Review fixes: list values in use kept, re-open reasons kept, User Master manager names, warranty and contract changes recorded',
     changes: [
@@ -68,7 +68,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.199',
+    version: '0.10.201',
     date: '2026-10-06',
     title: 'Review fixes: View as writes nothing, changes to roles and settings recorded, FFR weekly review, request corrections, workshop records',
     changes: [
@@ -81,7 +81,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.198',
+    version: '0.10.200',
     date: '2026-10-05',
     title: 'Review fixes: who approved a spare, saving a record whole, Bulk Uploads writes nothing before OK',
     changes: [
@@ -91,7 +91,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.197',
+    version: '0.10.199',
     date: '2026-10-05',
     title: 'Your decisions built: vigilance answers, stock transfer, Renew / Convert fields, who reads review answers',
     changes: [
@@ -102,7 +102,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.196',
+    version: '0.10.198',
     date: '2026-10-04',
     title: 'Review fixes: exports, call requests, offline calls, cover pickers, User Master, stock dates',
     changes: [
@@ -116,7 +116,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.195',
+    version: '0.10.197',
     date: '2026-10-04',
     title: 'Review fixes: masters, QMS revisions, Indoor DC approver, cover entries, additional entries',
     changes: [
@@ -130,7 +130,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.10.194',
+    version: '0.10.196',
     date: '2026-10-04',
     title: 'Your decisions built: who a visit or spare request is filed for, PDT lock, dispatch date, dealers, installation calls',
     changes: [
@@ -141,6 +141,26 @@ export const CHANGELOG: ChangeEntry[] = [
       'OWNERSHIP TRANSFER: "+ Installation call" is offered only on a transfer with a Sold Through. A machine gets one installation call: a second with the same call number, or for the same machine, is refused unless the first was cancelled. Correcting a transfer clears a Sold Through only where a transfer had set it.',
       'CALL REQUEST: an installation request for a dealer is refused when it is raised.',
       'BULK UPLOADS: a Product Database upload with a Sold Through that is not a dealer on the Party Master says so and names the values; they are still loaded.',
+    ],
+  },
+  {
+    version: '0.10.195',
+    date: '2026-10-14',
+    title: 'KPI Export says which date each day count came from',
+    changes: [
+      'The KPI Export has three new columns after Pending Days: Attended Days From, Solved Days From and Pending Days From. Each says, call by call, which date that count was taken from: Complaint Date, Breakdown Date, Complaint & Breakdown Date (both gave the same count), Registration Date (the call has neither), or Neither — both after (0).',
+      'Columns A to AG still line up with the workbook.',
+    ],
+  },
+  {
+    version: '0.10.194',
+    date: '2026-10-14',
+    title: 'Day counts: the lower of from-complaint and from-breakdown; reasons off the opened call',
+    changes: [
+      'Every day count now works out the days from the Complaint Date and the days from the Breakdown Date, and takes the lower one that is not negative; if both are negative it is 0. A call with only one of the two dates counts from that one; with neither, from its registration.',
+      'This applies to Aging on the Field, Installation and PM registers, the KPI Export\'s Attended, Solved and Pending Days, TTA and TTS, the Attended within N days objective (after the next Re-Calculate) and the Dashboard SLA.',
+      'Time taken to attend ends on the earliest date among the call\'s visits and its spare requests (a spare request counts on its Request Date). A visit entered later but dated earlier still counts. This was already the rule.',
+      'An opened call no longer shows Call Pending Reason, Cancellation Reason, Cancellation Date and Cancelled By as fields. They are register columns, and the highlighted status at the top says what the call is pending on or why it was cancelled.',
     ],
   },
   {

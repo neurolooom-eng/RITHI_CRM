@@ -53,7 +53,7 @@ import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '.
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
-import { callAging, agingTone } from '../src/lib/aging';
+import { callAging, agingTone, callDays } from '../src/lib/aging';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -1558,7 +1558,7 @@ console.log('\n-- the DCCR dropdowns are scoped to the product --');
 console.log('\n-- the KPI export matches the workbook --');
 {
   // A to AG as the workbook has them, then the one it does not have.
-  eq('columns A to AG, then Pending Days', KPI_FIELD_INST_COLUMNS.length, 34);
+  eq('columns A to AG, then Pending Days and the three "Days From"', KPI_FIELD_INST_COLUMNS.length, 37);
   eq('the first is UC Number', KPI_FIELD_INST_COLUMNS[0], 'UC Number');
   eq('AB is the solved date', KPI_FIELD_INST_COLUMNS[27], 'Call Solved Date & Time');
   eq('AA is the attended date', KPI_FIELD_INST_COLUMNS[26], 'Call Attended On');
@@ -1571,6 +1571,9 @@ console.log('\n-- the KPI export matches the workbook --');
   // Ours goes LAST, so A-AG still line up with the workbook exactly.
   eq('...and Pending Days is appended after them, not among them',
     KPI_FIELD_INST_COLUMNS[33], 'Pending Days');
+  // WHICH DATE EACH COUNT CAME FROM (0442), after it.
+  eq('...then which date each count came from',
+    KPI_FIELD_INST_COLUMNS.slice(34).join('|'), 'Attended Days From|Solved Days From|Pending Days From');
 
   // Dates in the register's own dd-mmm-yyyy, unambiguous wherever the file is
   // opened; the registration column is the only one carrying a time.
@@ -1601,8 +1604,11 @@ console.log('\n-- the KPI export matches the workbook --');
   // The page must say how each computed column is arrived at: a number nobody
   // can account for is not evidence.
   eq('...and says how the computed columns are worked out',
-    /LATER of complaint and\s*\n?\s*registration/.test(objPage)
-    && /finer of its two lookup tables/.test(objPage)
+    // The rule since 0440 (the user, 2026-10-14): the LOWER of the days from
+    // the complaint and from the breakdown -- and which one, per call (0442).
+    /<b>lower<\/b> of the days from the Complaint Date/.test(objPage)
+    && /Attended Days From, Solved Days From, Pending Days From/.test(objPage)
+    && /finer of the workbook&rsquo;s two lookup tables/.test(objPage)
     && /attended and solved the same\s*\n?\s*day/.test(objPage), true);
 }
 
@@ -1674,7 +1680,7 @@ console.log('\n-- the Objective page --');
   // which is worse than saying nothing -- it told the reader a column was
   // missing that was right there in the file.
   eq('...and the computed columns are explained, not promised',
-    /are computed\s*\n?\s*here, by the workbook/.test(kpiExport)
+    /are computed\s*\n?\s*here\./.test(kpiExport)
     && /not exported yet/.test(kpiExport) === false, true);
 
   // A month that was not measured is NOT zero. On a rate that is the difference
@@ -2521,6 +2527,27 @@ console.log('\n-- call aging, and where the clock stops --');
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the age is on the row, so the column sorts as a number',
     /out\.agingDays = age\.days;/.test(sb), true);
+}
+
+// THE LOWER OF COMPLAINT-TO AND BREAKDOWN-TO (the user, 2026-10-14). The SAME
+// cases as supabase/tests/call_days_test.sql asserts of call_days() (0440), so
+// the register's Aging and the KPI export cannot disagree on a rule.
+console.log('\n-- days: the lower of complaint-to and breakdown-to --');
+{
+  const C = '2026-08-07', B = '2026-08-06', R = '2026-08-08';
+  eq('both positive: the lower (from the complaint)', callDays(C, B, R, '2026-08-09'), 2);
+  eq('visit before the complaint: from the breakdown', callDays(C, B, R, '2026-08-06'), 0);
+  eq('...a day after the breakdown, before the complaint', callDays('2026-08-10', B, R, '2026-08-08'), 2);
+  eq('both negative: 0', callDays(C, B, R, '2026-08-01'), 0);
+  eq('breakdown after the complaint: still the lower', callDays('2026-08-01', '2026-08-05', R, '2026-08-09'), 4);
+  eq('only a breakdown date: from it', callDays('', B, R, '2026-08-09'), 3);
+  eq('neither: from the registration', callDays('', '', R, '2026-08-09'), 1);
+  eq('nothing happened yet: no count', callDays(C, B, R, ''), null);
+  eq('Aging uses it: a solved call counts to its visit, the lower of the two',
+    callAging({ regDate: R, complaintDate: C, breakdownDate: B, callState: 'Solved', lastVisitAt: '2026-08-09' }).days, 2);
+  const dash = readFileSync('src/modules/Dashboard.tsx', 'utf8');
+  eq('the Dashboard SLA starts at the later of complaint and breakdown not in the future',
+    /past\.length \? past\[past\.length - 1\]/.test(dash) && /regAt: slaStartOf\(r\)/.test(dash), true);
 }
 
 console.log('\n-- every page in the menu has a permission --');
@@ -6147,7 +6174,7 @@ console.log('\n-- review batch: D-027, D-030, D-039 (the screen half) --');
   eq('...nothing is blank', localDateTimeInput(null), '');
   eq('...and nonsense is blank', localDateTimeInput('not a date'), '');
 
-  // D-039 / FRS-143.8 (0450): A PART, AN ACCESSORY OR A CHECK IS VOIDED, NEVER
+  // D-039 / FRS-143.8 (0453): A PART, AN ACCESSORY OR A CHECK IS VOIDED, NEVER
   // DELETED. The database refuses the DELETE; the screen must not offer one.
   for (const t of ['indoor_job_parts', 'indoor_job_accessories', 'indoor_job_checks']) {
     eq(`D-039: nothing in supabase.ts deletes from ${t}`,
@@ -10102,7 +10129,7 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   const fn = sb.slice(sb.indexOf('export async function listPmCallsInMonth('), sb.indexOf('// PM DUE (0401, 0402)'));
   eq('D-038: the month\u2019s PM calls are read paged, in a unique order',
     /allRows</.test(fn) && /\.order\('ucn'\)\.range\(a, b\)/.test(fn), true);
-  eq('D-038: ...asked of EVERY PM call (pm_calls_in_month, 0451), not through the uploader\u2019s row-level security',
+  eq('D-038: ...asked of EVERY PM call (pm_calls_in_month, 0454), not through the uploader\u2019s row-level security',
     /\.rpc\('pm_calls_in_month'/.test(fn) && !/\.from\('pm_calls'\)/.test(fn), true);
 }
 

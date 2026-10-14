@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0448 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
+-- 0451 — WHO REPORTED THE DAMAGE TO THE CUSTOMER IS THE SESSION
 --        (second re-review D-039, FRS-143.9)
 --
 -- indoor_jobs.reported_to_customer_at / _by exist (FRS-057) and were on no
@@ -10,7 +10,7 @@
 --   * a time in the future is refused (five minutes' grace for a clock);
 --   * clearing the time clears the person.
 -- A connection with no session (a repair, an import) is left alone.
--- In the indoor module, after 0440.
+-- In the indoor module, after 0443.
 -- ===========================================================================
 
 create or replace function public.indoor_reported_to_customer_stamp()

@@ -147,7 +147,7 @@ export interface UploadDef {
   numberLines?: { field: string; within: string };
   /** A RE-LOAD REPLACES EACH GROUP WHOLE (D-177, the user's decision of
    *  2026-10-14: "Replace the whole SI / transfer"). The rows go through
-   *  reload_imported_stock_lines() (0462) instead of an upsert: every SI Number
+   *  reload_imported_stock_lines() (0465) instead of an upsert: every SI Number
    *  ('mrn') or transfer ('stl') the file names has its imported lines replaced
    *  by the file's, and a line the file no longer carries is removed. A line
    *  NUMBER could not survive an edited file (D-177): dropping line 1 renumbered
@@ -515,7 +515,7 @@ function fold(
 }
 
 /** Split rows into calls of about `max` rows WITHOUT cutting a group in two:
- *  a group is replaced whole in one transaction (0462), so half of one in a
+ *  a group is replaced whole in one transaction (0465), so half of one in a
  *  call would remove the other half's lines. A group bigger than `max` goes
  *  alone. Groups keep their file order. Exported for check:uploads. */
 export function chunkByGroup(rows: Record<string, unknown>[], by: string, max = 400): Record<string, unknown>[][] {
@@ -1094,9 +1094,9 @@ export const UPLOADS: UploadDef[] = [
       ? '' : 'nothing returned — good and defective are both zero'),
     // D-177 (the user's decision, 2026-10-14: "Replace the whole SI /
     // transfer"): every SI Number the file names is REPLACED whole by
-    // reload_imported_stock_lines() (0462) -- its imported lines become the
+    // reload_imported_stock_lines() (0465) -- its imported lines become the
     // file's, a line the file no longer carries is removed -- so loading the
-    // file again never returns the stock twice. (0455 matched line by line,
+    // file again never returns the stock twice. (0458 matched line by line,
     // which an edited file defeated.) The line number is the file's, or its
     // position within the SI Number; it no longer decides anything.
     conflictFrom: ['uid', 'part', 'row_no'],
@@ -1147,7 +1147,7 @@ export const UPLOADS: UploadDef[] = [
     // and one of those failed the first batch of 500. Held back by name.
     prepare: 'stock-transfer-parents',
     requires: 'Stock Transfer Register',
-    // D-177 (0462): every transfer the file names has its lines REPLACED whole
+    // D-177 (0465): every transfer the file names has its lines REPLACED whole
     // -- a line the file no longer carries is removed.
     conflictFrom: ['transfer_uid', 'row_no'],
     numberLines: { field: 'row_no', within: 'transfer_uid' },

@@ -254,7 +254,7 @@ export async function applyDirectory(
   return { ok: true, inserted, updated };
 }
 
-/** What Normalise cover would hand back, per register and field (0456). */
+/** What Normalise cover would hand back, per register and field (0459). */
 export async function previewNormalise(): Promise<UnpinCount[]> {
   const c = getSupabase(); if (!c) throw new Error('Not connected to Supabase.');
   const { data, error } = await c.rpc('cover_unpin_preview');

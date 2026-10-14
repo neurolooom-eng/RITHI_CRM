@@ -2,7 +2,7 @@
 -- D-177 (re-review 5; the user's decision, 2026-10-14: "Replace the whole SI /
 -- transfer"), D-178 (part), D-195, D-200.
 --
--- D-071's fix (0455) matched a re-loaded MRN or transfer line on its SI Number
+-- D-071's fix (0458) matched a re-loaded MRN or transfer line on its SI Number
 -- (or transfer) and its LINE NUMBER -- the file's, or its position. A corrected
 -- file that drops or reorders a line shifts every later line's number, so a
 -- re-load doubled or dropped stock (measured: a transfer loaded A, B, C and
@@ -19,12 +19,12 @@
 --      so a second importer may re-load what somebody else loaded (D-195), and
 --      every statement is per group, so record_audit keeps every row's image
 --      (a >150-row statement keeps none -- D-178 (3)).
---   2. The direct-overwrite door 0455 opened is closed again (D-200): the
+--   2. The direct-overwrite door 0458 opened is closed again (D-200): the
 --      importer UPDATE policies go, and material_returns_immutable is 0310's
 --      rule again (part_key left out of its comparison, as 0310 now does).
---   3. stock_transfer_lines is put under record_audit (D-178 (2)); 0455's header
+--   3. stock_transfer_lines is put under record_audit (D-178 (2)); 0458's header
 --      claimed it already was.
--- The natural-key indexes of 0455 stay: a line number is still one line.
+-- The natural-key indexes of 0458 stay: a line number is still one line.
 -- ===========================================================================
 
 create or replace function public.reload_imported_stock_lines(p_kind text, p_rows jsonb)
@@ -105,7 +105,7 @@ begin
   -- rename_part_records() filed in this transaction says. Nothing else on a
   -- return may change, by anybody but an administrator. part_key is generated
   -- from part and not yet computed in a BEFORE trigger, so it is left out.
-  -- (0462: a re-loaded imported return is REPLACED, not edited, so 0455's
+  -- (0465: a re-loaded imported return is REPLACED, not edited, so 0458's
   -- import exemption is gone.)
   if (to_jsonb(new) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
        = (to_jsonb(old) - 'part' - 'part_key' - 'sys_updated_by' - 'sys_updated_on')
