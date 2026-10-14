@@ -2259,7 +2259,12 @@ with checks(sort_order, bundle, provides, present) as (
                     from pg_class c where c.oid = to_regclass('public.kpi_field_inst')), false))),
     (356, 'Attended-within-N-days objectives: the lower of complaint-to and breakdown-to', 'objective_value() and objective_evidence() (0441): days to the first attendance are call_days() (0440). NO means the objective counts from one date only. Restore: objective.sql (0441)',
         (coalesce((select p.prosrc like '%public.call_days(c.complaint_date, c.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
-     and coalesce((select p.prosrc like '%public.call_days(c.complaint_date, c.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)))
+     and coalesce((select p.prosrc like '%public.call_days(c.complaint_date, c.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))),
+    (357, 'KPI export says which date each day count came from', 'call_days_from() + kpi_field_inst (0442): Attended / Solved / Pending Days From, after Pending Days, name the date call_days() counted from. TESTED BY VALUE. NO means the export gives the counts without saying which date they came from. Restore: performance.sql (0442)',
+        (to_regprocedure('public.call_days_from(date,date,date,date)') is not null
+     and public.call_days_from(date '2026-08-07', date '2026-08-06', null, date '2026-08-09') = 'Complaint Date'
+     and public.call_days_from(date '2026-08-10', date '2026-08-06', null, date '2026-08-08') = 'Breakdown Date'
+     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'kpi_field_inst' and column_name = 'Pending Days From')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

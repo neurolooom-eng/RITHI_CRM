@@ -808,7 +808,10 @@ const MODULES = {
       '0437_kpi_counts_from_breakdown.sql',
       // Every day count the lower of complaint-to and breakdown-to: call_days()
       // and the KPI view restated from 0437 (0440).
-      '0440_days_lower_of_complaint_and_breakdown.sql'],
+      '0440_days_lower_of_complaint_and_breakdown.sql',
+      // ...and which date each count came from, three columns after Pending
+      // Days (0442): restates 0440's view.
+      '0442_kpi_days_basis.sql'],
   },
   audit: {
     title: 'Audit Log',

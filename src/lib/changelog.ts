@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.195',
+    date: '2026-10-14',
+    title: 'KPI Export says which date each day count came from',
+    changes: [
+      'The KPI Export has three new columns after Pending Days: Attended Days From, Solved Days From and Pending Days From. Each says, call by call, which date that count was taken from: Complaint Date, Breakdown Date, Complaint & Breakdown Date (both gave the same count), Registration Date (the call has neither), or Neither — both after (0).',
+      'Columns A to AG still line up with the workbook.',
+    ],
+  },
+  {
     version: '0.10.194',
     date: '2026-10-14',
     title: 'Day counts: the lower of from-complaint and from-breakdown; reasons off the opened call',
