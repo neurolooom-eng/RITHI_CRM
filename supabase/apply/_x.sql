@@ -11,7 +11,7 @@ union all
 select 3, 'audit_log under the NEW address: ' || coalesce(a.action, '?') || ' / ' || coalesce(a.status, '?'), count(*)::text
   from public.audit_log a where lower(a.email) = 'harshvardhan.singh@airliquide.com' group by a.action, a.status
 union all
-select 4, 'user_directory row (new address)', coalesce(d.name, '') || ' | active=' || coalesce(d.active::text, '?')
+select 4, 'user_directory row (new address)', coalesce(d.name, '') || ' | ' || coalesce(d.designation, '')
   from public.user_directory d where lower(d.email) = 'harshvardhan.singh@airliquide.com'
 union all
 select 5, 'profile (old address)', coalesce(p.full_name, '') || ' | role ' || coalesce(p.role, '')
