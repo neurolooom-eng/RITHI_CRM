@@ -75,7 +75,12 @@ export function EquipmentListPrint() {
     <div className="el-page">
       {/* The FFR header's PAGE NO: box is numbered by the printer: a web page
           cannot count its own sheets. */}
-      <style>{`@media print { @page { size: A4 landscape; margin: 8mm 8mm 12mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 7pt 'Source Sans 3', Arial, sans-serif; color: #5b6673; } } }`}</style>
+      {/* ISO A4 LANDSCAPE BY DEFAULT (the user, 2026-10-15). A NAMED page:
+          the app's stylesheets are one bundle, and the Delivery Challan's and
+          the FFR's "@page { size: A4 portrait }" are in it -- a named page
+          outranks those, whatever order they load in. */}
+      <style>{`@page equipment-list { size: A4 landscape; margin: 8mm 8mm 12mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 7pt 'Source Sans 3', Arial, sans-serif; color: #5b6673; } }
+@media print { @page { size: A4 landscape; } }`}</style>
       <div className="el-toolbar">
         {back}
         <button className="btn btn-sm btn-primary" onClick={() => {

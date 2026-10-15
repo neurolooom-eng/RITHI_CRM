@@ -53,6 +53,11 @@
 .el-n { width: 7mm; text-align: right !important; }
 .el-on { display: inline-block; white-space: nowrap; background: #2e7d32; color: #fff; font-weight: 700; padding: 0 3px; border-radius: 2px; }
 .el-empty { text-align: center !important; padding: 8mm !important; }
+/* THE END OF THE DOCUMENT, marked after the last row (the user, 2026-10-15). */
+.el-end {
+  margin-top: 4mm; text-align: center; font-size: 7.5pt; letter-spacing: .18em;
+  text-transform: uppercase; color: #5b6673; page-break-inside: avoid;
+}
 .el-missing { max-width: 210mm; margin: 0 auto; background: #fff; padding: 20mm; border-radius: 4px; color: #000; }
 .el-sheet, .el-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
@@ -73,11 +78,15 @@
 .el-sheet > .el-fixed-foot { order: 2; }
 
 @media print {
-  .el-page { background: #fff; padding: 0; }
+  /* NO EMPTY PAGE AFTER THE LIST (the user, 2026-10-15): the screen's
+     full-height wrapper must not carry into print, where 100vh is a whole
+     page of nothing after the last row. */
+  html, body, #root { height: auto !important; min-height: 0 !important; }
+  .el-page { background: #fff; padding: 0; min-height: 0; height: auto; }
   /* PRINTED, the header and the footer are fixed -- painted on every page --
      and the frame's empty head and foot, repeated on every page, keep the
      content clear of them. */
-  .el-sheet { display: block; }
+  .el-sheet { display: block; page: equipment-list; }
   .el-fixed-head { position: fixed; top: 0; left: 0; right: 0; }
   .el-fixed-foot { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; background: #fff; }
   .el-head-space { height: 20mm; }

@@ -103,7 +103,8 @@ different totals. An empty register usually means access, not emptiness.
   > property notice — on **every page**; the
   > party's full details once, on the first page; then the machines (Current Status beside the Serial; no OT Number), the
   > column headings repeating. Tick **Include Service Engineer** on the print
-  > page to add that column — it is left out by default. Print it
+  > page to add that column — it is left out by default. It prints on **A4
+  > landscape** by default and ends with *End of document · n machines*. Print it
   > and choose *Save as PDF*. It needs *Export / download*, and every print is
   > recorded in the audit log.
   > **It searches the copies of the machine register and the Party Master kept
