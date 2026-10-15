@@ -28,6 +28,9 @@ export function EquipmentListPrint() {
   const { user, can } = useAuth();
   const kind = (KINDS.includes(params.get('kind') as CoverFilter) ? params.get('kind') : 'all') as CoverFilter;
   const party = params.get('party') ?? '';
+  // THE SERVICE ENGINEER COLUMN is a choice made when generating, off by
+  // default (the user, 2026-10-15).
+  const [showEngineer, setShowEngineer] = useState(false);
   const mayExport = can('export.data') && canExportData();
   const [rows, setRows] = useState<Record<string, unknown>[] | null>(null);
   const [partyRow, setPartyRow] = useState<Record<string, unknown> | null>(null);
@@ -53,7 +56,8 @@ export function EquipmentListPrint() {
     generatedAt,
     today,
     ending: kind === 'this_month' ? monthBounds(today, 0) : kind === 'next_month' ? monthBounds(today, 1) : undefined,
-  }), [kind, user, generatedAt, today]);
+    showEngineer,
+  }), [kind, user, generatedAt, today, showEngineer]);
 
   const back = <button className="btn btn-sm" onClick={() => navigate('/lookup')}>← Back to Product &amp; Party Search</button>;
   if (!mayExport) {
@@ -75,9 +79,13 @@ export function EquipmentListPrint() {
       <div className="el-toolbar">
         {back}
         <button className="btn btn-sm btn-primary" onClick={() => {
-          logAudit({ action: 'lookup.equipment_list_print', target: `${party} — ${meta.filterLabel}`, status: 'ok', meta: { rows: rows.length, kind, party } });
+          logAudit({ action: 'lookup.equipment_list_print', target: `${party} — ${meta.filterLabel}`, status: 'ok', meta: { rows: rows.length, kind, party, showEngineer } });
           window.print();
         }}>🖨 Print / Save as PDF</button>
+        <label className="row" style={{ gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={showEngineer} onChange={(e) => setShowEngineer(e.target.checked)} />
+          Include Service Engineer
+        </label>
         <span className="muted">{party} · {meta.filterLabel} · {rows.length} machine{rows.length === 1 ? '' : 's'} · A4 landscape — choose “Save as PDF” as the printer</span>
       </div>
       <section className="el-sheet">
