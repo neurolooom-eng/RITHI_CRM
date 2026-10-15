@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.200',
+    date: '2026-10-15',
+    title: 'Equipment List: FFR header, party details first, one party per list',
+    changes: [
+      'The Equipment List now uses the Field Failure Report\'s header (logo, AIR LIQUIDE MEDICAL SYSTEMS PVT. LTD. / SERVICE, PAGE NO:) titled EQUIPMENT LIST.',
+      'It starts with every detail the Party Master holds about the party (address, contacts, GSTIN, PAN, service engineer and the rest), then who generated it and when, then the party\'s machines.',
+      'The footer on every page is: "This document is the property of Air Liquide Medical Systems. Any communication or reproduction thereof, even partial, is prohibited without the owner’s prior and written consent".',
+      'It is always one party\'s list: Equipment List (PDF) appears beside a party\'s machines, and on a filter\'s list when the filter was run with that party open.',
+    ],
+  },
+  {
     version: '0.10.199',
     date: '2026-10-15',
     title: 'Product & Party Search: four filters, green highlight, Equipment List PDF',
