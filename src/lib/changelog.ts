@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.201',
+    date: '2026-10-15',
+    title: 'Equipment List: party details once, Current Status beside Serial, no OT Number',
+    changes: [
+      'The party\'s details now print once, on the first page, before the table; they no longer repeat on every page. The header prints once with them; the column headings and the footer still repeat on every page.',
+      'Current Status sits right after Serial, before Ending.',
+      'The OT Number is no longer in the Equipment List. It stays on the Product & Party Search screen.',
+    ],
+  },
+  {
     version: '0.10.200',
     date: '2026-10-15',
     title: 'Equipment List: FFR header, party details first, one party per list',

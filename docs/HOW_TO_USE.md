@@ -98,8 +98,10 @@ different totals. An empty register usually means access, not emptiness.
   > **Ending** column says which cover ends and when.
   > **📄 Equipment List (PDF)** — one party's list, beside a party's machines (or
   > on a filter run with that party open). The Field Failure Report's header
-  > titled EQUIPMENT LIST, the party's full details, who generated it and when,
-  > then the machines; the property notice at the foot of every page. Print it
+  > titled EQUIPMENT LIST and the party's full details (once, on the first
+  > page), who generated it and when, then the machines (Current Status beside
+  > the Serial; no OT Number); the column headings and the property notice
+  > repeat on every page. Print it
   > and choose *Save as PDF*. It needs *Export / download*, and every print is
   > recorded in the audit log.
   > **It searches the copies of the machine register and the Party Master kept
