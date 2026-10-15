@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.206',
+    date: '2026-10-15',
+    title: 'Equipment List: A4 landscape by default, no empty last page, end marked',
+    changes: [
+      'Printing the Equipment List now starts on ISO A4 landscape by default.',
+      'No empty page is printed after the list.',
+      'The list ends with "End of document · n machines", so a reader knows nothing is missing.',
+    ],
+  },
+  {
     version: '0.10.205',
     date: '2026-10-15',
     title: 'Product & Party Search: filters need a party, or a product and serial',

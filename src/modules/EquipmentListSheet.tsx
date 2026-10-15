@@ -169,6 +169,9 @@ export function EquipmentListSheet({ party, rows, meta }: { party: Row; rows: Ro
               {rows.length === 0 && <tr><td colSpan={cols} className="el-empty">No machine is in this list.</td></tr>}
             </tbody>
           </table>
+          {/* THE END OF THE DOCUMENT (the user, 2026-10-15: "Mark end of
+              document as well"), so a reader knows no page is missing. */}
+          <div className="el-end">— End of document · {rows.length} machine{rows.length === 1 ? '' : 's'} —</div>
         </td></tr></tbody>
       </table>
     </>

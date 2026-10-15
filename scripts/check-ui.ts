@@ -2570,6 +2570,15 @@ console.log('\n-- cover today, and what is about to lapse --');
   eq('...with spacers repeated on every page so nothing runs under them',
     /<thead><tr><td><div className="el-head-space" \/><\/td><\/tr><\/thead>/.test(el)
     && /<tfoot><tr><td><div className="el-foot-space" \/><\/td><\/tr><\/tfoot>/.test(el), true);
+  // ISO A4 LANDSCAPE BY DEFAULT, NO EMPTY LAST PAGE, THE END MARKED (the
+  // user, 2026-10-15). A NAMED page, so the bundle's "@page { size: A4
+  // portrait }" (dc.css, ffr.css) cannot win; the screen's 100vh wrapper
+  // switched off in print.
+  const elcss = readFileSync('src/modules/equipmentlist.css', 'utf8');
+  eq('...A4 landscape on a named page the other documents\' rules cannot override',
+    /@page equipment-list \{ size: A4 landscape;/.test(elp) && /\.el-sheet \{ display: block; page: equipment-list; \}/.test(elcss), true);
+  eq('...no empty page after the list', /\.el-page \{ background: #fff; padding: 0; min-height: 0; height: auto; \}/.test(elcss), true);
+  eq('...and the end of the document marked', /className="el-end">— End of document/.test(el), true);
   eq('...Service Engineer only when chosen, off by default',
     /\{meta\.showEngineer && <th>Service Engineer<\/th>\}/.test(el)
     && /useState\(false\);[\s\S]*Include Service Engineer/.test(elp), true);
