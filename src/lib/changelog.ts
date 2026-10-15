@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.198',
+    date: '2026-10-15',
+    title: 'Product & Party Search: cover on every machine; Expiring and OGP filters',
+    changes: [
+      'Every machine on Product & Party Search now shows its Warranty No, Warranty Start and End, Contract No, Contract Start and End, Contract Type, Current Item Status and OT Number (from its latest ownership transfer).',
+      'The warranty details are highlighted while the warranty is in force today, and the contract details while the contract is.',
+      'Current Item Status is worked out for today from the dates: an active contract shows its type, an active warranty WGP, otherwise OGP. Hover it to see the status the Product Database has stored.',
+      'Two new filters work across the whole Product Database: Expiring (a warranty or contract in force today that ends by the end of next month, with which one and when) and OGP. Choose a product or open a party first to narrow them; click a machine to open its party.',
+    ],
+  },
+  {
     version: '0.10.197',
     date: '2026-10-15',
     title: 'Email address corrected: harshvardhan.singh@airliquide.com',

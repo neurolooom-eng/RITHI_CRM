@@ -84,6 +84,16 @@ different totals. An empty register usually means access, not emptiness.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
+  > **Every machine shows its cover**: Warranty No / Start / End, Contract No /
+  > Start / End / Type, **Current Item Status** and the **OT Number** of its
+  > latest ownership transfer. The warranty details are **highlighted** while
+  > the warranty is in force today, the contract's while the contract is.
+  > Current Item Status is worked out **for today** from the dates (contract type,
+  > WGP, or OGP); hover it for the status the Product Database has stored.
+  > **⏳ Expiring** lists every machine whose warranty or contract is in force
+  > today and ends by the end of next month; **OGP** lists every machine in OGP
+  > today. Both search the whole Product Database — choose a product (or open a
+  > party) first to narrow them, and click a filter again to clear it.
   > **It searches the copies of the machine register and the Party Master kept
   > on your device** (every column of both), so it
   > works with a weak or no signal. The machine copy is a **snapshot of the

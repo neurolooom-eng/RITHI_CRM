@@ -53,6 +53,7 @@ import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
 import { callAging, agingTone, callDays } from '../src/lib/aging';
+import { currentItemStatus, expiringCover, endOfNextMonth } from '../src/lib/coverToday';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2502,6 +2503,31 @@ console.log('\n-- call aging, and where the clock stops --');
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the age is on the row, so the column sorts as a number',
     /out\.agingDays = age\.days;/.test(sb), true);
+}
+
+// A MACHINE'S COVER, AS OF TODAY (the user, 2026-10-15, Product & Party Search).
+console.log('\n-- cover today, and what is about to lapse --');
+{
+  const T = '2026-10-15';
+  eq('end of next month', endOfNextMonth(T), '2026-11-30');
+  eq('...across a year end', endOfNextMonth('2026-12-03'), '2027-01-31');
+  eq('...into a leap February', endOfNextMonth('2028-01-31'), '2028-02-29');
+  const m = (o: Record<string, string>) => o;
+  eq('an active contract is its type',
+    currentItemStatus(m({ 'Contract End Date': '2027-01-01', 'Contract Type': 'AMC', 'Warranty End Date': '2027-06-01' }), T), 'AMC');
+  eq('else an active warranty is WGP', currentItemStatus(m({ 'Warranty End Date': T, 'Item Status': 'OGP' }), T), 'WGP');
+  eq('both lapsed is OGP, whatever was stored', currentItemStatus(m({ 'Warranty End Date': '2026-10-14', 'Item Status': 'WGP' }), T), 'OGP');
+  eq('no cover on record keeps the stored status', currentItemStatus(m({ 'Item Status': 'WGP' }), T), 'WGP');
+  eq('expiring: a warranty ending this month', expiringCover(m({ 'Warranty End Date': '2026-10-31' }), T), 'Warranty 2026-10-31');
+  eq('...and a contract ending at the end of next month', expiringCover(m({ 'Contract End Date': '2026-11-30' }), T), 'Contract 2026-11-30');
+  eq('...not one already lapsed this month', expiringCover(m({ 'Warranty End Date': '2026-10-01' }), T), '');
+  eq('...nor one ending after next month', expiringCover(m({ 'Contract End Date': '2026-12-01' }), T), '');
+  const lk = readFileSync('src/modules/Lookup.tsx', 'utf8');
+  eq('Product & Party Search shows the cover columns, OT Number included',
+    /header: 'Warranty No'/.test(lk) && /header: 'Contract Type'/.test(lk) && /header: 'Current Item Status'/.test(lk)
+    && /key: 'Transfer Ref', header: 'OT Number'/.test(lk), true);
+  eq('...highlights the cover in force', /className="lk-cover-on"/.test(lk), true);
+  eq('...and filters the whole register', /sbListMachinesByCover\(kind, todayISO\(\), narrow\)/.test(lk), true);
 }
 
 // THE LOWER OF COMPLAINT-TO AND BREAKDOWN-TO (the user, 2026-10-14). The SAME
