@@ -250,6 +250,14 @@ export function Objective() {
   ];
   // What 0357 says about each failed machine, carried in `details`.
   const RATE_DETAILS = ['Installed (warranty start)', 'Days after installation', 'Field calls in the window'];
+  // EVERY DATE BEHIND THE TTA of an attended-within-N-days objective (0443, the
+  // user, 2026-10-14: "Explicitly Add Call Registration Date, Complaint Date,
+  // BreakDown Date, First Visit Date, First Visit Recorded Date - Then Calculate
+  // the TTA"), carried in `details` and set right after the call's numbers so
+  // the TTA can be worked by hand along the row.
+  const ATTENDED_DETAILS = ['Call Registration Date', 'Complaint Date', 'Breakdown Date',
+    'First Visit Date', 'First Visit Recorded Date', 'First Spare Request Date', 'Attended On',
+    'TTA Counted From', 'TTA (Days)', 'TTA ( R )'];
   const baseRow = (r: Record<string, unknown>) =>
     Object.fromEntries(BASE_COLUMNS.map(([head, key]) => [head, r[key]]));
 
@@ -490,7 +498,12 @@ export function Objective() {
           : isRate
             ? { name: sheet1Name, columns: ['role', ...CALL_COLUMNS, ...RATE_DETAILS],
                 rows: calls.map((r) => ({ ...r, ...((r.details ?? {}) as Record<string, unknown>) })) }
-            : { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
+            : isAttended
+              ? { name: sheet1Name,
+                  columns: ['role', 'ucn', 'call_number', ...ATTENDED_DETAILS,
+                            ...CALL_COLUMNS.filter((c) => c !== 'ucn' && c !== 'call_number')],
+                  rows: calls.map((r) => ({ ...r, ...((r.details ?? {}) as Record<string, unknown>) })) }
+              : { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
         {
           name: 'Installation Base',
           columns: filterRow ? BASE_COLUMNS.map(([head]) => head) : ['Note'],

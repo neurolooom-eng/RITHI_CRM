@@ -659,7 +659,10 @@ const MODULES = {
             // ...the same rule, call_days() (0440, performance), in the two
             // functions 0438 last defined (0441). plpgsql + EXECUTE, so it is
             // resolved when an objective is worked out, not at creation.
-            '0441_objective_days_lower_of_two.sql'],
+            '0441_objective_days_lower_of_two.sql',
+            // Objective 11's evidence carries every date behind the TTA (0443):
+            // restates objective_evidence() from 0441.
+            '0443_objective_tta_evidence.sql'],
   },
   validation: {
     title: 'Software Validation',

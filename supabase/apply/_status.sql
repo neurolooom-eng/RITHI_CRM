@@ -2264,7 +2264,10 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.call_days_from(date,date,date,date)') is not null
      and public.call_days_from(date '2026-08-07', date '2026-08-06', null, date '2026-08-09') = 'Complaint Date'
      and public.call_days_from(date '2026-08-10', date '2026-08-06', null, date '2026-08-08') = 'Breakdown Date'
-     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'kpi_field_inst' and column_name = 'Pending Days From')))
+     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'kpi_field_inst' and column_name = 'Pending Days From'))),
+    (358, 'Attended-within-N-days evidence carries every date behind the TTA', 'objective_evidence() (0443): for an attended-within-N-days objective each call''s details give Call Registration, Complaint, Breakdown, First Visit and First Visit Recorded Dates, the First Spare Request Date, Attended On, TTA Counted From, TTA (Days) and TTA ( R ). NO means the Objective 11 download lists the calls without the dates behind the TTA. Restore: objective.sql (0443)',
+        coalesce((select p.prosrc like '%First Visit Recorded Date%' and p.prosrc like '%TTA ( R )%'
+                    from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
