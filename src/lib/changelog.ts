@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.203',
+    date: '2026-10-15',
+    title: 'Equipment List: a minimal header and elegant type',
+    changes: [
+      'The Equipment List header has lost its boxes: the Air Liquide logo on the left, EQUIPMENT LIST on the right in Cormorant Garamond, the company line under it, and a hairline beneath. The page number is at the foot of every page.',
+      'The party name is set in the same face; the rest of the document is in Source Sans 3. The footer is a quiet italic line under a hairline.',
+    ],
+  },
+  {
     version: '0.10.202',
     date: '2026-10-15',
     title: 'Equipment List: header and footer on every page; Service Engineer optional',

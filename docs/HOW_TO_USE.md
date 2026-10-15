@@ -97,8 +97,8 @@ different totals. An empty register usually means access, not emptiness.
   > month, so *this month* includes cover that already ended earlier in it; the
   > **Ending** column says which cover ends and when.
   > **📄 Equipment List (PDF)** — one party's list, beside a party's machines (or
-  > on a filter run with that party open). The Field Failure Report's header
-  > titled EQUIPMENT LIST and the property notice on **every page**; the
+  > on a filter run with that party open). A minimal header (logo, EQUIPMENT
+  > LIST, the company) and the property notice on **every page**; the
   > party's full details once, on the first page; who generated it and when;
   > then the machines (Current Status beside the Serial; no OT Number), the
   > column headings repeating. Tick **Include Service Engineer** on the print
