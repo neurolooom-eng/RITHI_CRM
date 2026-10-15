@@ -92,8 +92,9 @@ different totals. An empty register usually means access, not emptiness.
   > (contract type, WGP, or OGP); hover it for the status the Product Database
   > has stored.
   > **The filters — All, Expiring this month, Expiring next month, OGP** —
-  > search the whole Product Database; choose a product (or open a party) first
-  > to narrow them, and click a filter again to clear it. A month is the whole
+  > work once you have chosen a **party** (By party) or a **product and its
+  > serial** (By product / serial); until then they are greyed out. Click a
+  > filter again to clear it. A month is the whole
   > month, so *this month* includes cover that already ended earlier in it; the
   > **Ending** column says which cover ends and when.
   > **📄 Equipment List (PDF)** — one party's list, beside a party's machines (or

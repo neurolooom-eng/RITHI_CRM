@@ -1728,12 +1728,16 @@ async function serverProductSerials(product: string): Promise<string[]> {
 // is the whole register), else paged from the server -- which narrows by the
 // dates first and leaves the last word to the same rule, so both paths agree.
 export type CoverFilter = 'all' | 'this_month' | 'next_month' | 'ogp';
-export async function sbListMachinesByCover(kind: CoverFilter, today: string, opts: { product?: string; party?: string } = {}): Promise<Record<string, unknown>[]> {
+export async function sbListMachinesByCover(kind: CoverFilter, today: string, opts: { product?: string; serial?: string; party?: string } = {}): Promise<Record<string, unknown>[]> {
   const product = String(opts.product ?? '').trim();
+  // A serial narrows to the machine (with its product), matched as the
+  // register stores it: trimmed, any case.
+  const serial = String(opts.serial ?? '').trim().toLowerCase();
   const party = partyKey(opts.party);
   const win = kind === 'this_month' ? monthBounds(today, 0) : kind === 'next_month' ? monthBounds(today, 1) : null;
   const keep = (r: Record<string, unknown>) =>
     (!product || String(r['Item Name'] ?? '') === product)
+    && (!serial || String(r['Item Serial Number'] ?? '').trim().toLowerCase() === serial)
     && (!party || partyKey(r['Party Name']) === party)
     && (win ? coverEndingIn(r, win.from, win.to) !== ''
         : kind === 'ogp' ? currentItemStatus(r, today) === 'OGP' : true);
