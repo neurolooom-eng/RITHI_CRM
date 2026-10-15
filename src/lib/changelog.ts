@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.197',
+    date: '2026-10-15',
+    title: 'Email address corrected: harshvardhan.singh@airliquide.com',
+    changes: [
+      'harshavardhan.singh@airliquide.com is now harshvardhan.singh@airliquide.com everywhere: the sign-in account, the profile, calls, visits, spare requests, consumption, dispatches, feedback, notifications and the audit trails. He signs in with the new address and his existing password.',
+      'The correction itself is recorded in the audit trail.',
+    ],
+  },
+  {
     version: '0.10.196',
     date: '2026-10-14',
     title: 'Objective 11 download: every date behind the TTA',
