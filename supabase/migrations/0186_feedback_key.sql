@@ -44,7 +44,11 @@ delete from public.feedback a
  using public.feedback b
  where lower(btrim(coalesce(a.ucn, ''))) = lower(btrim(coalesce(b.ucn, '')))
    and lower(btrim(coalesce(a.ucn, ''))) <> ''
-   and a.id < b.id;
+   and a.id < b.id
+   -- ONCE, before the key exists. Since 0445 a call may carry a second
+   -- feedback under a counted key, and a re-run of this bundle must not delete
+   -- it as a duplicate.
+   and to_regclass('public.feedback_ucn_key_uniq') is null;
 
 create unique index if not exists feedback_ucn_key_uniq on public.feedback (ucn_key);
 

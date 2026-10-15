@@ -674,6 +674,11 @@ against the call it was fitted to.
     column, because when a row arrived is a different fact from when the customer
     spoke.
   - **Uploaded** and **Entered here** are told apart, with a count on each.
+  - **A call solved again keeps both feedbacks.** When a re-opened call is
+    solved a second time, the new feedback is saved beside the first under the
+    call's key with its count — `25L01P0232`, then `25L01P0232-2`, `-3`. Loading
+    the Customer Feedback file again still corrects the feedback it matches
+    instead of adding a copy.
 
 ## Cover
 

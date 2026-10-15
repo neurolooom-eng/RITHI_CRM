@@ -106,6 +106,27 @@ up)_
 
 ---
 
+## 2026-10-15 — A call solved again keeps its second feedback (D-035 feedback half, 0445, v0.10.208)
+
+- **Shipped.** Reported from use on 25L01P0232 (*"the customer feedback was not:
+  duplicate key value violates unique constraint feedback_ucn_key_uniq"*). The
+  user: *"For feedback it is ok to overwrite or duplicate. If it's a duplicate --
+  add the count along with the key so it becomes unique."* `feedback.ucn_key` is
+  no longer generated; `feedback_key_stamp()` writes it. The Visit Entry form
+  sends a key, meaning "a new feedback on this call", and gets `<ucn>`, then
+  `<ucn>-2`, `-3`; the upload sends none and still corrects the call's own
+  feedback. 0186 and 0188 no longer delete "duplicates" once the key exists, so a
+  re-run of `data_integrity.sql` keeps the counted ones. `_status.sql` row 359;
+  `feedback_count_key_test`.
+- **Applied by the workflow on merge**; nothing to run by hand.
+- **Still open: D-035's re-open half** (no reason or person recorded on a re-open).
+- **The visit on 25L01P0232 is saved; its feedback was not.** With that Visit
+  Entry still open, Save Report retries ONLY the feedback (the form remembers
+  the visit and spares it saved). Closed, a new Visit Entry would add a second
+  visit — the user's call how to re-enter that one feedback.
+
+---
+
 ## 2026-10-11 — FFR Update log: a loaded report starts on its FFR Date (D-159, 0410, v0.10.162)
 
 - The user: "The FFR Date in the Log has to match with Actual FFR Date, it is

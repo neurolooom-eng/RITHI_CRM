@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.208',
+    date: '2026-10-15',
+    title: 'A call solved again keeps its second customer feedback',
+    changes: [
+      'Saving a visit that solves a call which already has customer feedback (a call re-opened and solved again) no longer fails with "duplicate key value violates unique constraint feedback_ucn_key_uniq". The new feedback is saved beside the first, keyed with its count: 25L01P0232, then 25L01P0232-2, -3 and so on.',
+      'The first feedback is kept unchanged. Loading the Customer Feedback file again still corrects the feedback it matches rather than adding a copy.',
+    ],
+  },
+  {
     version: '0.10.207',
     date: '2026-10-15',
     title: 'Equipment List: the party in the header of every page',
