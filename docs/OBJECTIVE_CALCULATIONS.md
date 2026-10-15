@@ -183,6 +183,12 @@ and a note where the visit came after the cut-off.
 *Example:* breakdown 09-Mar, complaint 10-Mar; first visit 13-Mar, spare requested 12-Mar →
 attended 12-Mar → 3 days from the breakdown, 2 from the complaint → **2** → in time (N = 3).
 
+**The download (0443)** gives each call, after its UCN and Call Number: Call Registration Date,
+Complaint Date, Breakdown Date, First Visit Date (the earliest by visit date), First Visit Recorded
+Date (that visit's Visit Entry Date), First Spare Request Date, Attended On, **TTA Counted From**,
+**TTA (Days)** — the number compared with N — and **TTA ( R )**, the KPI band. Every TTA can be
+worked by hand along its row.
+
 ### 3.5 Customer feedback satisfaction — "b. Customer feedback"
 **Answers:** the average satisfaction of the customers whose feedback was taken in the period —
 exactly the **Customer Feedback workbook's** method.

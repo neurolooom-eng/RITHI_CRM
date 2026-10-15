@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.196',
+    date: '2026-10-14',
+    title: 'Objective 11 download: every date behind the TTA',
+    changes: [
+      'The evidence download for Problem Call attending within 3 days now lists, for each call after its UCN and Call Number: Call Registration Date, Complaint Date, Breakdown Date, First Visit Date, First Visit Recorded Date (when that visit was entered), First Spare Request Date, Attended On, TTA Counted From, TTA (Days) and TTA ( R ).',
+      'Attended On is the earlier of the first visit and the first spare request. TTA (Days) is the number compared with 3; TTA ( R ) is the band, as in the KPI Export. TTA Counted From says whether the days came from the Complaint or the Breakdown Date.',
+    ],
+  },
+  {
     version: '0.10.195',
     date: '2026-10-14',
     title: 'KPI Export says which date each day count came from',

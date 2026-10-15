@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-14T15:00:35.644Z
-- **Took** 316s
-- **Commit** `961ef2b9` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.195
+- **Run at** 2026-10-15T02:18:09.215Z
+- **Took** 270s
+- **Commit** `a5d0c39a` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.196
 
 ## Result
 
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `447 migrations applied to a fresh database` | ✅ pass |  |
+| `448 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
@@ -52,7 +52,7 @@ stopped working produces a suite that runs clean.
 | `check:reports` | ✅ pass | all passed |
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 366 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
-| `check:status` | ✅ pass | every one of the 355 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ✅ pass | every one of the 356 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |

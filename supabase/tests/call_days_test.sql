@@ -88,6 +88,24 @@ select 'the evidence names both dates' as t,
   from public.objective_evidence((select id from public.quality_objectives where parameter = 'DY attended'), 8)
  where ucn = 'DY-1';
 
+\echo '--- 4. the evidence carries every date behind the TTA (0443) ---'
+select 'DY-1: the five dates, the spare request, Attended On, and TTA 2 days / 00-03D from the Complaint Date' as t,
+  (details->>'Complaint Date', details->>'Breakdown Date', details->>'First Visit Date',
+   details->>'First Spare Request Date', details->>'Attended On',
+   details->>'TTA Counted From', (details->>'TTA (Days)')::int)
+  = ('2025-08-07', '2025-08-06', '2025-08-09', '2025-08-12', '2025-08-09', 'Complaint Date', 2)
+  and details->>'TTA ( R )' = public.kpi_days_band(2)
+  and (details->>'Call Registration Date')::timestamptz = timestamptz '2025-08-08 11:00+05:30'
+  and (details->>'First Visit Recorded Date')::timestamptz = timestamptz '2025-08-09 18:00+05:30' as ok
+  from public.objective_evidence((select id from public.quality_objectives where parameter = 'DY attended'), 8)
+ where ucn = 'DY-1';
+select 'DY-2: First Visit Date is the earliest BY VISIT DATE (08-Aug, entered 20-Aug), from the Breakdown Date' as t,
+  details->>'First Visit Date' = '2025-08-08'
+  and (details->>'First Visit Recorded Date')::timestamptz = timestamptz '2025-08-20 18:00+05:30'
+  and details->>'TTA Counted From' = 'Breakdown Date' as ok
+  from public.objective_evidence((select id from public.quality_objectives where parameter = 'DY attended'), 8)
+ where ucn = 'DY-2';
+
 delete from public.quality_objectives where parameter = 'DY attended';
 delete from public.reports where uid like 'DY-V%';
 alter table public.spare_requests disable trigger user;
