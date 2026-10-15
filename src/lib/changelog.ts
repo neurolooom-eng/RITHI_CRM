@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.199',
+    date: '2026-10-15',
+    title: 'Product & Party Search: four filters, green highlight, Equipment List PDF',
+    changes: [
+      'The filters are now All, Expiring this month, Expiring next month and OGP. A month means the whole month, the 1st to the last day, so this month includes cover that already ended earlier in the month. The Ending column says which cover ends and when.',
+      'The warranty and contract details in force today are highlighted in green.',
+      'Equipment List (PDF) on a filter\'s list opens a printable list: Air Liquide logo, EQUIPMENT LIST and CONFIDENTIAL INFORMATION at the top of every page, a confidentiality line at the bottom of every page, the filter, the number of machines, who generated it and when, and page numbers. Print it and choose Save as PDF. It needs Export / download permission, and every print is recorded in the audit log.',
+    ],
+  },
+  {
     version: '0.10.198',
     date: '2026-10-15',
     title: 'Product & Party Search: cover on every machine; Expiring and OGP filters',

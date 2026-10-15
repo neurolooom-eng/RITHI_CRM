@@ -47,24 +47,35 @@ export function currentItemStatus(r: Sheet, today: string): string {
   return coverCode(s(r, 'Item Status'));
 }
 
+// THE MONTH WINDOWS (the user, 2026-10-15: "Both Expiring this month, expiring
+// next month ... All, Expiring this month, expiring next month, OGP"; asked:
+// this month is the WHOLE month, the 1st to the last day, so cover that already
+// ended earlier this month is in it). Calendar arithmetic, not a Date, so no
+// time zone can move a day.
+const lastDay = (y: number, m: number) => {
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  return [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+};
+/** The first and last day of the month `offset` months after `today`'s. */
+export function monthBounds(today: string, offset = 0): { from: string; to: string } {
+  const [y0, m0] = today.split('-').map(Number);
+  const k = (m0 - 1) + offset;
+  const y = y0 + Math.floor(k / 12);
+  const m = ((k % 12) + 12) % 12 + 1;
+  const mm = String(m).padStart(2, '0');
+  return { from: `${y}-${mm}-01`, to: `${y}-${mm}-${String(lastDay(y, m)).padStart(2, '0')}` };
+}
 /** The last day of the month after `today`'s, yyyy-mm-dd. */
 export function endOfNextMonth(today: string): string {
-  // Arithmetic on the calendar, not a Date: no time zone can move the day.
-  const [y, m] = today.split('-').map(Number);
-  const ny = m === 12 ? y + 1 : y;
-  const nm = m === 12 ? 1 : m + 1;
-  const leap = (ny % 4 === 0 && ny % 100 !== 0) || ny % 400 === 0;
-  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][nm - 1];
-  return `${ny}-${String(nm).padStart(2, '0')}-${String(days).padStart(2, '0')}`;
+  return monthBounds(today, 1).to;
 }
 
-/** What is about to lapse: the warranty and / or contract active today and
- *  ending by the end of next month, in words; '' when neither. */
-export function expiringCover(r: Sheet, today: string): string {
-  const by = endOfNextMonth(today);
+/** Which cover ends between `from` and `to` (inclusive), in words -- '' when
+ *  neither the warranty nor the contract does. */
+export function coverEndingIn(r: Sheet, from: string, to: string): string {
   const parts: string[] = [];
   const w = warrantyEnd(r), c = contractEnd(r);
-  if (w && w >= today && w <= by) parts.push(`Warranty ${w}`);
-  if (c && c >= today && c <= by) parts.push(`Contract ${c}`);
+  if (w && w >= from && w <= to) parts.push(`Warranty ${w}`);
+  if (c && c >= from && c <= to) parts.push(`Contract ${c}`);
   return parts.join(' · ');
 }

@@ -5,7 +5,8 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader } from '../components/ui/ui';
 import { searchProducts, dataConfigured } from '../lib/sheets';
 import { partyByExactName, queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, sbSearchProductParties, sbListMachinesByCover, supabaseConfigured, type CoverFilter, type ProductName } from '../lib/supabase';
-import { contractActive, currentItemStatus, endOfNextMonth, expiringCover, warrantyActive } from '../lib/coverToday';
+import { contractActive, coverEndingIn, currentItemStatus, monthBounds, warrantyActive } from '../lib/coverToday';
+import { canExportData } from '../lib/format';
 import { fmtLongDate, todayISO } from '../lib/format';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
@@ -68,13 +69,22 @@ const FOUND_COLUMNS: Column<Row>[] = [
   ...COVER_COLUMNS,
 ];
 
-// The two filters' list says which cover is lapsing, and by when.
-const EXPIRING_COLUMN: Column<Row> = { key: '_expiring', header: 'Expiring', width: 220,
-  render: (r) => expiringCover(r, TODAY()).replace(/\d{4}-\d{2}-\d{2}/g, (d) => fmtLongDate(d)) };
+// A month's filter says which cover ends in it, and when.
+const endingColumn = (from: string, to: string): Column<Row> => ({ key: '_ending', header: 'Ending', width: 230,
+  render: (r) => coverEndingIn(r, from, to).replace(/\d{4}-\d{2}-\d{2}/g, (d) => fmtLongDate(d)) });
+// The four filters (the user, 2026-10-15: "All, Expiring this month, expiring
+// next month, OGP"), their names on the chips and on the printed list.
+const MONTH_NAME = (iso: string) => fmtLongDate(iso).slice(3);   // "Oct-2026"
+export const coverFilterLabel = (kind: CoverFilter, today: string): string =>
+  kind === 'all' ? 'All machines'
+    : kind === 'this_month' ? `Expiring this month (${MONTH_NAME(monthBounds(today, 0).from)})`
+    : kind === 'next_month' ? `Expiring next month (${MONTH_NAME(monthBounds(today, 1).from)})`
+    : 'In OGP today';
 
 export function Lookup() {
   const navigate = useNavigate();
   const { can } = useAuth();
+  const mayExport = can('export.data') && canExportData();
   const [mode, setMode] = useState<'machine' | 'party'>('machine');
   const [product, setProduct] = useState('');
   const [serial, setSerial] = useState('');
@@ -104,6 +114,7 @@ export function Lookup() {
   const [coverKind, setCoverKind] = useState<CoverFilter | null>(null);
   const [coverRows, setCoverRows] = useState<Row[] | null>(null);
   const [coverLabel, setCoverLabel] = useState('');
+  const [coverNarrow, setCoverNarrow] = useState<{ product?: string; party?: string }>({});
 
   const onDb = supabaseConfigured();
   // REAL DROPDOWNS, FROM THE REGISTER. There are dozens of products, not
@@ -218,7 +229,8 @@ export function Lookup() {
     if (coverKind === kind) { setCoverKind(null); setCoverRows(null); return; }
     const narrow = mode === 'machine' ? { product } : { party: narrowParty };
     setCoverLabel(narrowedBy);
-    setBusy(kind === 'expiring' ? 'Finding the cover about to lapse…' : 'Finding the machines in OGP…');
+    setCoverNarrow(narrow);
+    setBusy(`Finding ${coverFilterLabel(kind, todayISO()).toLowerCase()}…`);
     setMsg(''); setParty(null); setFound(null); setPartyHits(null); setCoverKind(kind); setCoverRows(null);
     try {
       const rows = await sbListMachinesByCover(kind, todayISO(), narrow);
@@ -253,16 +265,14 @@ export function Lookup() {
         <button className={`chip ${mode === 'machine' ? 'chip-on' : ''}`} onClick={() => setMode('machine')}>By product / serial</button>
         <button className={`chip ${mode === 'party' ? 'chip-on' : ''}`} onClick={() => setMode('party')}>By party</button>
         <span className="spacer" />
-        <button className={`chip ${coverKind === 'expiring' ? 'chip-on' : ''}`} disabled={!!busy || !onDb}
-          title={`A warranty or contract active today that ends by ${fmtLongDate(endOfNextMonth(todayISO()))}, across the whole Product Database${narrowedBy}`}
-          onClick={() => void runCover('expiring')}>
-          ⏳ Expiring by {fmtLongDate(endOfNextMonth(todayISO()))}
-        </button>
-        <button className={`chip ${coverKind === 'ogp' ? 'chip-on' : ''}`} disabled={!!busy || !onDb}
-          title={`Machines whose cover today is OGP, across the whole Product Database${narrowedBy}`}
-          onClick={() => void runCover('ogp')}>
-          OGP
-        </button>
+        {(['all', 'this_month', 'next_month', 'ogp'] as CoverFilter[]).map((k) => (
+          <button key={k} className={`chip ${coverKind === k ? 'chip-on' : ''}`} disabled={!!busy || !onDb}
+            title={`${coverFilterLabel(k, todayISO())}, across the whole Product Database${narrowedBy}`}
+            onClick={() => void runCover(k)}>
+            {k === 'all' ? 'All' : k === 'this_month' ? `⏳ Expiring this month (${MONTH_NAME(monthBounds(todayISO(), 0).from)})`
+              : k === 'next_month' ? `⏳ Expiring next month (${MONTH_NAME(monthBounds(todayISO(), 1).from)})` : 'OGP'}
+          </button>
+        ))}
       </div>
 
       <div className="lk-search">
@@ -312,21 +322,32 @@ export function Lookup() {
       {coverKind && coverRows && !party && (
         <>
           <h4 className="lk-sub">
-            {coverRows.length} machine{coverRows.length === 1 ? '' : 's'}{coverLabel}{' '}
-            {coverKind === 'expiring'
-              ? `with a warranty or contract ending between ${fmtLongDate(todayISO())} and ${fmtLongDate(endOfNextMonth(todayISO()))}`
-              : 'in OGP today'}
+            {coverRows.length} machine{coverRows.length === 1 ? '' : 's'}{coverLabel} · {coverFilterLabel(coverKind, todayISO())}
+            {/* THE EQUIPMENT LIST, printable to PDF (the user, 2026-10-15),
+                for a role that may export data -- the same rows, re-read by the
+                print page so the file and the screen agree. */}
+            {mayExport && coverRows.length > 0 && (
+              <button className="btn btn-sm" style={{ marginLeft: 8 }}
+                onClick={() => navigate(`/equipment-list?${new URLSearchParams({ kind: coverKind,
+                  ...(coverNarrow.product ? { product: coverNarrow.product } : {}),
+                  ...(coverNarrow.party ? { party: coverNarrow.party } : {}) }).toString()}`)}>
+                📄 Equipment List (PDF)
+              </button>
+            )}
             <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => { setCoverKind(null); setCoverRows(null); }}>✕ Clear</button>
           </h4>
           <DataTable<Row>
-            columns={coverKind === 'expiring' ? [...FOUND_COLUMNS.slice(0, 4), EXPIRING_COLUMN, ...FOUND_COLUMNS.slice(4)] : FOUND_COLUMNS}
+            columns={coverKind === 'this_month' || coverKind === 'next_month'
+              ? (() => { const w = monthBounds(todayISO(), coverKind === 'this_month' ? 0 : 1);
+                         return [...FOUND_COLUMNS.slice(0, 4), endingColumn(w.from, w.to), ...FOUND_COLUMNS.slice(4)]; })()
+              : FOUND_COLUMNS}
             rows={coverRows}
             getRowId={(r) => r.id}
             storageKey={`lookupCover.${coverKind}`}
             dense
             rowsBeforeScroll={12}
             onRowClick={(r) => void openParty(g(r, 'Party Name'))}
-            emptyText={coverKind === 'expiring' ? 'No warranty or contract is ending in that window.' : 'No machine is in OGP today.'}
+            emptyText={coverKind === 'ogp' ? 'No machine is in OGP today.' : coverKind === 'all' ? 'No machine is on record.' : 'No warranty or contract ends in that month.'}
           />
         </>
       )}
