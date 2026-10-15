@@ -153,6 +153,9 @@ const MODULES = {
             // the Field Failure Register's CAPA list. A column and its tidy
             // trigger only, so anywhere before the tail is right.
             '0408_user_tags.sql',
+            // One address corrected everywhere, login included (0444). Data
+            // only, and nothing to find on a freshly built database.
+            '0444_email_harshvardhan_corrected.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
