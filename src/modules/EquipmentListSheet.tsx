@@ -78,6 +78,9 @@ export function partyFacts(p: Row): [string, string][] {
   return out;
 }
 
+// "AIR LIQUIDE MEDICAL SYSTEMS PVT. LTD." -> "Air Liquide Medical Systems Pvt. Ltd."
+const titleCase = (v: string) => v.toLowerCase().replace(/(^|[\s.])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase());
+
 export function EquipmentListSheet({ party, rows, meta }: { party: Row; rows: Row[]; meta: EquipmentListMeta }) {
   const cols = 11 + (meta.ending ? 1 : 0) + (meta.showEngineer ? 1 : 0);
   const on = (active: boolean, text: string) => (active && text ? <span className="el-on">{text}</span> : text);
@@ -90,17 +93,19 @@ export function EquipmentListSheet({ party, rows, meta }: { party: Row; rows: Ro
   // spacers of their height -- repeated on every page, so nothing runs under
   // them. The party is the first thing in that content, so it prints once;
   // the machines are a table of their own whose column headings repeat.
+  // THE HEADER, MINIMAL (the user, 2026-10-15: "lose the table like look in
+  // the header, make it look more professional and Minimalistic. Choose a font
+  // to make it look elegant"): the FFR's content -- the logo, the company and
+  // the department, the document's name -- without its boxes; a hairline
+  // beneath. The page number is the printer's, in the foot of every page.
   const header = (
-    <table className="el-ffrhead">
-      <tbody>
-        <tr>
-          <td className="el-h-logo" rowSpan={2}><img src={COMPANY_LOGO} alt="Air Liquide Medical Systems" /></td>
-          <td className="el-h-mid">{FFR_HEADER.org}<br />{FFR_HEADER.dept}</td>
-          <td className="el-h-page" rowSpan={2}>{FFR_HEADER.pageLabel}</td>
-        </tr>
-        <tr><td className="el-h-mid el-h-title">{EQUIPMENT_LIST_TITLE}</td></tr>
-      </tbody>
-    </table>
+    <div className="el-head">
+      <img className="el-head-logo" src={COMPANY_LOGO} alt="Air Liquide Medical Systems" />
+      <div className="el-head-text">
+        <div className="el-head-title">{EQUIPMENT_LIST_TITLE}</div>
+        <div className="el-head-org">{titleCase(FFR_HEADER.org)} · {titleCase(FFR_HEADER.dept)}</div>
+      </div>
+    </div>
   );
   return (
     <>

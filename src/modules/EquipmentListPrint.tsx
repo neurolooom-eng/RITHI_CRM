@@ -75,7 +75,7 @@ export function EquipmentListPrint() {
     <div className="el-page">
       {/* The FFR header's PAGE NO: box is numbered by the printer: a web page
           cannot count its own sheets. */}
-      <style>{'@media print { @page { size: A4 landscape; margin: 8mm 8mm 12mm; @bottom-right { content: "PAGE NO: " counter(page) " of " counter(pages); font: 8pt Arial, sans-serif; } } }'}</style>
+      <style>{`@media print { @page { size: A4 landscape; margin: 8mm 8mm 12mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 7pt 'Source Sans 3', Arial, sans-serif; color: #5b6673; } } }`}</style>
       <div className="el-toolbar">
         {back}
         <button className="btn btn-sm btn-primary" onClick={() => {

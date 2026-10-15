@@ -2543,9 +2543,14 @@ console.log('\n-- cover today, and what is about to lapse --');
   const elp = readFileSync('src/modules/EquipmentListPrint.tsx', 'utf8');
   // The FIELD FAILURE REPORT's header with this document's name, the party
   // first, and the FFR's own property notice as the footer (the user, 2026-10-15).
-  eq('the Equipment List carries the FFR header, titled EQUIPMENT LIST',
-    /src=\{COMPANY_LOGO\}/.test(el) && /FFR_HEADER\.org/.test(el) && /FFR_HEADER\.pageLabel/.test(el)
-    && /EQUIPMENT_LIST_TITLE = 'EQUIPMENT LIST'/.test(el), true);
+  // MINIMAL since v0.10.203 (the user: "lose the table like look in the
+  // header"): the FFR's content -- logo, company, department, the name --
+  // without its boxes, in Cormorant Garamond.
+  eq('the Equipment List header: the logo, EQUIPMENT LIST and the company, no boxes',
+    /src=\{COMPANY_LOGO\}/.test(el) && /FFR_HEADER\.org/.test(el) && /FFR_HEADER\.dept/.test(el)
+    && /EQUIPMENT_LIST_TITLE = 'EQUIPMENT LIST'/.test(el) && /className="el-head"/.test(el) && !/el-ffrhead/.test(el), true);
+  eq('...set in an elegant face, with fallbacks',
+    /\.el-head-title \{[^}]*'Cormorant Garamond', Georgia/.test(readFileSync('src/modules/equipmentlist.css', 'utf8')), true);
   // The party ONCE, outside the table; Current Status beside the Serial; no OT
   // Number (the user, 2026-10-15).
   eq('...the party\'s details once, outside and before the table',

@@ -1,3 +1,8 @@
+/* THE TYPE (the user, 2026-10-15: "Choose a font to make it look elegant"):
+   Cormorant Garamond for the document's name and the party's, Source Sans 3
+   for everything read in quantity. Fallbacks keep it composed offline. */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Source+Sans+3:wght@400;600;700&display=swap');
+
 /* ---------------------------------------------------------------------------
    THE EQUIPMENT LIST (Product & Party Search's export, 2026-10-15): A4
    landscape, the header (logo, title, CONFIDENTIAL INFORMATION, who and when)
@@ -14,32 +19,37 @@
   width: 297mm; min-height: 210mm; margin: 0 auto; padding: 8mm;
   background: #fff; color: #111; box-sizing: border-box;
   box-shadow: 0 2px 12px rgba(0,0,0,.35);
-  font-family: Arial, Helvetica, sans-serif; font-size: 8pt;
+  font-family: 'Source Sans 3', 'Segoe UI', Arial, sans-serif; font-size: 8pt;
 }
 .el-table { width: 100%; border-collapse: collapse; }
 .el-table th, .el-table td { border: 1px solid #9aa3ad; padding: 3px 4px; text-align: left; vertical-align: top; overflow-wrap: normal; word-break: normal; }
 /* Numbers, dates and codes never break; text wraps only at a space. */
 .el-table .el-nw { white-space: nowrap; }
 .el-party { margin: 3mm 0; }
-/* THE FIELD FAILURE REPORT'S HEADER (ffr.css), title EQUIPMENT LIST. */
-.el-ffrhead { width: 100%; border-collapse: collapse; table-layout: fixed; font-weight: 400; }
-.el-ffrhead td { border: 1px solid #000 !important; padding: 3px 6px; vertical-align: middle; text-align: center !important; font-family: 'Times New Roman', Times, serif; font-size: 11pt; }
-.el-ffrhead .el-h-logo { width: 21%; }
-.el-ffrhead .el-h-mid { width: 62%; font-weight: 700; }
-.el-ffrhead .el-h-page { width: 17%; font-weight: 700; }
-.el-ffrhead .el-h-logo img { max-width: 100%; max-height: 12mm; object-fit: contain; }
-.el-ffrhead .el-h-title { font-weight: 700; letter-spacing: .04em; }
+/* THE HEADER, MINIMAL: the logo, the document's name and the company, a
+   hairline beneath -- no boxes. */
+.el-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8mm;
+  padding: 0 0 3mm; border-bottom: 0.6pt solid #1c2b3a; background: #fff;
+}
+.el-head-logo { height: 11mm; width: auto; object-fit: contain; }
+.el-head-text { text-align: right; }
+.el-head-title {
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  font-size: 20pt; font-weight: 600; letter-spacing: .14em; color: #1c2b3a; line-height: 1.05;
+}
+.el-head-org { font-size: 8pt; letter-spacing: .06em; color: #5b6673; margin-top: 1mm; }
 /* THE PARTY, before the table: every detail the Party Master holds. */
-.el-party-name { font-size: 12pt; font-weight: 700; color: #0a3d91; margin-bottom: 1.5mm; text-align: left; }
+.el-party-name { font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; font-size: 16pt; font-weight: 600; color: #1c2b3a; margin-bottom: 1.5mm; text-align: left; letter-spacing: .02em; }
 .el-party-facts {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1mm 6mm;
-  text-align: left; border: 1px solid #c5ccd4; padding: 2mm 3mm; margin-bottom: 2mm;
+  text-align: left; border-top: 0.6pt solid #d5dbe1; border-bottom: 0.6pt solid #d5dbe1; padding: 2mm 0; margin-bottom: 2mm;
 }
 .el-fact { display: flex; flex-direction: column; min-width: 0; }
 .el-fact span { font-size: 6.5pt; color: #555; text-transform: uppercase; letter-spacing: .04em; }
 .el-fact b { font-size: 8pt; font-weight: 600; overflow-wrap: anywhere; }
 .el-meta { display: flex; flex-wrap: wrap; gap: 2mm 8mm; font-size: 8pt; font-weight: 400; color: #333; text-align: left; }
-.el-cols th { background: #0a3d91; color: #fff; font-weight: 700; }
+.el-cols th { background: #1c2b3a; color: #fff; font-weight: 600; letter-spacing: .02em; }
 .el-n { width: 7mm; text-align: right !important; }
 .el-on { display: inline-block; white-space: nowrap; background: #2e7d32; color: #fff; font-weight: 700; padding: 0 3px; border-radius: 2px; }
 .el-empty { text-align: center !important; padding: 8mm !important; }
@@ -51,8 +61,9 @@
 .el-frame { width: 100%; border-collapse: collapse; }
 .el-frame > thead > tr > td, .el-frame > tfoot > tr > td, .el-frame > tbody > tr > td { padding: 0; border: none; }
 .el-fixed-foot {
-  border-top: 1px solid #000; padding-top: 2mm; margin-top: 3mm;
-  font-family: 'Times New Roman', Times, serif; font-size: 8pt; text-align: center; color: #000;
+  border-top: 0.6pt solid #1c2b3a; padding-top: 2mm; margin-top: 3mm;
+  font-family: 'Source Sans 3', 'Segoe UI', Arial, sans-serif; font-size: 7pt; letter-spacing: .02em;
+  text-align: center; color: #5b6673; font-style: italic;
 }
 .el-sheet { display: flex; flex-direction: column; }
 .el-sheet > .el-fixed-head { order: 0; }
@@ -67,7 +78,7 @@
   .el-sheet { display: block; }
   .el-fixed-head { position: fixed; top: 0; left: 0; right: 0; }
   .el-fixed-foot { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; background: #fff; }
-  .el-head-space { height: 24mm; }
+  .el-head-space { height: 20mm; }
   .el-foot-space { height: 12mm; }
   .el-frame > thead { display: table-header-group; }
   .el-frame > tfoot { display: table-footer-group; }
