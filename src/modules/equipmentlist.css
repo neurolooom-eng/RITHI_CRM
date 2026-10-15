@@ -63,8 +63,10 @@
 .el-fixed-foot {
   border-top: 0.6pt solid #1c2b3a; padding-top: 2mm; margin-top: 3mm;
   font-family: 'Source Sans 3', 'Segoe UI', Arial, sans-serif; font-size: 7pt; letter-spacing: .02em;
-  text-align: center; color: #5b6673; font-style: italic;
+  text-align: center; color: #5b6673;
 }
+.el-foot-gen { font-style: normal; color: #1c2b3a; margin-bottom: 0.8mm; }
+.el-foot-notice { font-style: italic; }
 .el-sheet { display: flex; flex-direction: column; }
 .el-sheet > .el-fixed-head { order: 0; }
 .el-sheet > .el-frame { order: 1; }
@@ -79,7 +81,7 @@
   .el-fixed-head { position: fixed; top: 0; left: 0; right: 0; }
   .el-fixed-foot { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; background: #fff; }
   .el-head-space { height: 20mm; }
-  .el-foot-space { height: 12mm; }
+  .el-foot-space { height: 16mm; }
   .el-frame > thead { display: table-header-group; }
   .el-frame > tfoot { display: table-footer-group; }
   .el-toolbar { display: none !important; }
