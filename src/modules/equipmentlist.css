@@ -42,16 +42,35 @@
 .el-cols th { background: #0a3d91; color: #fff; font-weight: 700; }
 .el-n { width: 7mm; text-align: right !important; }
 .el-on { display: inline-block; white-space: nowrap; background: #2e7d32; color: #fff; font-weight: 700; padding: 0 3px; border-radius: 2px; }
-.el-footcell {
-  border: none !important; border-top: 1px solid #000 !important; padding-top: 2mm !important;
-  font-family: 'Times New Roman', Times, serif; font-size: 8pt; text-align: center !important; color: #000;
-}
 .el-empty { text-align: center !important; padding: 8mm !important; }
 .el-missing { max-width: 210mm; margin: 0 auto; background: #fff; padding: 20mm; border-radius: 4px; color: #000; }
 .el-sheet, .el-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
+/* THE FRAME: on screen the header sits at the top and the footer at the
+   foot, and the spacers take no room. */
+.el-frame { width: 100%; border-collapse: collapse; }
+.el-frame > thead > tr > td, .el-frame > tfoot > tr > td, .el-frame > tbody > tr > td { padding: 0; border: none; }
+.el-fixed-foot {
+  border-top: 1px solid #000; padding-top: 2mm; margin-top: 3mm;
+  font-family: 'Times New Roman', Times, serif; font-size: 8pt; text-align: center; color: #000;
+}
+.el-sheet { display: flex; flex-direction: column; }
+.el-sheet > .el-fixed-head { order: 0; }
+.el-sheet > .el-frame { order: 1; }
+.el-sheet > .el-fixed-foot { order: 2; }
+
 @media print {
   .el-page { background: #fff; padding: 0; }
+  /* PRINTED, the header and the footer are fixed -- painted on every page --
+     and the frame's empty head and foot, repeated on every page, keep the
+     content clear of them. */
+  .el-sheet { display: block; }
+  .el-fixed-head { position: fixed; top: 0; left: 0; right: 0; }
+  .el-fixed-foot { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; background: #fff; }
+  .el-head-space { height: 24mm; }
+  .el-foot-space { height: 12mm; }
+  .el-frame > thead { display: table-header-group; }
+  .el-frame > tfoot { display: table-footer-group; }
   .el-toolbar { display: none !important; }
   .el-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
   .el-table thead { display: table-header-group; }

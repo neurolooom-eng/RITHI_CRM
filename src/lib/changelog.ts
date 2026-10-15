@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.202',
+    date: '2026-10-15',
+    title: 'Equipment List: header and footer on every page; Service Engineer optional',
+    changes: [
+      'The FFR header and the property notice now print on every page of the Equipment List. The party\'s details still print once, under the header on the first page.',
+      'The Service Engineer column is no longer included by default. Tick Include Service Engineer on the print page to add it.',
+    ],
+  },
+  {
     version: '0.10.201',
     date: '2026-10-15',
     title: 'Equipment List: party details once, Current Status beside Serial, no OT Number',
