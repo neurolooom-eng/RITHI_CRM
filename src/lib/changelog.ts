@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.205',
+    date: '2026-10-15',
+    title: 'Product & Party Search: filters need a party, or a product and serial',
+    changes: [
+      'All, Expiring this month, Expiring next month and OGP now work only once you have chosen a party (By party), or a product and its serial number (By product / serial). Until then they are greyed out with a note saying what to choose.',
+      'The filters then cover that party\'s machines, or that product and serial.',
+    ],
+  },
+  {
     version: '0.10.204',
     date: '2026-10-15',
     title: 'Equipment List: who generated it and when, in the footer',

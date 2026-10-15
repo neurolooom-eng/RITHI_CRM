@@ -2535,6 +2535,10 @@ console.log('\n-- cover today, and what is about to lapse --');
     && /key: 'Transfer Ref', header: 'OT Number'/.test(lk), true);
   eq('...highlights the cover in force, in GREEN', /className="lk-cover-on"/.test(lk)
     && /\.lk-cover-on \{[^}]*background: #2e7d32/.test(readFileSync('src/modules/fieldcalls.css', 'utf8')), true);
+  // ONLY WITH A PARTY, OR A PRODUCT AND ITS SERIAL (the user, 2026-10-15).
+  eq('...the filters need a party, or a product and its serial; greyed out with a hint until then',
+    /const canFilter = mode === 'party' \? !!narrowParty : !!\(product\.trim\(\) && serial\.trim\(\)\);/.test(lk)
+    && /disabled=\{!!busy \|\| !onDb \|\| !canFilter\}/.test(lk) && /\{filterHint\} to use the filters/.test(lk), true);
   eq('...and filters the whole register: All, this month, next month, OGP',
     /sbListMachinesByCover\(kind, todayISO\(\), narrow\)/.test(lk) && /\['all', 'this_month', 'next_month', 'ogp'\]/.test(lk), true);
   // THE EQUIPMENT LIST (PDF): logo, the title, CONFIDENTIAL in the header and

@@ -226,10 +226,17 @@ export function Lookup() {
   const narrowParty = mode === 'party' ? (g(party ?? {}, 'party_name') || partyQ.trim()) : '';
   const openEquipmentList = (kind: CoverFilter, partyName: string) =>
     navigate(`/equipment-list?${new URLSearchParams({ kind, party: partyName }).toString()}`);
-  const narrowedBy = mode === 'machine' ? (product ? ` of ${product}` : '') : (narrowParty ? ` at ${narrowParty}` : '');
+  // THE FILTERS NEED A PARTY, OR A PRODUCT AND ITS SERIAL (the user,
+  // 2026-10-15: "I want those filters to work only when the party is choosen
+  // or the product+serial no is filtered"; asked: product AND serial; until
+  // then greyed out with a hint).
+  const canFilter = mode === 'party' ? !!narrowParty : !!(product.trim() && serial.trim());
+  const filterHint = mode === 'party' ? 'Choose a party first' : 'Choose a product and its serial number first';
+  const narrowedBy = mode === 'machine' ? (product ? ` of ${product}${serial ? ` · ${serial}` : ''}` : '') : (narrowParty ? ` at ${narrowParty}` : '');
   const runCover = async (kind: CoverFilter) => {
     if (coverKind === kind) { setCoverKind(null); setCoverRows(null); return; }
-    const narrow = mode === 'machine' ? { product } : { party: narrowParty };
+    if (!canFilter) return;
+    const narrow = mode === 'machine' ? { product, serial } : { party: narrowParty };
     setCoverLabel(narrowedBy);
     setCoverNarrow(narrow);
     setBusy(`Finding ${coverFilterLabel(kind, todayISO()).toLowerCase()}…`);
@@ -267,9 +274,11 @@ export function Lookup() {
         <button className={`chip ${mode === 'machine' ? 'chip-on' : ''}`} onClick={() => setMode('machine')}>By product / serial</button>
         <button className={`chip ${mode === 'party' ? 'chip-on' : ''}`} onClick={() => setMode('party')}>By party</button>
         <span className="spacer" />
+        {/* A visible hint too: a phone has no hover to show the title. */}
+        {onDb && !canFilter && <span className="muted" style={{ fontSize: 12 }}>{filterHint} to use the filters</span>}
         {(['all', 'this_month', 'next_month', 'ogp'] as CoverFilter[]).map((k) => (
-          <button key={k} className={`chip ${coverKind === k ? 'chip-on' : ''}`} disabled={!!busy || !onDb}
-            title={`${coverFilterLabel(k, todayISO())}, across the whole Product Database${narrowedBy}`}
+          <button key={k} className={`chip ${coverKind === k ? 'chip-on' : ''}`} disabled={!!busy || !onDb || !canFilter}
+            title={canFilter ? `${coverFilterLabel(k, todayISO())}${narrowedBy}` : filterHint}
             onClick={() => void runCover(k)}>
             {k === 'all' ? 'All' : k === 'this_month' ? `⏳ Expiring this month (${MONTH_NAME(monthBounds(todayISO(), 0).from)})`
               : k === 'next_month' ? `⏳ Expiring next month (${MONTH_NAME(monthBounds(todayISO(), 1).from)})` : 'OGP'}
