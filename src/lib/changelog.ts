@@ -14,6 +14,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.207',
+    date: '2026-10-15',
+    title: 'Equipment List: the party in the header of every page',
+    changes: [
+      'The party\'s name, city and state now sit in the header of every page, between the logo and EQUIPMENT LIST, so a page 2 or 3 still says whose list it is.',
+      'The Service Engineer is no longer shown with the party\'s details.',
+    ],
+  },
+  {
     version: '0.10.206',
     date: '2026-10-15',
     title: 'Equipment List: A4 landscape by default, no empty last page, end marked',

@@ -33,6 +33,13 @@
   padding: 0 0 3mm; border-bottom: 0.6pt solid #1c2b3a; background: #fff;
 }
 .el-head-logo { height: 11mm; width: auto; object-fit: contain; }
+/* The party, centred between the logo and the title, on every page. */
+.el-head-party { flex: 1; text-align: center; min-width: 0; }
+.el-head-party-name {
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  font-size: 15pt; font-weight: 600; color: #1c2b3a; letter-spacing: .02em; line-height: 1.1;
+}
+.el-head-party-place { font-size: 8pt; letter-spacing: .08em; text-transform: uppercase; color: #5b6673; margin-top: 0.8mm; }
 .el-head-text { text-align: right; }
 .el-head-title {
   font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
@@ -40,7 +47,6 @@
 }
 .el-head-org { font-size: 8pt; letter-spacing: .06em; color: #5b6673; margin-top: 1mm; }
 /* THE PARTY, before the table: every detail the Party Master holds. */
-.el-party-name { font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; font-size: 16pt; font-weight: 600; color: #1c2b3a; margin-bottom: 1.5mm; text-align: left; letter-spacing: .02em; }
 .el-party-facts {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1mm 6mm;
   text-align: left; border-top: 0.6pt solid #d5dbe1; border-bottom: 0.6pt solid #d5dbe1; padding: 2mm 0; margin-bottom: 2mm;

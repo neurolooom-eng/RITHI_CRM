@@ -2579,6 +2579,12 @@ console.log('\n-- cover today, and what is about to lapse --');
     /@page equipment-list \{ size: A4 landscape;/.test(elp) && /\.el-sheet \{ display: block; page: equipment-list; \}/.test(elcss), true);
   eq('...no empty page after the list', /\.el-page \{ background: #fff; padding: 0; min-height: 0; height: auto; \}/.test(elcss), true);
   eq('...and the end of the document marked', /className="el-end">— End of document/.test(el), true);
+  // THE PARTY IN THE HEADER OF EVERY PAGE; no Service Engineer in the party's
+  // details (the user, 2026-10-15).
+  eq('...the party\'s name, city and state in the header of every page',
+    /const header = \([\s\S]*el-head-party-name">\{s\(party, 'party_name'\)\}[\s\S]*el-head-party-place/.test(el), true);
+  eq('...and not repeated, nor the Service Engineer, in the party\'s details',
+    /'service_engineer', 'city', 'state'\]\);/.test(el) && /serviceengineer/.test(el) && !/el-party-name/.test(el), true);
   eq('...Service Engineer only when chosen, off by default',
     /\{meta\.showEngineer && <th>Service Engineer<\/th>\}/.test(el)
     && /useState\(false\);[\s\S]*Include Service Engineer/.test(elp), true);

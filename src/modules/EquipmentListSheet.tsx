@@ -49,15 +49,23 @@ export const EQUIPMENT_LIST_TITLE = 'EQUIPMENT LIST';
 // follows under its own name, so ALL the available information is on the page.
 const PARTY_FIELDS: [string, string][] = [
   ['party_key', 'Party Key'], ['party_type', 'Type'], ['profile', 'Profile'],
-  ['address', 'Address'], ['city', 'City'], ['state', 'State'], ['pincode', 'Pincode'], ['country', 'Country'],
+  ['address', 'Address'], ['pincode', 'Pincode'], ['country', 'Country'],
   ['phone', 'Phone'], ['phone_2', 'Phone 2'], ['fax', 'Fax'], ['email', 'Email'],
   ['billing_address', 'Billing Address'], ['billing_pincode', 'Billing Pincode'], ['billing_phone', 'Billing Phone'],
   ['billing_phone_2', 'Billing Phone 2'], ['billing_fax', 'Billing Fax'], ['billing_email', 'Billing Email'],
-  ['gstin', 'GSTIN'], ['pan', 'PAN'], ['service_engineer', 'Service Engineer'], ['route', 'Route'],
+  ['gstin', 'GSTIN'], ['pan', 'PAN'], ['route', 'Route'],
   ['kyc_status', 'KYC Status'], ['kyc_verified_by', 'KYC Verified By'], ['kyc_verified_at', 'KYC Verified On'], ['kyc_notes', 'KYC Notes'],
 ];
-// Kept off the page: keys and plumbing, not facts about the party.
-const PARTY_SKIP = new Set(['id', 'party_name', 'name_key', 'extra', 'kyc_docs', 'created_at', 'updated_at']);
+// Kept off the page: keys and plumbing, not facts about the party -- and,
+// since the user's word on 2026-10-15, the SERVICE ENGINEER ("Don't add service
+// engineer details along with Party details") and the party's NAME, CITY and
+// STATE, which are in the HEADER of every page instead.
+const PARTY_SKIP = new Set(['id', 'party_name', 'name_key', 'extra', 'kyc_docs', 'created_at', 'updated_at',
+  'service_engineer', 'city', 'state']);
+// The same, for the details the party's own file carried (`extra`), compared
+// squashed: "Service Engineer", "SERVICE ENGINEER", "service_engineer".
+const EXTRA_SKIP = new Set(['serviceengineer', 'city', 'state', 'partyname']);
+const squash = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /** Every non-empty fact about the party, labelled, in reading order. */
 export function partyFacts(p: Row): [string, string][] {
@@ -74,7 +82,7 @@ export function partyFacts(p: Row): [string, string][] {
   Object.keys(p).filter((k) => !PARTY_SKIP.has(k) && !isSysColumn(k) && !PARTY_FIELDS.some(([f]) => f === k))
     .forEach((k) => add(k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), p[k]));
   const extra = (p.extra ?? {}) as Row;
-  Object.keys(extra).sort().forEach((k) => add(k, typeof extra[k] === 'object' ? JSON.stringify(extra[k]) : extra[k]));
+  Object.keys(extra).sort().filter((k) => !EXTRA_SKIP.has(squash(k))).forEach((k) => add(k, typeof extra[k] === 'object' ? JSON.stringify(extra[k]) : extra[k]));
   return out;
 }
 
@@ -98,9 +106,17 @@ export function EquipmentListSheet({ party, rows, meta }: { party: Row; rows: Ro
   // to make it look elegant"): the FFR's content -- the logo, the company and
   // the department, the document's name -- without its boxes; a hairline
   // beneath. The page number is the printer's, in the foot of every page.
+  // THE PARTY IN THE HEADER, ON EVERY PAGE (the user, 2026-10-15: "Move the
+  // party name to header - Party Name, City, State reason being in Page 2
+  // onwards I am not able to trace which party it belongs to").
+  const place = [s(party, 'city'), s(party, 'state')].filter(Boolean).join(', ');
   const header = (
     <div className="el-head">
       <img className="el-head-logo" src={COMPANY_LOGO} alt="Air Liquide Medical Systems" />
+      <div className="el-head-party">
+        <div className="el-head-party-name">{s(party, 'party_name')}</div>
+        {place && <div className="el-head-party-place">{place}</div>}
+      </div>
       <div className="el-head-text">
         <div className="el-head-title">{EQUIPMENT_LIST_TITLE}</div>
         <div className="el-head-org">{titleCase(FFR_HEADER.org)} · {titleCase(FFR_HEADER.dept)}</div>
@@ -122,7 +138,6 @@ export function EquipmentListSheet({ party, rows, meta }: { party: Row; rows: Ro
         <tfoot><tr><td><div className="el-foot-space" /></td></tr></tfoot>
         <tbody><tr><td>
           <div className="el-party">
-            <div className="el-party-name">{s(party, 'party_name')}</div>
             <div className="el-party-facts">
               {facts.map(([label, value]) => (
                 <div key={label} className="el-fact"><span>{label}</span><b>{value}</b></div>
