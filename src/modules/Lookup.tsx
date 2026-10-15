@@ -224,6 +224,8 @@ export function Lookup() {
   // The party a filter is narrowed to: the one open, else the name in the box
   // (a whole name -- the rows are matched on it exactly).
   const narrowParty = mode === 'party' ? (g(party ?? {}, 'party_name') || partyQ.trim()) : '';
+  const openEquipmentList = (kind: CoverFilter, partyName: string) =>
+    navigate(`/equipment-list?${new URLSearchParams({ kind, party: partyName }).toString()}`);
   const narrowedBy = mode === 'machine' ? (product ? ` of ${product}` : '') : (narrowParty ? ` at ${narrowParty}` : '');
   const runCover = async (kind: CoverFilter) => {
     if (coverKind === kind) { setCoverKind(null); setCoverRows(null); return; }
@@ -323,14 +325,12 @@ export function Lookup() {
         <>
           <h4 className="lk-sub">
             {coverRows.length} machine{coverRows.length === 1 ? '' : 's'}{coverLabel} · {coverFilterLabel(coverKind, todayISO())}
-            {/* THE EQUIPMENT LIST, printable to PDF (the user, 2026-10-15),
-                for a role that may export data -- the same rows, re-read by the
-                print page so the file and the screen agree. */}
-            {mayExport && coverRows.length > 0 && (
+            {/* THE EQUIPMENT LIST, printable to PDF (the user, 2026-10-15):
+                ONE PARTY's list, so offered only when the filter is narrowed to
+                a party, and only to a role that may export data. */}
+            {mayExport && coverRows.length > 0 && coverNarrow.party && (
               <button className="btn btn-sm" style={{ marginLeft: 8 }}
-                onClick={() => navigate(`/equipment-list?${new URLSearchParams({ kind: coverKind,
-                  ...(coverNarrow.product ? { product: coverNarrow.product } : {}),
-                  ...(coverNarrow.party ? { party: coverNarrow.party } : {}) }).toString()}`)}>
+                onClick={() => openEquipmentList(coverKind, coverNarrow.party ?? '')}>
                 📄 Equipment List (PDF)
               </button>
             )}
@@ -412,7 +412,15 @@ export function Lookup() {
             </div>
           </div>
 
-          <h4 className="lk-sub">{items.length} machine{items.length === 1 ? '' : 's'} at this party</h4>
+          <h4 className="lk-sub">
+            {items.length} machine{items.length === 1 ? '' : 's'} at this party
+            {mayExport && items.length > 0 && (
+              <button className="btn btn-sm" style={{ marginLeft: 8 }}
+                onClick={() => openEquipmentList('all', g(party, 'party_name'))}>
+                📄 Equipment List (PDF)
+              </button>
+            )}
+          </h4>
           <DataTable<Row>
             columns={can('calls.create') ? [{
               key: '_register', header: 'Register call', width: 130, sortable: false, wrap: false,

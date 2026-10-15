@@ -20,27 +20,32 @@
 .el-table th, .el-table td { border: 1px solid #9aa3ad; padding: 3px 4px; text-align: left; vertical-align: top; overflow-wrap: normal; word-break: normal; }
 /* Numbers, dates and codes never break; text wraps only at a space. */
 .el-table .el-nw { white-space: nowrap; }
-.el-headcell { border: none !important; padding: 0 0 4px !important; }
-.el-head {
-  display: grid; grid-template-columns: 46mm 1fr 52mm; align-items: center;
-  border-bottom: 2px solid #0a3d91; padding-bottom: 3mm; margin-bottom: 2mm;
+.el-headcell, .el-partycell { border: none !important; padding: 0 0 3mm !important; font-weight: 400; }
+/* THE FIELD FAILURE REPORT'S HEADER (ffr.css), title EQUIPMENT LIST. */
+.el-ffrhead { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.el-ffrhead td { border: 1px solid #000 !important; padding: 3px 6px; vertical-align: middle; text-align: center !important; font-family: 'Times New Roman', Times, serif; font-size: 11pt; }
+.el-ffrhead .el-h-logo { width: 21%; }
+.el-ffrhead .el-h-mid { width: 62%; font-weight: 700; }
+.el-ffrhead .el-h-page { width: 17%; font-weight: 700; }
+.el-ffrhead .el-h-logo img { max-width: 100%; max-height: 12mm; object-fit: contain; }
+.el-ffrhead .el-h-title { font-weight: 700; letter-spacing: .04em; }
+/* THE PARTY, before the table: every detail the Party Master holds. */
+.el-party-name { font-size: 12pt; font-weight: 700; color: #0a3d91; margin-bottom: 1.5mm; text-align: left; }
+.el-party-facts {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1mm 6mm;
+  text-align: left; border: 1px solid #c5ccd4; padding: 2mm 3mm; margin-bottom: 2mm;
 }
-.el-logo { max-height: 13mm; max-width: 44mm; object-fit: contain; }
-.el-title { text-align: center; font-size: 16pt; font-weight: 700; letter-spacing: .04em; color: #0a3d91; text-transform: uppercase; }
-.el-conf {
-  justify-self: end; border: 2px solid #b91c1c; color: #b91c1c; font-weight: 700;
-  padding: 2px 6px; font-size: 8.5pt; letter-spacing: .06em;
-}
-.el-meta { display: flex; flex-wrap: wrap; gap: 4mm 8mm; font-size: 8pt; font-weight: 400; color: #333; }
+.el-fact { display: flex; flex-direction: column; min-width: 0; }
+.el-fact span { font-size: 6.5pt; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+.el-fact b { font-size: 8pt; font-weight: 600; overflow-wrap: anywhere; }
+.el-meta { display: flex; flex-wrap: wrap; gap: 2mm 8mm; font-size: 8pt; font-weight: 400; color: #333; text-align: left; }
 .el-cols th { background: #0a3d91; color: #fff; font-weight: 700; }
 .el-n { width: 7mm; text-align: right !important; }
 .el-on { display: inline-block; white-space: nowrap; background: #2e7d32; color: #fff; font-weight: 700; padding: 0 3px; border-radius: 2px; }
 .el-footcell {
-  border: none !important; border-top: 2px solid #0a3d91 !important; padding-top: 2mm !important;
-  font-size: 7.5pt; color: #333; display: table-cell;
+  border: none !important; border-top: 1px solid #000 !important; padding-top: 2mm !important;
+  font-family: 'Times New Roman', Times, serif; font-size: 8pt; text-align: center !important; color: #000;
 }
-.el-footcell span { display: block; }
-.el-footcell span:first-child { font-weight: 700; color: #b91c1c; }
 .el-empty { text-align: center !important; padding: 8mm !important; }
 .el-missing { max-width: 210mm; margin: 0 auto; background: #fff; padding: 20mm; border-radius: 4px; color: #000; }
 .el-sheet, .el-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

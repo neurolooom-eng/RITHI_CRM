@@ -96,10 +96,12 @@ different totals. An empty register usually means access, not emptiness.
   > to narrow them, and click a filter again to clear it. A month is the whole
   > month, so *this month* includes cover that already ended earlier in it; the
   > **Ending** column says which cover ends and when.
-  > **📄 Equipment List (PDF)** on a filter's list opens the printable list — Air
-  > Liquide logo, EQUIPMENT LIST and CONFIDENTIAL INFORMATION on every page, who
-  > generated it and when, page numbers. Print it and choose *Save as PDF*. It
-  > needs *Export / download*, and every print is recorded in the audit log.
+  > **📄 Equipment List (PDF)** — one party's list, beside a party's machines (or
+  > on a filter run with that party open). The Field Failure Report's header
+  > titled EQUIPMENT LIST, the party's full details, who generated it and when,
+  > then the machines; the property notice at the foot of every page. Print it
+  > and choose *Save as PDF*. It needs *Export / download*, and every print is
+  > recorded in the audit log.
   > **It searches the copies of the machine register and the Party Master kept
   > on your device** (every column of both), so it
   > works with a weak or no signal. The machine copy is a **snapshot of the
