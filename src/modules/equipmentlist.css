@@ -20,9 +20,9 @@
 .el-table th, .el-table td { border: 1px solid #9aa3ad; padding: 3px 4px; text-align: left; vertical-align: top; overflow-wrap: normal; word-break: normal; }
 /* Numbers, dates and codes never break; text wraps only at a space. */
 .el-table .el-nw { white-space: nowrap; }
-.el-headcell, .el-partycell { border: none !important; padding: 0 0 3mm !important; font-weight: 400; }
+.el-party { margin: 3mm 0; }
 /* THE FIELD FAILURE REPORT'S HEADER (ffr.css), title EQUIPMENT LIST. */
-.el-ffrhead { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.el-ffrhead { width: 100%; border-collapse: collapse; table-layout: fixed; font-weight: 400; }
 .el-ffrhead td { border: 1px solid #000 !important; padding: 3px 6px; vertical-align: middle; text-align: center !important; font-family: 'Times New Roman', Times, serif; font-size: 11pt; }
 .el-ffrhead .el-h-logo { width: 21%; }
 .el-ffrhead .el-h-mid { width: 62%; font-weight: 700; }
@@ -55,6 +55,7 @@
   .el-toolbar { display: none !important; }
   .el-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
   .el-table thead { display: table-header-group; }
+  .el-party { page-break-inside: avoid; }
   .el-table tfoot { display: table-footer-group; }
   .el-table tr { page-break-inside: avoid; }
 }
