@@ -738,6 +738,9 @@ const MODULES = {
             // Indexes for the call-number, serial and newest-first lookups
             // (0381). Indexes only; no policy or function.
             '0381_feedback_lookup_indexes.sql',
+            // A second feedback on a call is kept under its counted key
+            // (0445). After 0186/0188, which create the key it rewrites.
+            '0445_feedback_count_key.sql',
             // The old FFR update sheet, loaded into the update log (0409).
             // Redefines 0174's ffr_history_write(), which is in THIS module,
             // so it must come after it; reads block_hard_delete() from here.

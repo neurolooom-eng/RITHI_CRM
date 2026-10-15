@@ -2267,7 +2267,13 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'kpi_field_inst' and column_name = 'Pending Days From'))),
     (358, 'Attended-within-N-days evidence carries every date behind the TTA', 'objective_evidence() (0443): for an attended-within-N-days objective each call''s details give Call Registration, Complaint, Breakdown, First Visit and First Visit Recorded Dates, the First Spare Request Date, Attended On, TTA Counted From, TTA (Days) and TTA ( R ). NO means the Objective 11 download lists the calls without the dates behind the TTA. Restore: objective.sql (0443)',
         coalesce((select p.prosrc like '%First Visit Recorded Date%' and p.prosrc like '%TTA ( R )%'
-                    from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))
+                    from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)),
+    (359, 'A second feedback on a call is kept under its counted key', 'feedback_key_stamp() on public.feedback (0445): the Visit Entry form''s feedback on a call that already has one is saved as <ucn>-2, -3 ...; the upload, which sends no key, still corrects the call''s own feedback. NO means a call solved again after a re-open answers "duplicate key value violates unique constraint feedback_ucn_key_uniq". Restore: data_integrity.sql (0445)',
+        (to_regclass('public.feedback') is null
+         or (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.feedback')
+                      and tgname = 'feedback_key_stamp' and not tgisinternal)
+             and not exists (select 1 from pg_attribute where attrelid = to_regclass('public.feedback')
+                              and attname = 'ucn_key' and attgenerated = 's'))))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

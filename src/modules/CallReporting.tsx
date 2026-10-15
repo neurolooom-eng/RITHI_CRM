@@ -222,7 +222,12 @@ export async function fileVisit(
       const answers: Record<string, unknown> = {};
       fbQuestions.forEach((q) => { const val = d.feedback[q.col]; if (val != null && String(val).trim() !== '') answers[q.col] = val; });
       if (isInstall && String(d.work[WARRANTY_Q] ?? '').trim()) answers[WARRANTY_Q] = d.work[WARRANTY_Q];
+      // SENDING A KEY ASKS FOR A NEW FEEDBACK ON THE CALL (0445, the user,
+      // 2026-10-15: "If it's a duplicate -- add the count along with the key"):
+      // a call solved again after a re-open gets 25l01p0232-2 rather than a
+      // refusal. The database works the key out; the value sent is not stored.
       const fb = await addFeedback({
+        ucn_key: ucn,
         ucn, call_number: callNumber, call_type: callType, engineer: d.engineer, engineer_email: d.engineerEmail,
         party_name: String(call.partyName ?? call['party_name'] ?? ''), state: String(call.state ?? ''), product_name: String(call.productName ?? ''),
         serial: String(call.serial ?? ''), complaint: String(call.complaintReported ?? ''),

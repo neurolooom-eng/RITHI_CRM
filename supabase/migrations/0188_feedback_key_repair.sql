@@ -68,7 +68,11 @@ begin
     v_expr := null;
   end if;
 
-  if v_expr is null then
+  -- Since 0445 the column is an ordinary one written by a trigger, so a
+  -- column with no expression is not a missing column.
+  if v_expr is null and not exists (select 1 from pg_attribute
+                                     where attrelid = 'public.feedback'::regclass
+                                       and attname = 'ucn_key' and not attisdropped) then
     execute $g$alter table public.feedback
       add column ucn_key text generated always as
         (coalesce(nullif(lower(btrim(coalesce(ucn, ''))), ''), 'row-' || id)) stored$g$;
@@ -94,11 +98,17 @@ begin
   --    second feedback for one call is a correction of the first. Blank-UCN
   --    rows are untouched -- they key off their own id now, so they are unique
   --    by construction and nobody's feedback is deleted to tidy an index.
+  --    ONLY while there is no total key: since 0445 a call may carry a
+  --    second feedback under a counted key, and it is not a duplicate.
   delete from public.feedback a
    using public.feedback b
    where lower(btrim(coalesce(a.ucn, ''))) = lower(btrim(coalesce(b.ucn, '')))
      and lower(btrim(coalesce(a.ucn, ''))) <> ''
-     and a.id < b.id;
+     and a.id < b.id
+     and not exists (select 1 from pg_index i
+                      where i.indrelid = 'public.feedback'::regclass
+                        and i.indisunique and i.indpred is null and i.indexprs is null
+                        and pg_get_indexdef(i.indexrelid) ilike '%(ucn_key)%');
   get diagnostics v_n = row_count;
   if v_n > 0 then
     raise notice '0188: % duplicate feedback row(s) superseded by the later entry', v_n;
