@@ -87,13 +87,19 @@ different totals. An empty register usually means access, not emptiness.
   > **Every machine shows its cover**: Warranty No / Start / End, Contract No /
   > Start / End / Type, **Current Item Status** and the **OT Number** of its
   > latest ownership transfer. The warranty details are **highlighted** while
-  > the warranty is in force today, the contract's while the contract is.
-  > Current Item Status is worked out **for today** from the dates (contract type,
-  > WGP, or OGP); hover it for the status the Product Database has stored.
-  > **⏳ Expiring** lists every machine whose warranty or contract is in force
-  > today and ends by the end of next month; **OGP** lists every machine in OGP
-  > today. Both search the whole Product Database — choose a product (or open a
-  > party) first to narrow them, and click a filter again to clear it.
+  > the warranty is in force today, the contract's while the contract is — in
+  > **green**. Current Item Status is worked out **for today** from the dates
+  > (contract type, WGP, or OGP); hover it for the status the Product Database
+  > has stored.
+  > **The filters — All, Expiring this month, Expiring next month, OGP** —
+  > search the whole Product Database; choose a product (or open a party) first
+  > to narrow them, and click a filter again to clear it. A month is the whole
+  > month, so *this month* includes cover that already ended earlier in it; the
+  > **Ending** column says which cover ends and when.
+  > **📄 Equipment List (PDF)** on a filter's list opens the printable list — Air
+  > Liquide logo, EQUIPMENT LIST and CONFIDENTIAL INFORMATION on every page, who
+  > generated it and when, page numbers. Print it and choose *Save as PDF*. It
+  > needs *Export / download*, and every print is recorded in the audit log.
   > **It searches the copies of the machine register and the Party Master kept
   > on your device** (every column of both), so it
   > works with a weak or no signal. The machine copy is a **snapshot of the

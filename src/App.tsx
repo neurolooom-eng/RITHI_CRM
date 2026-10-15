@@ -32,6 +32,7 @@ import { StockOut } from './modules/StockOut';
 import { FieldFailureReportPrint } from './modules/FieldFailureReportPrint';
 import { IndoorPdtPrint } from './modules/IndoorPdtPrint';
 import { IndoorRegisterPrint } from './modules/IndoorRegisterPrint';
+import { EquipmentListPrint } from './modules/EquipmentListPrint';
 import { IndoorDcPrint } from './modules/IndoorDcPrint';
 import { IndoorDcApprovals } from './modules/IndoorDcPanel';
 import { MtnPrint } from './modules/MtnPrint';
@@ -112,7 +113,8 @@ function Shell() {
       || location.pathname.startsWith('/ffr/')
       || location.pathname.startsWith('/indoor-pdt/') || location.pathname.startsWith('/indoor-register/')
       || location.pathname.startsWith('/indoor-dc/')
-      || location.pathname.startsWith('/mtn/') || location.pathname.startsWith('/mrn-print/')) {
+      || location.pathname.startsWith('/mtn/') || location.pathname.startsWith('/mrn-print/')
+      || location.pathname === '/equipment-list') {
     // THE PRINTED REPORT ANSWERS TO THE REGISTER'S OWN KEY (D-026). It used to
     // be reachable by URL by anybody signed in, so a role without the Field
     // Failure Register read every report row-level security let it see. The
@@ -157,6 +159,15 @@ function Shell() {
         </div>
       );
     }
+    // THE EQUIPMENT LIST (2026-10-15) answers to Product & Party Search's key,
+    // the screen that prints it; the page itself asks export.data.
+    if (location.pathname === '/equipment-list' && !can(actionForPath('/lookup'))) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to Product &amp; Party Search. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
     if (location.pathname.startsWith('/mrn-print/') && !can(actionForPath('/mrn'))) {
       return (
         <div style={{ padding: 32 }} className="muted">
@@ -180,6 +191,7 @@ function Shell() {
           <Route path="/indoor-dc/:dcNo" element={<IndoorDcPrint />} />
           <Route path="/mtn/:uid" element={<MtnPrint />} />
           <Route path="/mrn-print/:uid" element={<MrnPrint />} />
+          <Route path="/equipment-list" element={<EquipmentListPrint />} />
         </Routes>
       </ErrorBoundary>
     );

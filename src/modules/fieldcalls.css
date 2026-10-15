@@ -752,10 +752,10 @@ th.rbac-col-admin { color: var(--text-muted); }
 .call-status-hero .state-chip { font-size: 15px; padding: 5px 14px; font-weight: 700; }
 .call-status-hero-why { font-size: 13px; }
 
-/* Product & Party Search: the cover in force today (the user, 2026-10-15).
-   CONTRAST, the user's standing rule for a highlight: inverted against the
-   page, so it reads in either theme. */
+/* Product & Party Search: the cover in force today (the user, 2026-10-15:
+   "Highlight in Green"). A SOLID green with white text -- a saturated state
+   colour, never a tint -- the same in both themes, as a code must be. */
 .lk-cover-on {
   display: inline-block; padding: 1px 6px; border-radius: 4px;
-  background: var(--text); color: var(--surface); font-weight: 600;
+  background: #2e7d32; color: #ffffff; font-weight: 600;
 }
