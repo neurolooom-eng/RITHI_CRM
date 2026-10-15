@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader } from '../components/ui/ui';
 import { searchProducts, dataConfigured } from '../lib/sheets';
-import { partyByExactName, queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, sbSearchProductParties, supabaseConfigured, type ProductName } from '../lib/supabase';
+import { partyByExactName, queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, sbSearchProductParties, sbListMachinesByCover, supabaseConfigured, type CoverFilter, type ProductName } from '../lib/supabase';
+import { contractActive, currentItemStatus, endOfNextMonth, expiringCover, warrantyActive } from '../lib/coverToday';
+import { fmtLongDate, todayISO } from '../lib/format';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
@@ -27,13 +29,34 @@ type Party = Record<string, unknown>;
 
 const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '').trim();
 
+// THE COVER, ON EVERY ROW (the user, 2026-10-15: "Add Warranty No, Start Date,
+// End Date, Contract No, Start Date, End Date, Type, And Current Item Status,
+// OT Number if applicable. If warranty is Active then highlight those details,
+// if Contract is active highlight those details"). Current Item Status is worked
+// out for TODAY (coverToday.ts); the stored one can be days out of date. A
+// highlight is CONTRAST, the user's standing preference, not a tint.
+const TODAY = () => todayISO();
+const on = (active: boolean, v: unknown, date = false) => {
+  const text = date ? fmtLongDate(v) : String(v ?? '');
+  return active && text ? <span className="lk-cover-on">{text}</span> : text;
+};
+const COVER_COLUMNS: Column<Row>[] = [
+  { key: 'Warranty Number', header: 'Warranty No', width: 130, wrap: false, render: (r) => on(warrantyActive(r, TODAY()), r['Warranty Number']) },
+  { key: 'Warranty Start Date', header: 'Warranty Start', width: 120, wrap: false, render: (r) => on(warrantyActive(r, TODAY()), r['Warranty Start Date'], true) },
+  { key: 'Warranty End Date', header: 'Warranty End', width: 120, wrap: false, render: (r) => on(warrantyActive(r, TODAY()), r['Warranty End Date'], true) },
+  { key: 'Contract Number', header: 'Contract No', width: 130, wrap: false, render: (r) => on(contractActive(r, TODAY()), r['Contract Number']) },
+  { key: 'Contract Start Date', header: 'Contract Start', width: 120, wrap: false, render: (r) => on(contractActive(r, TODAY()), r['Contract Start Date'], true) },
+  { key: 'Contract End Date', header: 'Contract End', width: 120, wrap: false, render: (r) => on(contractActive(r, TODAY()), r['Contract End Date'], true) },
+  { key: 'Contract Type', header: 'Contract Type', width: 110, wrap: false, render: (r) => on(contractActive(r, TODAY()), r['Contract Type']) },
+  { key: '_currentStatus', header: 'Current Item Status', width: 120, wrap: false,
+    render: (r) => <b title={`Worked out for today from the dates; stored: ${String(r['Item Status'] ?? '') || '—'}`}>{currentItemStatus(r, TODAY()) || '—'}</b> },
+  { key: 'Transfer Ref', header: 'OT Number', width: 100, wrap: false },
+];
+
 const MACHINE_COLUMNS: Column<Row>[] = [
   { key: 'Item Name', header: 'Product', width: 160 },
   { key: 'Item Serial Number', header: 'Serial', width: 120, wrap: false },
-  { key: 'Item Status', header: 'Status', width: 80, wrap: false },
-  { key: 'Warranty End Date', header: 'Warranty ends', width: 120, wrap: false },
-  { key: 'Contract Type', header: 'Contract', width: 100, wrap: false },
-  { key: 'Contract End Date', header: 'Contract ends', width: 120, wrap: false },
+  ...COVER_COLUMNS,
   { key: 'Service Engineer', header: 'Engineer', width: 150 },
 ];
 
@@ -42,8 +65,12 @@ const FOUND_COLUMNS: Column<Row>[] = [
   { key: 'Item Serial Number', header: 'Serial', width: 120, wrap: false },
   { key: 'Party Name', header: 'Party', width: 260 },
   { key: 'City', header: 'City', width: 120 },
-  { key: 'Item Status', header: 'Status', width: 80, wrap: false },
+  ...COVER_COLUMNS,
 ];
+
+// The two filters' list says which cover is lapsing, and by when.
+const EXPIRING_COLUMN: Column<Row> = { key: '_expiring', header: 'Expiring', width: 220,
+  render: (r) => expiringCover(r, TODAY()).replace(/\d{4}-\d{2}-\d{2}/g, (d) => fmtLongDate(d)) };
 
 export function Lookup() {
   const navigate = useNavigate();
@@ -72,6 +99,11 @@ export function Lookup() {
   const [productErr, setProductErr] = useState('');
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
+  // THE TWO FILTERS, across the whole Product Database (the user, 2026-10-15),
+  // narrowed by the product -- or the party -- chosen above, when one is.
+  const [coverKind, setCoverKind] = useState<CoverFilter | null>(null);
+  const [coverRows, setCoverRows] = useState<Row[] | null>(null);
+  const [coverLabel, setCoverLabel] = useState('');
 
   const onDb = supabaseConfigured();
   // REAL DROPDOWNS, FROM THE REGISTER. There are dozens of products, not
@@ -178,6 +210,24 @@ export function Lookup() {
     } finally { setBusy(''); }
   };
 
+  // The party a filter is narrowed to: the one open, else the name in the box
+  // (a whole name -- the rows are matched on it exactly).
+  const narrowParty = mode === 'party' ? (g(party ?? {}, 'party_name') || partyQ.trim()) : '';
+  const narrowedBy = mode === 'machine' ? (product ? ` of ${product}` : '') : (narrowParty ? ` at ${narrowParty}` : '');
+  const runCover = async (kind: CoverFilter) => {
+    if (coverKind === kind) { setCoverKind(null); setCoverRows(null); return; }
+    const narrow = mode === 'machine' ? { product } : { party: narrowParty };
+    setCoverLabel(narrowedBy);
+    setBusy(kind === 'expiring' ? 'Finding the cover about to lapse…' : 'Finding the machines in OGP…');
+    setMsg(''); setParty(null); setFound(null); setPartyHits(null); setCoverKind(kind); setCoverRows(null);
+    try {
+      const rows = await sbListMachinesByCover(kind, todayISO(), narrow);
+      setCoverRows(rows.map((r, i) => ({ ...r, id: String(i) })) as Row[]);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e)); setCoverKind(null);
+    } finally { setBusy(''); }
+  };
+
   // Everything the party sheet carried that has no field of its own — the
   // telephone, the contact person, the GST — lives in `extra`.
   const extra = (party?.extra as Record<string, unknown>) ?? {};
@@ -202,6 +252,17 @@ export function Lookup() {
       <div className="stage-chips">
         <button className={`chip ${mode === 'machine' ? 'chip-on' : ''}`} onClick={() => setMode('machine')}>By product / serial</button>
         <button className={`chip ${mode === 'party' ? 'chip-on' : ''}`} onClick={() => setMode('party')}>By party</button>
+        <span className="spacer" />
+        <button className={`chip ${coverKind === 'expiring' ? 'chip-on' : ''}`} disabled={!!busy || !onDb}
+          title={`A warranty or contract active today that ends by ${fmtLongDate(endOfNextMonth(todayISO()))}, across the whole Product Database${narrowedBy}`}
+          onClick={() => void runCover('expiring')}>
+          ⏳ Expiring by {fmtLongDate(endOfNextMonth(todayISO()))}
+        </button>
+        <button className={`chip ${coverKind === 'ogp' ? 'chip-on' : ''}`} disabled={!!busy || !onDb}
+          title={`Machines whose cover today is OGP, across the whole Product Database${narrowedBy}`}
+          onClick={() => void runCover('ogp')}>
+          OGP
+        </button>
       </div>
 
       <div className="lk-search">
@@ -246,6 +307,29 @@ export function Lookup() {
         )}
         {busy && <span className="muted">{busy}</span>}
       </div>
+
+      {/* THE TWO FILTERS' ANSWER -- click a machine to open its party. */}
+      {coverKind && coverRows && !party && (
+        <>
+          <h4 className="lk-sub">
+            {coverRows.length} machine{coverRows.length === 1 ? '' : 's'}{coverLabel}{' '}
+            {coverKind === 'expiring'
+              ? `with a warranty or contract ending between ${fmtLongDate(todayISO())} and ${fmtLongDate(endOfNextMonth(todayISO()))}`
+              : 'in OGP today'}
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => { setCoverKind(null); setCoverRows(null); }}>✕ Clear</button>
+          </h4>
+          <DataTable<Row>
+            columns={coverKind === 'expiring' ? [...FOUND_COLUMNS.slice(0, 4), EXPIRING_COLUMN, ...FOUND_COLUMNS.slice(4)] : FOUND_COLUMNS}
+            rows={coverRows}
+            getRowId={(r) => r.id}
+            storageKey={`lookupCover.${coverKind}`}
+            dense
+            rowsBeforeScroll={12}
+            onRowClick={(r) => void openParty(g(r, 'Party Name'))}
+            emptyText={coverKind === 'expiring' ? 'No warranty or contract is ending in that window.' : 'No machine is in OGP today.'}
+          />
+        </>
+      )}
 
       {/* Machines that matched — click one to open its party. */}
       {found && !party && foundTruncated && (

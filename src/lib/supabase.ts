@@ -85,6 +85,7 @@ export function supabaseConfigured(): boolean {
 import { allRows, distinctValues, PG_PAGE } from './paging';
 import { partyFieldOptions, type PartyFieldOptions } from './partyRules';
 import { localMachines, localParties, refreshMachineRegister, refreshPartyRegister, clearMachineRegister } from './machinestore';
+import { currentItemStatus, expiringCover, endOfNextMonth } from './coverToday';
 import * as mc from './machinecache';
 import { planComplaintKeys, encodeComplaintEntry, type ExistingComplaint } from './complaints';
 import { encodePartEntry, encodeAccessoryEntry } from './partfit';
@@ -1717,6 +1718,39 @@ async function serverProductSerials(product: string): Promise<string[]> {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
+// MACHINES BY TODAY'S COVER, across the whole Product Database (the user,
+// 2026-10-15: "Add a Filter with Potential Expiry in the Current and Next Month.
+// And a Separate filter for Products in OGP"; asked, across the whole register,
+// narrowed by a product or a party when one is chosen). The rule is
+// coverToday.ts's: EXPIRING is a warranty or contract active today that ends by
+// the last day of next month; OGP is today's worked-out status. Read from the
+// device's copy of the register where there is one (it is the whole register),
+// else paged from the server -- which narrows by the dates first and leaves the
+// last word to the same rule, so both paths answer alike.
+export type CoverFilter = 'expiring' | 'ogp';
+export async function sbListMachinesByCover(kind: CoverFilter, today: string, opts: { product?: string; party?: string } = {}): Promise<Record<string, unknown>[]> {
+  const product = String(opts.product ?? '').trim();
+  const party = partyKey(opts.party);
+  const keep = (r: Record<string, unknown>) =>
+    (!product || String(r['Item Name'] ?? '') === product)
+    && (!party || partyKey(r['Party Name']) === party)
+    && (kind === 'expiring' ? expiringCover(r, today) !== '' : currentItemStatus(r, today) === 'OGP');
+  const local = await localMachines();
+  if (local) return local.map((m) => m.sheet).filter(keep);
+  const by = endOfNextMonth(today);
+  const data = await allRows<Record<string, unknown>>((a, b) => {
+    let q = must().from('product_database').select('*');
+    // The party is narrowed on the rows (`keep`), not here: an exact party read
+    // goes through partyRows() and its index, and this one is a register-wide
+    // filter that a party only narrows.
+    if (product) q = q.eq('item_name', product);
+    q = kind === 'expiring'
+      ? q.or(`and(warranty_end.gte.${today},warranty_end.lte.${by}),and(contract_end.gte.${today},contract_end.lte.${by})`)
+      : q.or(`contract_end.is.null,contract_end.lt.${today}`).or(`warranty_end.is.null,warranty_end.lt.${today}`);
+    return q.order('id').range(a, b);
+  }, 30000);
+  return data.map(productRowToSheet).filter(keep);
+}
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   const local = await localMachines();
   if (local) {
