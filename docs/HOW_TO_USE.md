@@ -179,6 +179,13 @@ different totals. An empty register usually means access, not emptiness.
   > later — or **Invoice Date**, which keeps the start on the PO / Warranty Sale
   > Entry. Nothing is pre-selected; the engineer must choose.
 - **Preventive (PM)** `/pm-calls` — planned maintenance.
+  - **Every Missed PM is flagged.** A Missed PM is a PM call whose **Added On**
+    date is after the month it is registered for — a March PM added in
+    October, the same rule the PM objective uses. It carries an amber
+    **MISSED PM** badge beside its UCN and beside the Call Status of the opened
+    call, a **Missed PM** column reading *Yes* (it sorts, and is in the CSV),
+    and the **Missed PM** filter shows only those calls or only the rest. A call
+    with no Added On date is never flagged.
   > **First Attended Date, Last Visit Date and Solved Date** (all three
   > registers): **First Attended** is the earlier of the first visit and the
   > first spare request on the call; **Last Visit** is the latest visit date;

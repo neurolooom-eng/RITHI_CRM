@@ -106,6 +106,20 @@ up)_
 
 ---
 
+## 2026-10-16 — PM register: every Missed PM flagged (FRS-131.22, v0.10.209)
+
+- **Shipped.** The user: *"In PM register, add a flag in all Missed PM"*; asked,
+  they chose 0418's rule (Added On after the month registered for) and all four
+  forms: a badge beside the UCN, a Missed PM column (sortable, in the CSV), a
+  filter, and the badge in the opened call. `isMissedPm()` in
+  `src/lib/missedPm.ts`; check:ui pins it against 0418's SQL. Client only — no
+  migration. The filter works on the calls loaded, like the other chips, so its
+  counts carry a `+` while more exist.
+- **The badge is AMBER, not the red the question described**: red is
+  Unattended in the fixed call-status code the UCN beside it already carries.
+
+---
+
 ## 2026-10-15 — A call solved again keeps its second feedback (D-035 feedback half, 0445, v0.10.208)
 
 - **Shipped.** Reported from use on 25L01P0232 (*"the customer feedback was not:
