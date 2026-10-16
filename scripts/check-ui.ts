@@ -54,6 +54,7 @@ import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
 import { callAging, agingTone, callDays } from '../src/lib/aging';
 import { currentItemStatus, coverEndingIn, endOfNextMonth, monthBounds } from '../src/lib/coverToday';
+import { isMissedPm } from '../src/lib/missedPm';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2503,6 +2504,30 @@ console.log('\n-- call aging, and where the clock stops --');
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the age is on the row, so the column sorts as a number',
     /out\.agingDays = age\.days;/.test(sb), true);
+}
+
+// A MISSED PM (the user, 2026-10-16: "In PM register, add a flag in all Missed
+// PM"): 0418's rule -- Added On after the month the call is registered for.
+console.log('\n-- the Missed PM flag --');
+{
+  eq('a March PM added in October is a Missed PM', isMissedPm('2026-03-01', '2026-10-16'), true);
+  eq('...added on the last day of its own month is not', isMissedPm('2026-03-01', '2026-03-31'), false);
+  eq('...added the next day is', isMissedPm('2026-03-31', '2026-04-01'), true);
+  eq('...across a year end', isMissedPm('2025-12-01', '2026-01-02'), true);
+  eq('...added BEFORE its month is not', isMissedPm('2026-04-01', '2026-03-20'), false);
+  eq('no Added On date is never a Missed PM', isMissedPm('2026-03-01', ''), false);
+  eq('a day-first date reads the same', isMissedPm('01-Mar-2026', '16-Oct-2026'), true);
+  const fc = readFileSync('src/modules/FieldCalls.tsx', 'utf8');
+  eq('the PM register shows it: badge, column, CSV, filter, opened call',
+    /className="missed-pm-flag" title=\{MISSED_PM_TITLE\}>\{MISSED_PM_LABEL\}/.test(fc)
+    && /if \(tab !== 'PM'\) return COLUMNS;/.test(fc)
+    && /csvExport\(config\.csvName, columnsFor\(config\.tab\)/.test(fc)
+    && /title="Missed PM"/.test(fc)
+    && /missed-pm-flag missed-pm-flag-lg/.test(fc), true);
+  // The objective's own rule, in SQL: the two must not drift.
+  eq('...by the PM objective\'s rule (0418)',
+    /c\.added_on <= \(date_trunc\('month', c\.reg_date\) \+ interval '1 month - 1 day'\)::date/
+      .test(readFileSync('supabase/migrations/0443_objective_tta_evidence.sql', 'utf8')), true);
 }
 
 // A MACHINE'S COVER, AS OF TODAY (the user, 2026-10-15, Product & Party Search).
@@ -7566,9 +7591,10 @@ console.log('\n-- a facet row can be put away, and never hides a live filter --'
   // the attribute measured the wrong thing and the check failed on a file that
   // was correct.
   const FACETS: [string, number, string[]][] = [
-    // Engineer, and the Call Pending Reason (0433). The Cancellation Reason
-    // strip was removed on the user's word (2026-10-14).
-    ['src/modules/FieldCalls.tsx', 2, ['engineer', 'pendingReason']],
+    // Engineer, the Call Pending Reason (0433) and -- PM register only -- the
+    // Missed PM filter (the user, 2026-10-16). The Cancellation Reason strip
+    // was removed on the user's word (2026-10-14).
+    ['src/modules/FieldCalls.tsx', 3, ['engineer', 'pendingReason', 'missedPm']],
     ['src/modules/PendingCalls.tsx', 1, ['pending.engineer']],
     ['src/modules/SpareRequests.tsx', 1, ['spares.engineer']],
     ['src/modules/IndoorService.tsx', 3, ['indoor.status', 'indoor.activity', 'indoor.kind']],

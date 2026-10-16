@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.209',
+    date: '2026-10-16',
+    title: 'PM register: every Missed PM is flagged',
+    changes: [
+      'A Missed PM is a PM call added after the month it is registered for, for example a March PM added in October. It is the same rule the PM objective uses. A call with no Added On date is never flagged.',
+      'Each Missed PM carries an amber MISSED PM badge beside its UC Number, and the opened call shows it beside the Call Status.',
+      'A new Missed PM column reads Yes on those calls. It can be sorted and is in the CSV export.',
+      'A Missed PM filter at the top of the register shows only the Missed PMs, or only the rest, with a count on each.',
+    ],
+  },
+  {
     version: '0.10.208',
     date: '2026-10-15',
     title: 'A call solved again keeps its second customer feedback',

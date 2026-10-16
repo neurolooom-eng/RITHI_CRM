@@ -38,6 +38,7 @@ import { useUserNames, nameForUserId } from '../lib/userNames';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 import { partial, searchScope } from '../lib/exportscope';
+import { isMissedPm, MISSED_PM_LABEL, MISSED_PM_TITLE } from '../lib/missedPm';
 import {
   FC_CONTRACT_TYPE,
   FIELD_HEADERS,
@@ -229,6 +230,21 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
     help: 'The signed-in person who registered this call. Stamped by the database and not settable by the app.', span: 1 },
 ];
 
+// THE MISSED PM COLUMN, PM register only (the user, 2026-10-16): Yes on a PM
+// call Added On after the month it is registered for (0418's rule), blank
+// otherwise; it sorts and goes into the CSV.
+const MISSED_PM_COLUMN: Column<Rec> = {
+  key: 'missedPmText', header: MISSED_PM_LABEL, width: 110, wrap: false,
+  render: (r) => (r.missedPm === true ? <span className="missed-pm-flag" title={MISSED_PM_TITLE}>Yes</span> : ''),
+};
+const columnsFor = (tab: string): Column<Rec>[] => {
+  if (tab !== 'PM') return COLUMNS;
+  const at = COLUMNS.findIndex((c) => c.key === 'callState') + 1;
+  return [...COLUMNS.slice(0, at), MISSED_PM_COLUMN, ...COLUMNS.slice(at)];
+};
+const allFieldsFor = (tab: string) => (tab !== 'PM' ? CALL_ALL_FIELDS
+  : [...CALL_ALL_FIELDS, { key: 'missedPmText', header: MISSED_PM_LABEL }]);
+
 const COLUMNS: Column<Rec>[] = [
   {
     key: '_sync', header: '', width: 44, sortable: false, wrap: false, align: 'center',
@@ -236,7 +252,14 @@ const COLUMNS: Column<Rec>[] = [
   },
   // The UCN carries its call's status everywhere it is shown (the user's
   // standing rule, 2026-09-06). Here the register already knows it.
-  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStatusText(r.callState, r.lastStatus)} /> },
+  // A MISSED PM carries its flag beside the UCN (the user, 2026-10-16); only a
+  // PM row is ever marked (rowsWithRegion).
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => (
+    <>
+      <Ucn ucn={r.ucn} state={callStatusText(r.callState, r.lastStatus)} />
+      {r.missedPm === true && <span className="missed-pm-flag" title={MISSED_PM_TITLE}>{MISSED_PM_LABEL}</span>}
+    </>
+  ) },
   {
     // Filled from the `call_state` view after the register loads — a call is
     // Solved / Unsolved / Report pending / Unattended by its LATEST visit.
@@ -1057,6 +1080,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cancelledByOf = (row: Rec) => (!row.cancelledAt ? ''
     : row.cancelledBy ? nameForUserId(String(row.cancelledBy), userNameMap) : String(row.cancelledByName ?? ''));
   const [pendingReasonFilter, setPendingReasonFilter] = useState('');
+  // THE MISSED PM FILTER (the user, 2026-10-16), PM register only.
+  const isPm = config.tab === 'PM';
+  const missedOf = (row: Rec) => (isPm && isMissedPm(row.regDate, row.addedOn) ? MISSED_PM_LABEL : 'Not a Missed PM');
+  const [missedPmFilter, setMissedPmFilter] = useState('');
 
   // The strip's counts come from the rows that pass everything else, so a name
   // shows what clicking it would actually give you.
@@ -1135,10 +1162,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // strip was removed on the user's word, 2026-10-14: "I dont want this
   // grouping"; the column stays.)
   const pendingOk = (row: Rec) => !pendingReasonFilter || pendingReasonOf(row) === pendingReasonFilter;
+  const missedOk = (row: Rec) => !isPm || !missedPmFilter || missedOf(row) === missedPmFilter;
   const visibleRows = useMemo(
-    () => listedRows.filter(pendingOk),
+    () => listedRows.filter((row) => pendingOk(row) && missedOk(row)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listedRows, callDates, pendingReasonFilter],
+    [listedRows, callDates, pendingReasonFilter, missedPmFilter],
   );
   const countBy = (rows: Rec[], of: (row: Rec) => string) => {
     const c = new Map<string, number>();
@@ -1149,6 +1177,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     () => countBy(listedRows, pendingReasonOf),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [listedRows, callDates],
+  );
+  const missedPmCounts = useMemo(
+    () => (isPm ? countBy(listedRows, missedOf) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [listedRows, isPm],
   );
 
   const refreshFromMasters = async (what: 'party' | 'product', ucns: string[], clear?: () => void) => {
@@ -1197,6 +1230,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         pendingReason: (d?.pendingReason ?? '').trim(),
         cancellationReason: cancellationReasonOf(r),
         cancelledByWho: cancelledByOf(r),
+        missedPm: isPm && isMissedPm(r.regDate, r.addedOn),
+        missedPmText: isPm && isMissedPm(r.regDate, r.addedOn) ? 'Yes' : '',
       };
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1435,6 +1470,17 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         storeKey={`calls.${config.callType}.pendingReason`}
         more={moreAvailable || (searching && searchCapped)}
       />
+      {isPm && (
+        <FacetChips
+          options={missedPmCounts}
+          value={missedPmFilter}
+          onChange={setMissedPmFilter}
+          allLabel="All calls"
+          title="Missed PM"
+          storeKey={`calls.${config.callType}.missedPm`}
+          more={moreAvailable || (searching && searchCapped)}
+        />
+      )}
 
       {allotBlocked && (
         <p className="muted" style={{ margin: '4px 2px 0', fontSize: 12.5 }}>
@@ -1444,8 +1490,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       )}
 
       <DataTable<Rec>
-        columns={[actionsColumn, ...COLUMNS]}
-        allFields={CALL_ALL_FIELDS}
+        columns={[actionsColumn, ...columnsFor(config.tab)]}
+        allFields={allFieldsFor(config.tab)}
         rows={rowsWithRegion}
         getRowId={(r) => r.id}
         selectable={mayAllot || mayRefresh}
@@ -1534,7 +1580,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <button
               className="btn btn-sm"
               onClick={() =>
-                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), rowsWithRegion as unknown as Record<string, unknown>[], searching ? searchScope(searchCapped) : partial(moreAvailable))
+                csvExport(config.csvName, columnsFor(config.tab).filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), rowsWithRegion as unknown as Record<string, unknown>[], searching ? searchScope(searchCapped) : partial(moreAvailable))
               }
             >
               ⭳ Export CSV
@@ -1574,6 +1620,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                   state={String((drawer.row as Rec).callState ?? '')}
                   label={callStatusText((drawer.row as Rec).callState, (drawer.row as Rec).lastStatus) || 'Unattended'}
                 />
+                {/* THE MISSED PM FLAG in the opened call too (the user, 2026-10-16). */}
+                {isPm && isMissedPm((drawer.row as Rec).regDate, (drawer.row as Rec).addedOn) && (
+                  <span className="missed-pm-flag missed-pm-flag-lg" title={MISSED_PM_TITLE}>{MISSED_PM_LABEL}</span>
+                )}
                 {cancellationReasonOf(drawer.row as Rec)
                   ? <span className="call-status-hero-why">Cancelled {formatDayTime((drawer.row as Rec).cancelledAt)} — {cancellationReasonOf(drawer.row as Rec)}</span>
                   : pendingReasonOf(drawer.row as Rec)
