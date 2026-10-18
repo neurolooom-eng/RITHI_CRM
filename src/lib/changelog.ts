@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.210',
+    date: '2026-10-18',
+    title: 'PM Due: a Warranty / Contract filter, and the times before you create',
+    changes: [
+      'PM Due has a new filter: Both registers, Warranty Register or Contract Register. Each button shows how many visits it would show.',
+      'Above the Create button, PM Due now names the last PM call registered in the month (UC Number, call number, party) with its registration date and time.',
+      'Next to it is the registration date and time the first new call will get (10 seconds after that call), and the last one\'s.',
+      'Pressing Create reads the month again, shows the same details in the confirmation, and creates the calls right after that call.',
+      'In a month with no PM calls yet, it says so: the first call is registered at 00:30 on the 1st and the rest 5 seconds apart.',
+    ],
+  },
+  {
     version: '0.10.209',
     date: '2026-10-16',
     title: 'PM register: every Missed PM is flagged',

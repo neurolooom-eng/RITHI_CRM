@@ -106,6 +106,22 @@ up)_
 
 ---
 
+## 2026-10-18 — PM Due: register filter; the batch's times named before creating (FRS-269.11/.12, 0446, v0.10.210)
+
+- **Shipped.** The user: *"In PM due, Add one more filter - Contract or Warranty -
+  register. And when creating tell me what is the last call in oct with Date and
+  time and also what will be first call that we create will get"*. A Register
+  filter (not on an entry's own PM schedule, which is one register already); the
+  line above Create names the month's latest PM call (`pm_due_latest_call()`,
+  0446 -- same rule and right as 0401's `pm_due_latest_reg_at`) and the first and
+  last registration times (`pmBatchTimes()`, pmStartDefaults' rule). Create
+  re-reads it, says it in the confirmation, and passes that time to
+  `createPmCalls` so the batch follows exactly the call it named.
+  `_status.sql` row 360; `pm_due_latest_call_test`.
+- **Applied by the workflow on merge** (sales_contracts module).
+
+---
+
 ## 2026-10-16 — PM register: every Missed PM flagged (FRS-131.22, v0.10.209)
 
 - **Shipped.** The user: *"In PM register, add a flag in all Missed PM"*; asked,

@@ -55,6 +55,7 @@ import { drivePreviewUrl } from '../src/lib/drive';
 import { callAging, agingTone, callDays } from '../src/lib/aging';
 import { currentItemStatus, coverEndingIn, endOfNextMonth, monthBounds } from '../src/lib/coverToday';
 import { isMissedPm } from '../src/lib/missedPm';
+import { pmBatchTimes } from '../src/lib/pmImport';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2504,6 +2505,30 @@ console.log('\n-- call aging, and where the clock stops --');
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the age is on the row, so the column sorts as a number',
     /out\.agingDays = age\.days;/.test(sb), true);
+}
+
+// PM DUE SAYS WHERE A BATCH WILL SIT (the user, 2026-10-18: "tell me what is
+// the last call in oct with Date and time and also what will be first call
+// that we create will get"). pmBatchTimes is pmStartDefaults' rule, so what is
+// shown is what is created. Asserted in wall-clock terms, as the batch is.
+console.log('\n-- PM Due: the batch registration times --');
+{
+  const at = (local: string) => new Date(local).toISOString();
+  const t = pmBatchTimes('2026-10', at('2026-10-18T10:15:30'), 3);
+  eq('the first is 10 seconds after the month\'s latest call', t.first, '2026-10-18T10:15:40');
+  eq('...the last of three 20 seconds after that', t.last, '2026-10-18T10:16:00');
+  eq('...10 seconds apart', t.stepSec, 10);
+  const f = pmBatchTimes('2026-11', null, 4);
+  eq('a month with no PM call starts at 00:30 on the 1st', f.first, '2026-11-01T00:30:00');
+  eq('...5 seconds apart', `${f.stepSec} ${f.last}`, '5 2026-11-01T00:30:15');
+  eq('one call: the first is the last', pmBatchTimes('2026-10', at('2026-10-18T10:15:30'), 1).last, '2026-10-18T10:15:40');
+  const pd = readFileSync('src/modules/PmDue.tsx', 'utf8');
+  eq('PM Due names the latest call and the times before it creates, and creates after exactly that call',
+    /await pmDueLatestCall\(month\)/.test(pd) && /Last PM call in \$\{monthLabel\}/.test(pd)
+    && /The first new call will be registered/.test(pd)
+    && /createPmCalls\(\[\{ month, visits: chosen, latest: latest\?\.reg_at \|\| null \}\]/.test(pd), true);
+  eq('...and filters by the register the visit comes from',
+    /type RegFilter = 'all' \| 'Warranty' \| 'Contract';/.test(pd) && /\(skipOne === 'reg' \|\| byReg\(r, reg\)\)/.test(pd), true);
 }
 
 // A MISSED PM (the user, 2026-10-16: "In PM register, add a flag in all Missed
