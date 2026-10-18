@@ -64,6 +64,18 @@ export function pmStartDefaults(month: string, latestRegAt: string | null): { st
   return { startLocal: `${month}-01T00:30:00`, stepSec: 5 };
 }
 
+/** THE BATCH'S REGISTRATION TIMES, before it is created (the user, 2026-10-18:
+ *  "tell me ... what will be first call that we create will get in terms of
+ *  Date and time"): the first and the last of `n` calls, as local wall-clock
+ *  'yyyy-mm-ddTHH:mm:ss', by pmStartDefaults -- the rule the batch is written
+ *  with, so what is shown is what is created. */
+export function pmBatchTimes(month: string, latestRegAt: string | null, n: number): { first: string; last: string; stepSec: number } {
+  const { startLocal, stepSec } = pmStartDefaults(month, latestRegAt);
+  const end = new Date(startLocal);
+  end.setSeconds(end.getSeconds() + stepSec * Math.max(0, n - 1));
+  return { first: startLocal, last: toLocalInput(end), stepSec };
+}
+
 // Turn raw CSV rows into PM call records for a DUE MONTH (YYYY-MM). Every kept
 // row is dated the 1st of that month (reg_date), stamped with today as
 // `added_on`, forced to the PM type, and given a registration date-and-time

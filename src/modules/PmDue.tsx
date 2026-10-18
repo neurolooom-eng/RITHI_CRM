@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
-import { supabaseConfigured, listPmDue, type PmDueRow } from '../lib/supabase';
+import { supabaseConfigured, listPmDue, pmDueLatestCall, type PmDueRow, type PmLatestCall } from '../lib/supabase';
+import { pmBatchTimes } from '../lib/pmImport';
 import { createPmCalls } from '../lib/pmGenerate';
 import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { SelectPicker } from '../components/ui/SelectPicker';
@@ -51,6 +52,9 @@ type StatusFilter = 'missed' | 'generated' | 'all';
 type KindFilter = 'all' | 'products' | 'accessories';
 type InstFilter = 'ok' | 'solved' | 'none' | 'not' | 'all';
 type PartyFilter = 'customer' | 'not' | 'all';
+// WHICH REGISTER THE VISIT COMES FROM (the user, 2026-10-18: "Add one more
+// filter - Contract or Warranty - register").
+type RegFilter = 'all' | 'Warranty' | 'Contract';
 const ALL_PRODUCTS = '';
 // A row with no engineer on the Product Database, as the Engineer filter offers it.
 const NO_ENGINEER = '(no engineer)';
@@ -83,12 +87,22 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
   const [serial, setSerial] = useState('');
   const [partyName, setPartyName] = useState('');
   const [engineer, setEngineer] = useState('');
+  const [reg, setReg] = useState<RegFilter>('all');
+  // THE MONTH'S LATEST PM CALL (0446) -- the call a new batch follows. undefined
+  // while unread; null when the month has none with a registration time.
+  const [latestCall, setLatestCall] = useState<PmLatestCall | null | undefined>(undefined);
+  const [latestError, setLatestError] = useState('');
 
   const keyOf = (r: PmDueRow) => `${r.product_name}|${r.serial}`;
 
   const load = useCallback(async (m: string) => {
     if (!onDb || !mayList || !m) return;
     setLoading(true); setLoadError(''); setRows(null); setSkip(new Set());
+    setLatestCall(undefined); setLatestError('');
+    // Read beside the list, and failing on its own: not knowing the latest call
+    // must not hide the visits due.
+    void pmDueLatestCall(m).then(setLatestCall)
+      .catch((e) => setLatestError(e instanceof Error ? e.message : String(e)));
     try { setRows(await listPmDue(m)); }
     catch (e) { setLoadError(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
@@ -112,14 +126,16 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
     return true;
   };
   const byParty = (r: PmDueRow, f: PartyFilter) => f === 'all' || (f === 'customer') === r.party_is_customer;
+  const byReg = (r: PmDueRow, f: RegFilter) => f === 'all' || r.source === f;
   const all = useMemo(() => (rows ?? []).filter((r) => !source || r.source === source), [rows, source]);
-  type FilterKey = 'status' | 'kind' | 'product' | 'inst' | 'party' | 'serial' | 'partyName' | 'engineer' | '';
+  type FilterKey = 'status' | 'kind' | 'product' | 'inst' | 'party' | 'reg' | 'serial' | 'partyName' | 'engineer' | '';
   // Every filter but the one named, so each button counts -- and each picker
   // offers -- what choosing it would show.
   const passes = (r: PmDueRow, skipOne: FilterKey) =>
     (skipOne === 'status' || byStatus(r, status)) && (skipOne === 'kind' || byKind(r, kind))
     && (skipOne === 'product' || byProduct(r, product)) && (skipOne === 'inst' || byInst(r, inst))
     && (skipOne === 'party' || byParty(r, ptype))
+    && (skipOne === 'reg' || byReg(r, reg))
     && (skipOne === 'serial' || !serial || r.serial === serial)
     && (skipOne === 'partyName' || !partyName || (r.party_name ?? '') === partyName)
     && (skipOne === 'engineer' || !engineer || engOf(r) === engineer);
@@ -127,23 +143,24 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
     [...new Set(all.filter((r) => passes(r, key)).map(pick).filter(Boolean))].sort();
   const products = useMemo(() => optionsFor('product', (r) => r.product_name),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, status, kind, inst, ptype, serial, partyName, engineer]);
+    [all, status, kind, inst, ptype, reg, serial, partyName, engineer]);
   const serials = useMemo(() => optionsFor('serial', (r) => r.serial),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, status, kind, product, inst, ptype, partyName, engineer]);
+    [all, status, kind, product, inst, ptype, reg, partyName, engineer]);
   const parties = useMemo(() => optionsFor('partyName', (r) => r.party_name ?? ''),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, status, kind, product, inst, ptype, serial, engineer]);
+    [all, status, kind, product, inst, ptype, reg, serial, engineer]);
   const engineers = useMemo(() => optionsFor('engineer', engOf),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, status, kind, product, inst, ptype, serial, partyName]);
+    [all, status, kind, product, inst, ptype, reg, serial, partyName]);
   const shown = useMemo(() => all.filter((r) => passes(r, '')),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, status, kind, product, inst, ptype, serial, partyName, engineer]);
+    [all, status, kind, product, inst, ptype, reg, serial, partyName, engineer]);
   const countStatus = (st: StatusFilter) => all.filter((r) => passes(r, 'status') && byStatus(r, st)).length;
   const countKind = (k: KindFilter) => all.filter((r) => passes(r, 'kind') && byKind(r, k)).length;
   const countInst = (f: InstFilter) => all.filter((r) => passes(r, 'inst') && byInst(r, f)).length;
   const countParty = (f: PartyFilter) => all.filter((r) => passes(r, 'party') && byParty(r, f)).length;
+  const countReg = (f: RegFilter) => all.filter((r) => passes(r, 'reg') && byReg(r, f)).length;
   // EVERY MISSED PM SHOWN MAY BE CREATED -- the filters decide what is shown.
   const creatable = useMemo(() => shown.filter((r) => !r.generated), [shown]);
   const chosen = useMemo(() => creatable.filter((r) => !skip.has(keyOf(r))), [creatable, skip]);
@@ -156,6 +173,10 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
     noEngineer: creatable.filter((r) => !r.engineer).length,
     notOnPd: creatable.filter((r) => !r.on_product_database).length,
   }), [creatable]);
+
+  // "Oct-2026" for the month chosen.
+  const monthLabel = formatDay(`${month}-01`).slice(3);
+  const preview = latestCall === undefined ? null : pmBatchTimes(month, latestCall?.reg_at || null, Math.max(1, chosen.length));
 
   if (!mayList) {
     return (
@@ -181,11 +202,25 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
 
   const create = async () => {
     if (!chosen.length) return;
-    if (!window.confirm(`Create ${chosen.length} PM call${chosen.length === 1 ? '' : 's'} dated 1st ${month}?`)) return;
-    setBusy(true); setMsg({ tone: 'info', text: 'Reading the latest registration time in the month…' });
+    // READ NOW, AND SAY IT (the user, 2026-10-18): the month's latest PM call
+    // with its date and time, and the date and time the first new call -- and
+    // the last -- will get. The batch is then written after exactly that call.
+    setBusy(true); setMsg({ tone: 'info', text: 'Reading the latest PM call in the month…' });
+    let latest: PmLatestCall | null;
+    try { latest = await pmDueLatestCall(month); setLatestCall(latest); }
+    catch (e) { setBusy(false); setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); return; }
+    const t = pmBatchTimes(month, latest?.reg_at || null, chosen.length);
+    const ok = window.confirm(
+      `Create ${chosen.length} PM call${chosen.length === 1 ? '' : 's'}, Registered Date ${formatDay(`${month}-01`)}?\n\n`
+      + (latest
+        ? `Last PM call in ${monthLabel}: ${latest.ucn}${latest.call_number ? ` (${latest.call_number})` : ''}, registered ${formatDayTime(latest.reg_at)}.\n`
+        : `No PM call is registered in ${monthLabel} yet.\n`)
+      + `The first new call will be registered ${formatDayTime(t.first)}`
+      + (chosen.length > 1 ? `, the last ${formatDayTime(t.last)}, ${t.stepSec} seconds apart.` : '.'));
+    if (!ok) { setBusy(false); setMsg(null); return; }
     try {
       setProgress({ done: 0, total: chosen.length }); setMsg({ tone: 'info', text: 'Creating…' });
-      const res = await createPmCalls([{ month, visits: chosen }], (done, total) => setProgress({ done, total }));
+      const res = await createPmCalls([{ month, visits: chosen, latest: latest?.reg_at || null }], (done, total) => setProgress({ done, total }));
       if (!res.ok) {
         setMsg({ tone: 'error', text: `Created ${res.written} before an error: ${res.error} The list below is re-read, so what was created is no longer in it.` });
       } else {
@@ -224,10 +259,11 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
           for that product and serial reads <b>k / N</b> for it, within that cover’s period and not cancelled, whatever month
           it was raised in; otherwise it is a <b>Missed PM</b>. A machine with both a warranty and a contract visit is listed
           once, from the warranty. An <b>accessory</b> is a product whose Product Master category is ACCESSORY. The
-          filters narrow what is shown — installation, customer (the party’s Party Master Type), product, serial, party and
-          engineer — and every <b>Missed PM</b> shown can be ticked and created. Each call is dated the{' '}
+          filters narrow what is shown — installation, customer (the party’s Party Master Type), the register the visit comes
+          from (Warranty or Contract), product, serial, party and engineer — and every <b>Missed PM</b> shown can be ticked and created. Each call is dated the{' '}
           <b>1st of the month</b>, Added On is <b>today</b>, the first is registered <b>10 seconds after the month's latest
-          PM call</b> (00:30 on the 1st, 5 seconds apart, if there is none), the engineer is the <b>Product Database's</b>,
+          PM call</b> (00:30 on the 1st, 5 seconds apart, if there is none) — the page names that call and the times the new
+          ones will get, and asks again when you press Create — the engineer is the <b>Product Database's</b>,
           and it reads <b>SCHEDULED PM VISIT</b> / <b>SCHEDULED PM VISIT k / N</b>.
         </p>
       </div>
@@ -265,6 +301,16 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
                   {label} ({countParty(k)})
                 </button>
               ))}
+              {/* Not on a Warranty or Contract entry's own schedule, which is
+                  one register already. */}
+              {!source && <>
+                <span className="muted" aria-hidden="true">|</span>
+                {([['all', 'Both registers'], ['Warranty', 'Warranty Register'], ['Contract', 'Contract Register']] as [RegFilter, string][]).map(([k, label]) => (
+                  <button key={k} className={`btn btn-sm${reg === k ? ' btn-primary' : ''}`} onClick={() => setReg(k)} disabled={busy}>
+                    {label} ({countReg(k)})
+                  </button>
+                ))}
+              </>}
               <span className="muted" aria-hidden="true">|</span>
               <label className="pm-month" style={{ minWidth: 200 }}>Product
                 <SelectPicker value={product} onChange={setProduct} options={products} placeholder="All products" disabled={busy} />
@@ -286,6 +332,24 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
               {counts.noEngineer > 0 && <> <b>{counts.noEngineer}</b> of those have no engineer on the Product Database and would be created unallocated.</>}
               {counts.notOnPd > 0 && <> {counts.notOnPd} are not on the Product Database (party from the register).</>}
             </div>
+            {/* WHERE THE NEW CALLS WILL SIT (the user, 2026-10-18). */}
+            {status !== 'generated' && (
+              <div className="pm-preview-head pm-batch-times">
+                {latestError ? <>Could not read the latest PM call in {monthLabel}: {latestError}</>
+                  : latestCall === undefined ? <>Reading the latest PM call in {monthLabel}…</>
+                  : <>
+                      {latestCall
+                        ? <>Last PM call in <b>{monthLabel}</b>: <Ucn ucn={latestCall.ucn} />{latestCall.call_number ? <> ({latestCall.call_number})</> : null}
+                            {latestCall.party_name ? <> · {latestCall.party_name}</> : null}, registered <b>{formatDayTime(latestCall.reg_at)}</b>.</>
+                        : <>No PM call is registered in <b>{monthLabel}</b> yet.</>}
+                      {preview && chosen.length > 0 && <>
+                        {' '}The first new call will be registered <b>{formatDayTime(preview.first)}</b>
+                        {chosen.length > 1 ? <>, the last <b>{formatDayTime(preview.last)}</b>, {preview.stepSec} seconds apart</> : null}
+                        {' '}(Registered Date {formatDay(`${month}-01`)}). Read again when you press Create.
+                      </>}
+                    </>}
+              </div>
+            )}
             <div className="pm-up-row" style={{ margin: '10px 0' }}>
               {mayCreate ? (
                 <button className="btn btn-primary" onClick={() => void create()} disabled={busy || !chosen.length || !onDb}>

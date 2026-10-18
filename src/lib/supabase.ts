@@ -382,6 +382,18 @@ export async function listPmSchedule(source: 'Warranty' | 'Contract', ref: strin
   if (error) throw new Error(errMsg(error));
   return (data ?? []) as PmScheduleRow[];
 }
+/** The month's latest PM call (0446): the call a new PM Due batch is registered
+ *  10 seconds after. null when the month has no PM call with a registration time. */
+export interface PmLatestCall { ucn: string; call_number: string; party_name: string; product_name: string; serial: string; reg_at: string }
+export async function pmDueLatestCall(month: string): Promise<PmLatestCall | null> {
+  const { data, error } = await must().rpc('pm_due_latest_call', { p_month: `${month}-01` });
+  if (error) throw new Error(errMsg(error));
+  const r = (data as Record<string, unknown>[] | null)?.[0];
+  return r ? {
+    ucn: String(r.ucn ?? ''), call_number: String(r.call_number ?? ''), party_name: String(r.party_name ?? ''),
+    product_name: String(r.product_name ?? ''), serial: String(r.serial ?? ''), reg_at: String(r.reg_at ?? ''),
+  } : null;
+}
 export async function pmDueLatestRegAt(month: string): Promise<string | null> {
   const { data, error } = await must().rpc('pm_due_latest_reg_at', { p_month: `${month}-01` });
   if (error) throw new Error(errMsg(error));

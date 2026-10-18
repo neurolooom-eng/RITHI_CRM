@@ -2273,7 +2273,10 @@ with checks(sort_order, bundle, provides, present) as (
          or (exists (select 1 from pg_trigger where tgrelid = to_regclass('public.feedback')
                       and tgname = 'feedback_key_stamp' and not tgisinternal)
              and not exists (select 1 from pg_attribute where attrelid = to_regclass('public.feedback')
-                              and attname = 'ucn_key' and attgenerated = 's'))))
+                              and attname = 'ucn_key' and attgenerated = 's')))),
+    (360, 'PM Due names the month''s latest PM call before it creates', 'pm_due_latest_call(date) (0446): the PM call holding the largest registration date-and-time in the month -- UCN, call number, party, product, serial and that time -- with pm_due_latest_reg_at''s pm.generate check, not executable by anon. NO means PM Due cannot say which call a new batch follows. Restore: sales_contracts.sql (0446)',
+        (to_regprocedure('public.pm_due_latest_call(date)') is not null
+         and not has_function_privilege('anon', 'public.pm_due_latest_call(date)', 'execute')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

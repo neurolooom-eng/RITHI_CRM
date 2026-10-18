@@ -438,13 +438,19 @@ on Roles & Permissions does not reach another team's calls.
   Missed PM / Generated / All, Products / Accessories (an accessory is a product
   whose Product Master category is ACCESSORY), Installation (solved or none /
   solved / no installation call / not solved / any), Customer / not a customer /
-  any, and one Product, Serial No, Party and Engineer each. These are filters
+  any, Both registers / Warranty Register / Contract Register (where the visit
+  comes from), and one Product, Serial No, Party and Engineer each. These are filters
   only: every Missed PM shown can be ticked — untick any that should not get a
   call, then Create. Each call
   is dated the 1st of the month,
   registered 10 seconds after the month's latest PM call, Added On today,
   allotted to the Product Database's engineer, and reads SCHEDULED PM VISIT and
   SCHEDULED PM VISIT k / N. PM Bulk Upload still works as before.
+  **Before you create**, the line above Create names the month's **last PM
+  call** (UCN, call number, party) with its registration date and time, and the
+  date and time the **first** and **last** new calls will get. Create reads the
+  month again and shows the same in its confirmation, then registers the calls
+  straight after that call.
 
 ## Spares
 

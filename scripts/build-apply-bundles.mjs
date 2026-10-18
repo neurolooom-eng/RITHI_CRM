@@ -1332,7 +1332,10 @@ const MODULES = {
             '0404_pm_due_no_install_call_allowed.sql',
             // The PM schedule of one Warranty / Contract entry (the user,
             // 2026-10-09), listed and generated from the entry window.
-            '0407_pm_schedule.sql'],
+            '0407_pm_schedule.sql',
+            // The month's latest PM call by name (0446), so PM Due can say which
+            // call a new batch follows. Same rule and right as 0401's time.
+            '0446_pm_due_latest_call.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

@@ -17,7 +17,10 @@ import { shapePmDueRows, pmStartDefaults, type PmDueMachine } from './pmImport';
 export interface PmCreateResult { ok: boolean; written: number; error?: string; firstAt?: string; latestBefore?: string | null }
 
 export async function createPmCalls(
-  byMonth: { month: string; visits: PmDueMachine[] }[],
+  // `latest` is the month's latest registration time when the caller has just
+  // read it and shown it (PM Due's confirmation), so the batch follows exactly
+  // the call it was told it follows; left out, it is read here.
+  byMonth: { month: string; visits: PmDueMachine[]; latest?: string | null }[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<PmCreateResult> {
   const total = byMonth.reduce((n, g) => n + g.visits.length, 0);
@@ -26,7 +29,7 @@ export async function createPmCalls(
   let latestBefore: string | null | undefined;
   for (const g of byMonth) {
     if (!g.visits.length) continue;
-    const latest = await pmDueLatestRegAt(g.month);
+    const latest = g.latest !== undefined ? g.latest : await pmDueLatestRegAt(g.month);
     const { startLocal, stepSec } = pmStartDefaults(g.month, latest);
     if (firstAt === undefined) { firstAt = startLocal; latestBefore = latest; }
     const shaped = shapePmDueRows(g.visits, g.month, startLocal, stepSec);
