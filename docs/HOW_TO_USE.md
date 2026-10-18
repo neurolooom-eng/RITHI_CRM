@@ -451,6 +451,11 @@ on Roles & Permissions does not reach another team's calls.
   date and time the **first** and **last** new calls will get. Create reads the
   month again and shows the same in its confirmation, then registers the calls
   straight after that call.
+  **Each new call continues the month's numbering**:
+  `26PMOCT0401-J-ORION-G-1708` — year, PM, month, the next running number in
+  that month (padded to 4; with 400 calls already there the next is 0401,
+  cancelled calls included), the month's letter (January A … December L),
+  product and serial. The first and last numbers are shown before you create.
 
 ## Spares
 

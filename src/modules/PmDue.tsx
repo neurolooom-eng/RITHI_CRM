@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
-import { supabaseConfigured, listPmDue, pmDueLatestCall, type PmDueRow, type PmLatestCall } from '../lib/supabase';
-import { pmBatchTimes } from '../lib/pmImport';
+import { supabaseConfigured, listPmDue, pmDueLatestCall, pmDueNextCallSeq, type PmDueRow, type PmLatestCall } from '../lib/supabase';
+import { pmBatchTimes, pmCallNumber } from '../lib/pmImport';
 import { createPmCalls } from '../lib/pmGenerate';
 import { formatDay, formatDayTime, todayLocal } from '../lib/dates';
 import { SelectPicker } from '../components/ui/SelectPicker';
@@ -92,16 +92,19 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
   // while unread; null when the month has none with a registration time.
   const [latestCall, setLatestCall] = useState<PmLatestCall | null | undefined>(undefined);
   const [latestError, setLatestError] = useState('');
+  // THE MONTH'S NEXT CALL-NUMBER RUNNING NUMBER (0447).
+  const [nextSeq, setNextSeq] = useState<number | undefined>(undefined);
 
   const keyOf = (r: PmDueRow) => `${r.product_name}|${r.serial}`;
 
   const load = useCallback(async (m: string) => {
     if (!onDb || !mayList || !m) return;
     setLoading(true); setLoadError(''); setRows(null); setSkip(new Set());
-    setLatestCall(undefined); setLatestError('');
-    // Read beside the list, and failing on its own: not knowing the latest call
-    // must not hide the visits due.
-    void pmDueLatestCall(m).then(setLatestCall)
+    setLatestCall(undefined); setLatestError(''); setNextSeq(undefined);
+    // Read beside the list, and failing on their own: not knowing the latest
+    // call must not hide the visits due.
+    void Promise.all([pmDueLatestCall(m), pmDueNextCallSeq(m)])
+      .then(([c, n]) => { setLatestCall(c); setNextSeq(n); })
       .catch((e) => setLatestError(e instanceof Error ? e.message : String(e)));
     try { setRows(await listPmDue(m)); }
     catch (e) { setLoadError(e instanceof Error ? e.message : String(e)); }
@@ -207,24 +210,29 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
     // the last -- will get. The batch is then written after exactly that call.
     setBusy(true); setMsg({ tone: 'info', text: 'Reading the latest PM call in the month…' });
     let latest: PmLatestCall | null;
-    try { latest = await pmDueLatestCall(month); setLatestCall(latest); }
-    catch (e) { setBusy(false); setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); return; }
+    let seq: number;
+    try {
+      [latest, seq] = await Promise.all([pmDueLatestCall(month), pmDueNextCallSeq(month)]);
+      setLatestCall(latest); setNextSeq(seq);
+    } catch (e) { setBusy(false); setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); return; }
     const t = pmBatchTimes(month, latest?.reg_at || null, chosen.length);
+    const firstNo = pmCallNumber(month, seq, chosen[0].product_name, chosen[0].serial);
+    const lastNo = pmCallNumber(month, seq + chosen.length - 1, chosen[chosen.length - 1].product_name, chosen[chosen.length - 1].serial);
     const ok = window.confirm(
       `Create ${chosen.length} PM call${chosen.length === 1 ? '' : 's'}, Registered Date ${formatDay(`${month}-01`)}?\n\n`
       + (latest
         ? `Last PM call in ${monthLabel}: ${latest.ucn}${latest.call_number ? ` (${latest.call_number})` : ''}, registered ${formatDayTime(latest.reg_at)}.\n`
         : `No PM call is registered in ${monthLabel} yet.\n`)
-      + `The first new call will be registered ${formatDayTime(t.first)}`
-      + (chosen.length > 1 ? `, the last ${formatDayTime(t.last)}, ${t.stepSec} seconds apart.` : '.'));
+      + `The first new call will be ${firstNo}, registered ${formatDayTime(t.first)}`
+      + (chosen.length > 1 ? `;\nthe last ${lastNo}, registered ${formatDayTime(t.last)} (${t.stepSec} seconds apart).` : '.'));
     if (!ok) { setBusy(false); setMsg(null); return; }
     try {
       setProgress({ done: 0, total: chosen.length }); setMsg({ tone: 'info', text: 'Creating…' });
-      const res = await createPmCalls([{ month, visits: chosen, latest: latest?.reg_at || null }], (done, total) => setProgress({ done, total }));
+      const res = await createPmCalls([{ month, visits: chosen, latest: latest?.reg_at || null, seq }], (done, total) => setProgress({ done, total }));
       if (!res.ok) {
         setMsg({ tone: 'error', text: `Created ${res.written} before an error: ${res.error} The list below is re-read, so what was created is no longer in it.` });
       } else {
-        setMsg({ tone: 'ok', text: `Created ${res.written} PM call${res.written === 1 ? '' : 's'}${res.firstAt ? `, the first registered at ${formatDayTime(new Date(res.firstAt).toISOString())}` : ''}${res.latestBefore ? ` (10 seconds after the month's latest, ${formatDayTime(res.latestBefore)})` : ' (the month had no PM calls yet)'}. They are in the Preventive (PM) register.` });
+        setMsg({ tone: 'ok', text: `Created ${res.written} PM call${res.written === 1 ? '' : 's'}${res.firstCallNumber ? ` from ${res.firstCallNumber}` : ''}${res.firstAt ? `, the first registered at ${formatDayTime(new Date(res.firstAt).toISOString())}` : ''}${res.latestBefore ? ` (10 seconds after the month's latest, ${formatDayTime(res.latestBefore)})` : ' (the month had no PM calls yet)'}. They are in the Preventive (PM) register.` });
       }
     } catch (e) {
       setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) });
@@ -263,7 +271,9 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
           from (Warranty or Contract), product, serial, party and engineer — and every <b>Missed PM</b> shown can be ticked and created. Each call is dated the{' '}
           <b>1st of the month</b>, Added On is <b>today</b>, the first is registered <b>10 seconds after the month's latest
           PM call</b> (00:30 on the 1st, 5 seconds apart, if there is none) — the page names that call and the times the new
-          ones will get, and asks again when you press Create — the engineer is the <b>Product Database's</b>,
+          ones will get, and asks again when you press Create — numbered on from the month's last PM call
+          (<b>26PMOCT0401-J-product-serial</b>: year, PM, month, the next running number, the month's letter A–L, product,
+          serial), the engineer is the <b>Product Database's</b>,
           and it reads <b>SCHEDULED PM VISIT</b> / <b>SCHEDULED PM VISIT k / N</b>.
         </p>
       </div>
@@ -343,8 +353,8 @@ export function PmDue({ source, embedded }: { source?: 'Warranty' | 'Contract'; 
                             {latestCall.party_name ? <> · {latestCall.party_name}</> : null}, registered <b>{formatDayTime(latestCall.reg_at)}</b>.</>
                         : <>No PM call is registered in <b>{monthLabel}</b> yet.</>}
                       {preview && chosen.length > 0 && <>
-                        {' '}The first new call will be registered <b>{formatDayTime(preview.first)}</b>
-                        {chosen.length > 1 ? <>, the last <b>{formatDayTime(preview.last)}</b>, {preview.stepSec} seconds apart</> : null}
+                        {' '}The first new call will be{nextSeq ? <> <b>{pmCallNumber(month, nextSeq, chosen[0].product_name, chosen[0].serial)}</b>,</> : null} registered <b>{formatDayTime(preview.first)}</b>
+                        {chosen.length > 1 ? <>; the last{nextSeq ? <> <b>{pmCallNumber(month, nextSeq + chosen.length - 1, chosen[chosen.length - 1].product_name, chosen[chosen.length - 1].serial)}</b>,</> : null} registered <b>{formatDayTime(preview.last)}</b>, {preview.stepSec} seconds apart</> : null}
                         {' '}(Registered Date {formatDay(`${month}-01`)}). Read again when you press Create.
                       </>}
                     </>}

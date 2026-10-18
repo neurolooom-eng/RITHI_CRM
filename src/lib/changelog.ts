@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.211',
+    date: '2026-10-18',
+    title: 'PM Due: new calls continue the month\'s call numbers',
+    changes: [
+      'A PM call created from PM Due (or from a Warranty or Contract entry\'s PM schedule) now gets the month\'s PM call number. Example: 26PMOCT1334-J-ORION-G-1708 is year, PM, month, the next running number in that month, the month\'s letter (January A to December L), product and serial.',
+      'The running number continues from the month\'s last PM call, so with 400 calls in a month the next is 0401. Cancelled calls keep their numbers and are counted.',
+      'PM Due shows the first and last new call numbers above Create, and again in the confirmation, beside their registration times.',
+      'The registration time is still 10 seconds after the month\'s last call, so the new calls follow the existing ones without disturbing them.',
+    ],
+  },
+  {
     version: '0.10.210',
     date: '2026-10-18',
     title: 'PM Due: a Warranty / Contract filter, and the times before you create',

@@ -55,7 +55,7 @@ import { drivePreviewUrl } from '../src/lib/drive';
 import { callAging, agingTone, callDays } from '../src/lib/aging';
 import { currentItemStatus, coverEndingIn, endOfNextMonth, monthBounds } from '../src/lib/coverToday';
 import { isMissedPm } from '../src/lib/missedPm';
-import { pmBatchTimes } from '../src/lib/pmImport';
+import { pmBatchTimes, pmCallNumber, shapePmDueRows } from '../src/lib/pmImport';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2522,11 +2522,24 @@ console.log('\n-- PM Due: the batch registration times --');
   eq('a month with no PM call starts at 00:30 on the 1st', f.first, '2026-11-01T00:30:00');
   eq('...5 seconds apart', `${f.stepSec} ${f.last}`, '5 2026-11-01T00:30:15');
   eq('one call: the first is the last', pmBatchTimes('2026-10', at('2026-10-18T10:15:30'), 1).last, '2026-10-18T10:15:40');
+  // THE CALL NUMBER (the user, 2026-10-18; padded to 4 like every existing one).
+  eq('the call number is <YY>PM<MON><NNNN>-<letter>-<product>-<serial>',
+    pmCallNumber('2026-10', 401, 'ORION-G', '1708'), '26PMOCT0401-J-ORION-G-1708');
+  eq('...the shape the live register carries', pmCallNumber('2026-10', 1333, 'MONNAL T60', '19146'), '26PMOCT1333-J-MONNAL T60-19146');
+  eq('...January is A, December L', `${pmCallNumber('2027-01', 1, 'VEGA', '9')} ${pmCallNumber('2026-12', 12, 'VEGA', '9')}`,
+    '27PMJAN0001-A-VEGA-9 26PMDEC0012-L-VEGA-9');
+  const v = (serial: string) => ({ source: 'Warranty', ref_no: 'SA-1', product_name: 'ORION-G', serial, party_name: 'P', city: '', state: '',
+    engineer: '', cover_type: 'WGP', cover_start: '2026-01-01', cover_end: '2026-12-31', pm_visits: 3, visit_no: 1, due_date: '2026-10-05' });
+  const rows = shapePmDueRows([v('11'), v('12')] as never, '2026-10', '2026-10-01T02:21:10', 10, 1334);
+  eq('...numbered on in the order of their registration times',
+    rows.map((r) => `${r.call_number} @ ${r.reg_at}`).join(' | '),
+    `26PMOCT1334-J-ORION-G-11 @ ${new Date('2026-10-01T02:21:10').toISOString()} | 26PMOCT1335-J-ORION-G-12 @ ${new Date('2026-10-01T02:21:20').toISOString()}`);
   const pd = readFileSync('src/modules/PmDue.tsx', 'utf8');
   eq('PM Due names the latest call and the times before it creates, and creates after exactly that call',
-    /await pmDueLatestCall\(month\)/.test(pd) && /Last PM call in \$\{monthLabel\}/.test(pd)
-    && /The first new call will be registered/.test(pd)
-    && /createPmCalls\(\[\{ month, visits: chosen, latest: latest\?\.reg_at \|\| null \}\]/.test(pd), true);
+    /await Promise\.all\(\[pmDueLatestCall\(month\), pmDueNextCallSeq\(month\)\]\)/.test(pd) && /Last PM call in \$\{monthLabel\}/.test(pd)
+    && /The first new call will be/.test(pd)
+    && /createPmCalls\(\[\{ month, visits: chosen, latest: latest\?\.reg_at \|\| null, seq \}\]/.test(pd), true);
+  eq('...and the call numbers the first and last will carry', /The first new call will be \$\{firstNo\}/.test(pd), true);
   eq('...and filters by the register the visit comes from',
     /type RegFilter = 'all' \| 'Warranty' \| 'Contract';/.test(pd) && /\(skipOne === 'reg' \|\| byReg\(r, reg\)\)/.test(pd), true);
 }

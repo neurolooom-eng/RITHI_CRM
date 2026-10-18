@@ -394,6 +394,14 @@ export async function pmDueLatestCall(month: string): Promise<PmLatestCall | nul
     product_name: String(r.product_name ?? ''), serial: String(r.serial ?? ''), reg_at: String(r.reg_at ?? ''),
   } : null;
 }
+/** The month's next PM call-number running number (0447). */
+export async function pmDueNextCallSeq(month: string): Promise<number> {
+  const { data, error } = await must().rpc('pm_due_next_call_seq', { p_month: `${month}-01` });
+  if (error) throw new Error(errMsg(error));
+  const n = Number(data);
+  if (!Number.isInteger(n) || n < 1) throw new Error('Could not read the next PM call number for the month.');
+  return n;
+}
 export async function pmDueLatestRegAt(month: string): Promise<string | null> {
   const { data, error } = await must().rpc('pm_due_latest_reg_at', { p_month: `${month}-01` });
   if (error) throw new Error(errMsg(error));

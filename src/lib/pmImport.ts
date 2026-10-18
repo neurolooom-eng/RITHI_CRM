@@ -178,10 +178,28 @@ export interface PmDueMachine {
   pm_visits: number; visit_no: number; due_date: string;
 }
 
+/** THE PM CALL NUMBER (the user, 2026-10-18: "26PMOCT401-J-Prod-serialno";
+ *  asked, padded to 4 like every existing one): <YY>PM<MON><NNNN>-<letter>-
+ *  <product>-<serial>, where YY and MON are the month the call is dated to and
+ *  the letter is that month's (Jan A ... Dec L) -- 26PMOCT1333-J-MONNAL T60-19146,
+ *  the shape all 2026 PM calls carry. `seq` is the running number in the month
+ *  (pm_due_next_call_seq, 0447, for the first). */
+export function pmCallNumber(month: string, seq: number, product: string, serial: string): string {
+  const [y, m] = month.split('-').map(Number);
+  const mon = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][m - 1];
+  const letter = String.fromCharCode(64 + m);
+  return `${String(y % 100).padStart(2, '0')}PM${mon}${String(seq).padStart(4, '0')}-${letter}-${String(product ?? '').trim()}-${String(serial ?? '').trim()}`;
+}
+
 export function shapePmDueRows(
   due: PmDueMachine[], month: string, startLocal: string, stepSec: number,
+  // The month's next running number: the visits are numbered from it in order,
+  // as their registration times step. Left out, the database's own fallback
+  // numbering applies (the call arrives with no Call Number).
+  firstSeq?: number,
 ): Record<string, unknown>[] {
-  const raw = due.map((d) => ({
+  const raw = due.map((d, i) => ({
+    ...(firstSeq ? { 'Call Number': pmCallNumber(month, firstSeq + i, d.product_name, d.serial) } : {}),
     'Party Name': d.party_name ?? '', 'City': d.city ?? '', 'State': d.state ?? '',
     'Product': d.product_name, 'Serial No': d.serial,
     'Item Status': d.cover_type ?? '',

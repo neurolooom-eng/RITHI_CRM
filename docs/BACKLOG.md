@@ -106,6 +106,24 @@ up)_
 
 ---
 
+## 2026-10-18 — PM Due: new calls continue the month's call numbers (FRS-269.13, 0447, v0.10.211)
+
+- **Shipped.** The user: *"Say there are 400 calls already in the list for that
+  month, then the call number should be 26PMOCT401-J-Prod-serialno"*; asked,
+  padded to 4 (`0401`) as every existing one is. Measured live first: every 2026
+  month's PM numbers are `<YY>PM<MON><NNNN>-<letter>-<product>-<serial>` exactly,
+  and the largest NNNN equals the month's count, cancelled included; 2025 months
+  have gaps (Oct 2025: 46 calls, largest 0992), so the next is
+  `greatest(largest, count) + 1` (`pm_due_next_call_seq()`). Before this, a call
+  made from PM Due took the generic `CL26NNNNN`. `pmCallNumber()` builds it; the
+  Warranty / Contract entry's PM schedule gets it too (one `createPmCalls`).
+  `_status.sql` row 361; `pm_due_next_call_seq_test`.
+- **Not changed:** PM Bulk Upload keeps the file's Call Number, and a blank one
+  still takes `CL26NNNNN`. Two people creating for the same month at the same
+  moment could be given the same number -- call numbers are not unique-keyed.
+
+---
+
 ## 2026-10-18 — PM Due: register filter; the batch's times named before creating (FRS-269.11/.12, 0446, v0.10.210)
 
 - **Shipped.** The user: *"In PM due, Add one more filter - Contract or Warranty -
