@@ -2276,7 +2276,10 @@ with checks(sort_order, bundle, provides, present) as (
                               and attname = 'ucn_key' and attgenerated = 's')))),
     (360, 'PM Due names the month''s latest PM call before it creates', 'pm_due_latest_call(date) (0446): the PM call holding the largest registration date-and-time in the month -- UCN, call number, party, product, serial and that time -- with pm_due_latest_reg_at''s pm.generate check, not executable by anon. NO means PM Due cannot say which call a new batch follows. Restore: sales_contracts.sql (0446)',
         (to_regprocedure('public.pm_due_latest_call(date)') is not null
-         and not has_function_privilege('anon', 'public.pm_due_latest_call(date)', 'execute')))
+         and not has_function_privilege('anon', 'public.pm_due_latest_call(date)', 'execute'))),
+    (361, 'A PM call made from PM Due continues its month''s numbering', 'pm_due_next_call_seq(date) (0447): the next running number for <YY>PM<MON><NNNN>-<letter>-<product>-<serial> -- one more than the largest the month''s PM calls carry, never less than the count + 1 -- with pm.generate''s check, not executable by anon. NO means PM Due cannot number its calls and stops before creating. Restore: sales_contracts.sql (0447)',
+        (to_regprocedure('public.pm_due_next_call_seq(date)') is not null
+         and not has_function_privilege('anon', 'public.pm_due_next_call_seq(date)', 'execute')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

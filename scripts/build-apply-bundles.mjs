@@ -1335,7 +1335,10 @@ const MODULES = {
             '0407_pm_schedule.sql',
             // The month's latest PM call by name (0446), so PM Due can say which
             // call a new batch follows. Same rule and right as 0401's time.
-            '0446_pm_due_latest_call.sql'],
+            '0446_pm_due_latest_call.sql',
+            // The month's next PM call-number sequence (0447), so a call made
+            // from PM Due continues <YY>PM<MON><NNNN>-<letter>-<product>-<serial>.
+            '0447_pm_due_next_call_seq.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
