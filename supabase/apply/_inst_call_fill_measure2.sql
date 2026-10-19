@@ -43,8 +43,10 @@ select * from (
     from hm where mk not in (select mk from pr)
   union all select 40 + row_number() over (), 'history extra keys: ' || k, n::text
     from (select k, count(*) n from hk, jsonb_object_keys(coalesce(hk.extra, '{}'::jsonb)) k group by k order by n desc limit 12) e
-  union all select 60 + row_number() over (), 'sample differs: products ' || pr.ic || ' vs history ' || hk.ucn || ' (' || hk.mk || ')', ''
-    from pr join hm using (mk) join hk using (mk)
-   where pr.kind like 'UCN%' and hm.nu = 1 and upper(hk.ucn) <> upper(pr.ic)
-   limit 5
+  union all select 60 + row_number() over (), 'sample differs: products ' || d.ic || ' vs history ' || d.ucn || ' (' || d.mk || ')', ''
+    from (select pr.ic, hk.ucn, hk.mk from pr join hm using (mk) join hk using (mk)
+           where pr.kind like 'UCN%' and hm.nu = 1 and upper(hk.ucn) <> upper(pr.ic) limit 5) d
+  union all select 70 + row_number() over (), 'sample no-UCN product with one history call: ' || d.ic || ' -> ' || d.ucn || ' / ' || coalesce(d.call_status,'') || ' / ' || coalesce(d.solved_at::date::text,''), ''
+    from (select pr.ic, hk.ucn, hk.call_status, hk.solved_at from pr join hm using (mk) join hk using (mk)
+           where pr.kind not like 'UCN%' and hm.nu = 1 limit 5) d
 ) z order by row;
