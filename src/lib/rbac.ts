@@ -79,6 +79,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/product-database-2', label: 'Product Database 2.0' },
   { path: '/product-master', label: 'Product Master (product lines)' },
   { path: '/user-master', label: 'User Master' },
+  // NEW EMPLOYEE REQUESTS (0449, the user 2026-10-21): a second route into the
+  // User Master -- a Reporting / Regional Manager asks, Admin / NSM /
+  // Technical Support approve. `admin: true` keeps it out of the everyday
+  // roles' code defaults; the user grants it on Roles & Permissions ("No, I
+  // will grant it myself"), so no migration writes it into app_roles.
+  { path: '/new-employee-requests', label: 'New Employee Requests', admin: true },
   { path: '/parts', label: 'Part Master' },
   { path: '/masters', label: 'All Masters' },
   // HOW RITHI FUNCTIONS — the two call flows and the masters behind them. It
@@ -434,6 +440,11 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // anyone whose password they reset, so it is ticked on its own. The database
   // still refuses a non-administrator resetting an administrator's (0305).
   { group: 'Admin', key: 'users.reset_password', label: 'Reset a person\u2019s password' },
+  // NEW EMPLOYEE REQUESTS (0449). Neither is a child of users.manage: who may
+  // ask and who may approve are decided on their own. Approving makes an
+  // Engineer login; any other role still needs "Assign roles" (ud_role_guard).
+  { group: 'Admin', key: 'users.request', label: 'Request a new employee (goes to approval)' },
+  { group: 'Admin', key: 'users.request.approve', label: 'Approve new-employee requests (adds them to the User Master and makes the login)' },
   { group: 'Admin', key: 'config.manage', label: 'Admin config (SLA targets, Call Registration desk, Frequent Failure rule)' },
   // SCREENS THAT BORROWED config.manage get keys of their own (finding 63);
   // 0298 copied each from config.manage, which the database asked for.
@@ -804,6 +815,8 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
     { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records', 'masters.product_master.add', 'masters.product_master.edit', 'masters.product_master.delete'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password'] },
+    // Beside the User Master, as in the menu (0449).
+    { path: '/new-employee-requests', label: 'New Employee Requests', actions: ['users.request', 'users.request.approve'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.parts.add', 'masters.parts.edit', 'masters.parts.delete', 'masters.edit.rename_part'] },
     // All Masters is just the overview screen; each value list is its own page
     // under this header, so access is given list by list.

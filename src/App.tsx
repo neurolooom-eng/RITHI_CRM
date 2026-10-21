@@ -22,6 +22,7 @@ import { Reports } from './modules/Reports';
 import { RolePermissions } from './modules/RolePermissions';
 import { AuditLog } from './modules/AuditLog';
 import { UserMasterView } from './modules/UserMasterView';
+import { NewEmployeeRequests } from './modules/NewEmployeeRequests';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { PendingCalls } from './modules/PendingCalls';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
@@ -251,6 +252,7 @@ function Shell() {
         <Route path="/product-master" element={<ProductLines />} />
         <Route path="/lookup" element={<Lookup />} />
         <Route path="/user-master" element={<UserMasterView />} />
+        <Route path="/new-employee-requests" element={<NewEmployeeRequests />} />
         <Route path="/pm-calls" element={<PMCalls />} />
         <Route path="/pending-calls" element={<PendingCalls />} />
         <Route path="/reports" element={<Reports />} />

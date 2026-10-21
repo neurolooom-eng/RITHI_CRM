@@ -7142,10 +7142,18 @@ console.log('\n-- the Roles & Permissions matrix follows the MENU, and every scr
   // it was not. A row that answers NO when nothing is missing is worse than no
   // row, because somebody acts on it.
   const granted = (k: string) => sqlAll.includes(`'${k}'`) || sqlAll.includes(`"${k}"`);
+  // GRANTED BY HAND, ON THE USER'S WORD -- not missing. Each with the decision
+  // that made it so: the user grants these on Roles & Permissions and asked
+  // that no migration do it. A key here reaches administrators only until then.
+  const HAND_GRANTED: Record<string, string> = {
+    'mod:/new-employee-requests': 'the user, 2026-10-21, asked whether a migration may grant New Employee Requests to RM, RGM, Admin, NSM and Technical Support: "No, I will grant it myself"',
+  };
   eq('every module key is written into app_roles by some migration',
     MODULES.map((m) => moduleAction(m.path))
-      .filter((k) => !granted(k))
+      .filter((k) => !granted(k) && !HAND_GRANTED[k])
       .filter((k) => { const par = parentAction(k); return !par || !granted(par); }), []);
+  eq('...and a hand-granted key is a real screen whose grant is still left to the user',
+    Object.keys(HAND_GRANTED).filter((k) => !MODULES.some((m) => moduleAction(m.path) === k) || granted(k)), []);
 }
 
 console.log('\n-- a request for more than a thousand rows is PAGED, or it is a lie --');

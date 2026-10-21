@@ -1314,6 +1314,30 @@ typed into a form that reads it.
   > **One person, one row.** Where two rows share an email the role still
   > applies, but the name stops following, because there is no way to tell which
   > of the two is theirs.
+- **New Employee Requests** `/new-employee-requests` — a second way onto the
+  User Master; the User Master's own **Add user** still works as before.
+  - **A Reporting or Regional Manager asks.** **＋ Request a new employee** takes
+    the User Master's fields — a name and an Air Liquide ID or Gmail ID are
+    needed. You are recorded as the new person's **Reporting Manager**, under
+    the name the User Master gives you, whatever is typed.
+  - **Admin, NSM or Technical Support decides**, and is notified of each new
+    request. Open it, correct anything, set the role and tags, then **Approve &
+    create login** — or **Reject** with a reason the requester sees. The first
+    decision closes it for everyone else.
+  - **Approving adds the person to the User Master and makes their login** for
+    the Air Liquide ID (else the Gmail ID). The temporary password is shown to
+    you once and never kept; they sign in with it and can change it under My
+    Profile. If the login cannot be made, the person is still on the User
+    Master and the request offers **Create login** again.
+  - **What it refuses:** somebody already on the User Master under either
+    address; a role other than Engineer without "Assign roles & grant
+    permissions"; a rejection with no reason. A request is never edited by the
+    requester after it is sent, and never deleted.
+  - **Who may use it** is set on Roles & Permissions — the page, **Request a new
+    employee** and **Approve new-employee requests**. Until they are ticked
+    only an administrator can open it.
+  - **The training request** a new employee is also to get is not built yet:
+    it waits for its format.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
   > Each list has its own **Add**, **Edit** and **Delete** permission. **✎ Edit**

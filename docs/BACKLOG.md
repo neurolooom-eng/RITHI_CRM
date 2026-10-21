@@ -107,6 +107,29 @@ up)_
 
 ---
 
+## 2026-10-21 — New Employee Requests (URS-188, FRS-279, 0449, v0.10.212)
+
+- **Shipped.** The user: *"Add a Place Holder for Reporting Managers to add New
+  Employees, It should go for Approval to the Admins, NSM, Technical Support. If
+  any one of these approve then It should get added to the User Master. This is
+  an additional Route for User Creation and the Existing route stays intact."*
+  Asked: every User Master field, the Reporting Manager the requester (stamped);
+  the approver may edit, then approve or reject with a reason; approval ALSO makes
+  the login (temporary password shown once); the keys are granted by the user.
+  `public.employee_requests` + three definer functions; ud_role_guard still
+  refuses a non-Engineer role without "Assign roles". The sign-up step is shared
+  with the User Master (`sbSignUpLogin`). `_status.sql` row 362;
+  `new_employee_requests_test`.
+- **PENDING, the user's step:** tick `mod:/new-employee-requests` and
+  `users.request` for Reporting Manager and Regional Manager, and
+  `users.request.approve` for NSM and Technical Support, on Roles & Permissions.
+  No migration does it, on the user's word; check:ui carries the exemption.
+- **PENDING, waiting on the user:** the TRAINING REQUEST a manager's request is
+  also to raise -- the user will share its format. `requested_by_role` is
+  recorded for it.
+
+---
+
 ## 2026-10-18 — PM Due: new calls continue the month's call numbers (FRS-269.13, 0447, v0.10.211)
 
 - **Shipped.** The user: *"Say there are 400 calls already in the list for that
