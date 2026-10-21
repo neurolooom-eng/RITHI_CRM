@@ -1201,6 +1201,9 @@ const MODULES = {
             // Files kept with a transfer or a return (0426): a table of its
             // own, reading stock_transfers and material_returns in its policies.
             '0426_stock_record_files.sql',
+            // A one-time data fix (0448): the test request OR-2610-0356 and its
+            // stock out SO-2610-0135 deleted at the user's request; images kept.
+            '0448_delete_test_or_2610_0356.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.
