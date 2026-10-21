@@ -985,7 +985,11 @@ const MODULES = {
     files: ['0264_people_and_training.sql',
             // Findings 63-67 (2026-09-30): the rules of this module move to the per-screen
             // and split keys; see 0286 for the parent rule.
-            '0295_user_profile_details_key.sql'],
+            '0295_user_profile_details_key.sql',
+            // A new employee asked for by a Reporting / Regional Manager and
+            // approved into the User Master (0449). Its own table and three
+            // functions; the User Master's own Add user is untouched.
+            '0449_new_employee_requests.sql'],
   },
   masters: {
     title: 'Master Value Lists',

@@ -4851,9 +4851,12 @@ export async function updateProfile(id: string, patch: { role?: string; extra_pe
 // session in this tab is untouched; then the profile is written with the admin's
 // session (RLS: profiles_admin_write). For the user to sign in immediately the
 // Supabase project must allow sign-ups and have "Confirm email" OFF.
-export async function sbAdminCreateUser(input: { email: string; fullName: string; role: string; password: string; extraPermissions?: string[] }):
-  Promise<{ ok: boolean; error?: string; needsConfirm?: boolean; id?: string }> {
-  const admin = getSupabase(); if (!admin) return { ok: false, error: 'Not connected to the database.' };
+// THE SIGN-IN ACCOUNT ALONE, on a throwaway client so the caller's own session
+// is untouched. Shared by the User Master's Add user and by the approval of a
+// New Employee Request (0449), so the two cannot make a login differently.
+export async function sbSignUpLogin(input: { email: string; fullName: string; password: string }):
+  Promise<{ ok: boolean; error?: string; needsConfirm?: boolean; id?: string; exists?: boolean }> {
+  if (!getSupabase()) return { ok: false, error: 'Not connected to the database.' };
   const email = input.email.trim().toLowerCase();
   const password = input.password ?? '';
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Enter a valid email address.' };
@@ -4868,21 +4871,75 @@ export async function sbAdminCreateUser(input: { email: string; fullName: string
   });
   if (error) {
     const m = error.message.toLowerCase();
-    if (/already|registered|exists/.test(m)) return { ok: false, error: 'That email already has an account.' };
+    if (/already|registered|exists/.test(m)) return { ok: false, error: 'That email already has an account.', exists: true };
     if (/signup|sign-?ups?/.test(m) && /disabled|not allowed/.test(m))
       return { ok: false, error: 'Sign-ups are turned off in Supabase. Enable Authentication → Sign In / Providers → "Allow new users to sign up", then try again.' };
     return { ok: false, error: errMsg(error) };
   }
   const uid = data.user?.id;
-  if (!uid) return { ok: false, error: 'No account was created (the email may already be in use).' };
+  if (!uid) return { ok: false, error: 'No account was created (the email may already be in use).', exists: true };
+  // No session (data.session null) means "Confirm email" is on.
+  return { ok: true, needsConfirm: !data.session, id: uid };
+}
+
+export async function sbAdminCreateUser(input: { email: string; fullName: string; role: string; password: string; extraPermissions?: string[] }):
+  Promise<{ ok: boolean; error?: string; needsConfirm?: boolean; id?: string }> {
+  const admin = getSupabase(); if (!admin) return { ok: false, error: 'Not connected to the database.' };
+  const email = input.email.trim().toLowerCase();
+  const signed = await sbSignUpLogin({ email, fullName: input.fullName, password: input.password });
+  if (!signed.ok || !signed.id) return { ok: false, error: signed.error };
+  const uid = signed.id;
 
   const profile: Record<string, unknown> = { id: uid, email, full_name: input.fullName.trim(), role: input.role };
   if (input.extraPermissions && input.extraPermissions.length) profile.extra_permissions = input.extraPermissions;
   const { error: pErr } = await admin.from('profiles').upsert(profile, { onConflict: 'id', ignoreDuplicates: true });
   if (pErr) return { ok: false, error: 'Login created, but saving the profile failed: ' + errMsg(pErr) };
-  // No session (data.session null) means "Confirm email" is on — the user must
-  // confirm before they can sign in.
-  return { ok: true, needsConfirm: !data.session, id: uid };
+  // "Confirm email" on means the user must confirm before they can sign in.
+  return { ok: true, needsConfirm: signed.needsConfirm, id: uid };
+}
+
+// ---- NEW EMPLOYEE REQUESTS (0449) ------------------------------------------
+// A Reporting / Regional Manager asks; Admin / NSM / Technical Support approve
+// into the User Master. The table stamps who asked and the Reporting Manager;
+// a request changes only through the three functions.
+export interface EmployeeRequest {
+  id: number; req_no: string; status: 'Pending' | 'Approved' | 'Rejected';
+  name: string; email: string; gmail: string; designation: string; department: string; region: string;
+  reporting_manager: string; regional_manager: string; phone: string; address: string; city: string; state: string;
+  remarks: string;
+  requested_by: string | null; requested_by_name: string; requested_by_email: string; requested_by_role: string;
+  decided_by: string | null; decided_by_name: string; decided_at: string | null; reject_reason: string;
+  user_directory_id: number | null; login_email: string; login_created_at: string | null; login_error: string;
+  created_at: string;
+}
+export const EMPLOYEE_REQUEST_FIELDS = ['name', 'email', 'gmail', 'designation', 'department', 'region',
+  'regional_manager', 'phone', 'address', 'city', 'state', 'remarks'] as const;
+export type EmployeeRequestDraft = Record<(typeof EMPLOYEE_REQUEST_FIELDS)[number], string>;
+
+export async function listEmployeeRequests(): Promise<EmployeeRequest[]> {
+  const rows = await allRows<Record<string, unknown>>((from, to) =>
+    must().from('employee_requests').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).range(from, to));
+  return rows as unknown as EmployeeRequest[];
+}
+export async function raiseEmployeeRequest(d: EmployeeRequestDraft): Promise<{ ok: boolean; error?: string; req?: EmployeeRequest }> {
+  const row: Record<string, string> = {};
+  EMPLOYEE_REQUEST_FIELDS.forEach((k) => { row[k] = (d[k] ?? '').trim(); });
+  const { data, error } = await must().from('employee_requests').insert(row).select('*');
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, req: (data?.[0] ?? undefined) as unknown as EmployeeRequest | undefined };
+}
+export async function approveEmployeeRequest(id: number, row: Record<string, unknown>): Promise<{ ok: boolean; error?: string; directoryId?: number }> {
+  const { data, error } = await must().rpc('approve_employee_request', { p_id: id, p_row: row });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, directoryId: Number(data) };
+}
+export async function rejectEmployeeRequest(id: number, reason: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('reject_employee_request', { p_id: id, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function recordEmployeeRequestLogin(id: number, email: string, failure = ''): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('employee_request_login', { p_id: id, p_email: email, p_error: failure });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // Everything a given user has entered/actioned — for a handover view. Matches on

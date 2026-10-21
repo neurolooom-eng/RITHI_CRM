@@ -773,6 +773,9 @@ export const FLOWS: Flow[] = [
     title: 'People and access — who may sign in, what they may do, what they see',
     purpose: 'How a person comes to act in the system: a User Master row, a login issued by an administrator, a role whose permissions are set per screen and per action, a reporting tree that decides whose records they see — and an audit trail of the changes.',
     steps: [
+      { id: 'ner', label: 'New Employee Request, approved', route: '/new-employee-requests', area: 'admin',
+        detail: 'The second route (0449): a Reporting or Regional Manager asks for a new employee, recorded as their Reporting Manager; the first Admin, NSM or Technical Support approver to agree adds the row to the User Master, corrected as they see fit, and makes the login with a temporary password shown once. A rejection carries a reason the requester sees.',
+        records: ['employee_requests', 'user_directory', 'notifications'], reqs: ['FRS-279', 'URS-188', 'OQ-298'] },
       { id: 'um', label: 'User Master row', route: '/user-master', area: 'admin',
         detail: 'Every person has a row, refused without a name because calls are allotted to it. The Reporting and Regional Manager it names build the reporting tree.',
         records: ['user_directory'], reqs: ['FRS-171', 'URS-135'] },
@@ -793,6 +796,8 @@ export const FLOWS: Flow[] = [
         records: ['audit_log', 'record_audit'], reqs: ['FRS-021', 'FRS-204', 'FRS-170', 'URS-016'] },
     ],
     edges: [
+      { from: 'ner', to: 'um', label: 'approved', optional: true },
+      { from: 'ner', to: 'login', label: 'login made on approval', optional: true },
       { from: 'um', to: 'login', label: 'e-mail' },
       { from: 'login', to: 'reset', label: 'forgotten / leaver', optional: true },
       { from: 'login', to: 'role', label: 'role on the sign-in' },

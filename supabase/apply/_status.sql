@@ -2279,7 +2279,14 @@ with checks(sort_order, bundle, provides, present) as (
          and not has_function_privilege('anon', 'public.pm_due_latest_call(date)', 'execute'))),
     (361, 'A PM call made from PM Due continues its month''s numbering', 'pm_due_next_call_seq(date) (0447): the next running number for <YY>PM<MON><NNNN>-<letter>-<product>-<serial> -- one more than the largest the month''s PM calls carry, never less than the count + 1 -- with pm.generate''s check, not executable by anon. NO means PM Due cannot number its calls and stops before creating. Restore: sales_contracts.sql (0447)',
         (to_regprocedure('public.pm_due_next_call_seq(date)') is not null
-         and not has_function_privilege('anon', 'public.pm_due_next_call_seq(date)', 'execute')))
+         and not has_function_privilege('anon', 'public.pm_due_next_call_seq(date)', 'execute'))),
+    (362, 'New Employee Requests: a manager asks, an approver adds them to the User Master', 'public.employee_requests with approve_employee_request(), reject_employee_request() and employee_request_login() (0449): the request is stamped with who asked and their User Master name as Reporting Manager, the first approval adds the row to user_directory, and nobody updates or deletes a request round the functions. NO means the New Employee Requests page cannot read or save. Restore: training.sql (0449)',
+        (to_regclass('public.employee_requests') is not null
+         and to_regprocedure('public.approve_employee_request(bigint,jsonb)') is not null
+         and to_regprocedure('public.reject_employee_request(bigint,text)') is not null
+         and to_regprocedure('public.employee_request_login(bigint,text,text)') is not null
+         and not has_function_privilege('anon', 'public.approve_employee_request(bigint,jsonb)', 'execute')
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.employee_requests') and tgname = 'employee_request_stamp')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

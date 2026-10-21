@@ -275,6 +275,8 @@ export const NAV: NavGroup[] = [
       // per product LINE; the Database is one row per MACHINE.
       { to: '/product-master', label: 'Product Master', icon: '📖' },
       { to: '/user-master', label: 'User Master', icon: '👤' },
+      // The second route into the User Master (0449): asked for, then approved.
+      { to: '/new-employee-requests', label: 'New Employee Requests', icon: '🧑‍💼' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
       { to: '/masters', label: 'All Masters', icon: '🗂️' },
       ...MASTER_LISTS.map((l) => ({ to: masterListPath(l.key), label: l.label, icon: l.icon })),

@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.212',
+    date: '2026-10-21',
+    title: 'New Employee Requests: managers ask, an approver adds them to the User Master',
+    changes: [
+      'A new page, New Employee Requests, under Master beside the User Master. A Reporting or Regional Manager requests a new employee with the User Master\'s details, and is recorded as their Reporting Manager.',
+      'The request goes to Admin, NSM and Technical Support, who are notified. Any one of them can correct it and approve it, or reject it with a reason the requester sees. The first decision closes it.',
+      'Approving adds the person to the User Master and makes their login, showing a temporary password to the approver once.',
+      'The User Master\'s own Add user is unchanged.',
+      'Who may open the page, raise a request and approve one is set on Roles & Permissions. Until those are ticked, only administrators see it.',
+    ],
+  },
+  {
     version: '0.10.211',
     date: '2026-10-18',
     title: 'PM Due: new calls continue the month\'s call numbers',

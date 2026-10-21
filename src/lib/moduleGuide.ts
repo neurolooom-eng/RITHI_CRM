@@ -953,6 +953,24 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
   },
   {
+    route: '/new-employee-requests',
+    purpose: 'A second way onto the User Master: a Reporting or Regional Manager asks for a new employee, and Admin, NSM or Technical Support approves them.',
+    does: [
+      'Request a new employee with every User Master field; you are recorded as their Reporting Manager',
+      'See your own requests, Pending, Approved or Rejected, and why one was rejected',
+      'Approvers: correct any field, set the role and tags, then approve — or reject with a reason',
+      'Approving adds the person to the User Master and makes their login, showing the temporary password once',
+      'Make the login again on an approved request whose login could not be made',
+    ],
+    records: ['employee_requests', 'user_directory', 'notifications', 'rpc:approve_employee_request', 'rpc:reject_employee_request', 'audit_log'],
+    rules: [
+      'The first approval wins; anyone else opening the request is told who decided it',
+      'A person already on the User Master under either address is not added twice',
+      'Setting a role other than Engineer needs “Assign roles & grant permissions”, as on the User Master',
+      'A request is never edited by the requester after it is sent, and never deleted',
+    ],
+  },
+  {
     route: '/parts',
     purpose: 'The item catalogue: add, edit, rename and retire parts, map them to products, and map each main product to its accessories.',
     does: [
