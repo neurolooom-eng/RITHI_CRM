@@ -56,6 +56,7 @@ import { callAging, agingTone, callDays } from '../src/lib/aging';
 import { currentItemStatus, coverEndingIn, endOfNextMonth, monthBounds } from '../src/lib/coverToday';
 import { isMissedPm } from '../src/lib/missedPm';
 import { pmBatchTimes, pmCallNumber, shapePmDueRows } from '../src/lib/pmImport';
+import { parseRef as parseRefForCheck } from '../src/lib/reportMapping';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2510,6 +2511,23 @@ console.log('\n-- call aging, and where the clock stops --');
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the age is on the row, so the column sorts as a number',
     /out\.agingDays = age\.days;/.test(sb), true);
+}
+
+// OPENING AN OLD CALL'S SERVICE REPORT (the user, 2026-10-22). The two shapes
+// the live Call History holds, read the way Machine History reads them.
+console.log('\n-- Machine History opens an old call\'s Service Report --');
+{
+  const p = parseRefForCheck('42CallReporting_Files_/01-05-2023 20-02-00.Service Report.144104.pdf');
+  eq('a bare AppSheet file name is looked up in Drive by its own name',
+    `${p.kind} | ${p.fileName}`, 'appsheet-path | 01-05-2023 20-02-00.Service Report.144104.pdf');
+  const u = parseRefForCheck('https://www.appsheet.com/image/getimageurl?appName=Reportsv2-RITHI-3911373&tableName=41UCN-26&fileName=42Reportingv2_Files_%2Fv2_N1-044955a3.Service%20Report.17.pdf');
+  eq('...and an AppSheet link by the file it names', `${u.kind} | ${u.fileName}`, 'appsheet-url | v2_N1-044955a3.Service Report.17.pdf');
+  const mh = readFileSync('src/lib/machineHistory.ts', 'utf8');
+  const mv = readFileSync('src/components/machine/MachineHistoryView.tsx', 'utf8');
+  eq('Machine History carries the history row\'s Service Report and offers Open, through the Drive lookup',
+    /report: s\(\(r\.extra as Record<string, unknown> \| null\)\?\.\['Service Report'\]\)/.test(mh)
+    && /'📄 Open'/.test(mv) && /resolveDriveLinks\(\[ref\.fileName\]\)/.test(mv)
+    && /res\.ambiguous\.includes\(ref\.fileName\)/.test(mv), true);
 }
 
 // PM DUE SAYS WHERE A BATCH WILL SIT (the user, 2026-10-18: "tell me what is

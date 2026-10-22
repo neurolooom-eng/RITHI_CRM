@@ -107,6 +107,21 @@ up)_
 
 ---
 
+## 2026-10-22 — Machine History: open an old call's Service Report (FRS-119.13, v0.10.214)
+
+- **Shipped.** The user: *"In history of there is service report, I need to be
+  able to open the report."* Measured live first: Call History's `extra` carries
+  "Service Report" on 2,568 rows -- 71 full AppSheet links, 2,483 bare AppSheet
+  file names (`42CallReporting_Files_/... .Service Report.144104.pdf`), 14 other.
+  Open: a link opens as it is; a name or AppSheet link is looked up in Drive by
+  file name through the bridge's `drivefind` (Bulk Report Mapping's lookup);
+  ambiguous or missing is said, not guessed. Client only, no migration.
+- **Worth knowing:** `drivefind` sets a file it finds to "anyone with the link
+  can view" (`_driveFind` in CallReg.gs) -- existing bridge behaviour, now
+  reached from Machine History too.
+
+---
+
 ## 2026-10-22 — KPI Export Call Type filter; Call History register (FRS-195.14, FRS-278.10, 0450, 0451, v0.10.213)
 
 - **Shipped.** The user: *"In KPI Export - Add Call Type Filter. In Bulk Upload,

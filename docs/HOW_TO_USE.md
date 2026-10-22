@@ -1532,6 +1532,10 @@ typed into a form that reads it.
     warranty and contract it is under.
   - **Call history** — the machine's calls before RITHI (loaded as Call
     History), as the old file has them; history only, never a live call.
+    Where the old file carried a **Service Report**, the row has **📄 Open**:
+    a link opens as it is; an old AppSheet file name is found in Google Drive
+    by that name and opened. A name that matches more than one file, or none,
+    is not opened — the screen says which, so you can find it in Drive.
   - **Everything recorded against it** — calls, visits, spares fitted, Field
     Failure Reports, customer feedback, sale/warranty, contracts, ownership
     transfers, additional entries and workshop jobs. Filter by register, or

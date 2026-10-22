@@ -6,6 +6,8 @@ import { useCallStates, callStateFor } from '../../lib/callstates';
 import { csvExport, fmtLongDate } from '../../lib/format';
 import { partyDiffers, type MachineEvent, type MachineHistory, type MachineNow } from '../../lib/machineHistory';
 import { partial } from '../../lib/exportscope';
+import { parseRef } from '../../lib/reportMapping';
+import { resolveDriveLinks } from '../../lib/sheets';
 
 // ===========================================================================
 // ONE MACHINE'S LIFE, RENDERED ONCE.
@@ -35,6 +37,33 @@ const SOURCES: MachineEvent['source'][] = [
 
 export const MACHINE_SOURCES = SOURCES;
 
+// OPENING A SERVICE REPORT (the user, 2026-10-22). What the record holds is
+// either a link, which opens as it is, or the bare AppSheet file name an old
+// export carried ("42CallReporting_Files_/01-05-2023 ... .Service Report.144104.pdf"),
+// which is looked up in Google Drive by that name -- the lookup Bulk Report
+// Mapping uses. A name found in more than one place is NOT opened: the wrong
+// report on a call is worse than none. The window is opened FIRST, before the
+// lookup, because a browser blocks one opened after a wait.
+async function openReport(raw: string): Promise<string> {
+  const ref = parseRef(raw);
+  if (ref.kind === 'drive-link' || ref.kind === 'other-url' || ref.kind === 'drive-id') {
+    window.open(ref.url, '_blank', 'noopener');
+    return '';
+  }
+  if (!ref.fileName) return `This report reference cannot be opened: “${raw}”.`;
+  const w = window.open('', '_blank');
+  if (w) w.document.title = 'Finding the report…';
+  const res = await resolveDriveLinks([ref.fileName]);
+  const link = res.links[ref.fileName];
+  if (link) { if (w) w.location.href = link; else window.open(link, '_blank', 'noopener'); return ''; }
+  // An AppSheet link still opens in AppSheet when Drive does not have the file.
+  if (ref.kind === 'appsheet-url') { if (w) w.location.href = raw; else window.open(raw, '_blank', 'noopener'); return ''; }
+  w?.close();
+  if (!res.ok) return `Could not look the report up in Drive: ${res.error ?? 'the lookup failed'}.`;
+  if (res.ambiguous.includes(ref.fileName)) return `More than one file in Drive is called “${ref.fileName}”, so none is opened. Find it in Drive by that name.`;
+  return `“${ref.fileName}” is not in Drive under that name, so it cannot be opened from here.`;
+}
+
 const Fact = ({ label, value }: { label: string; value: string }) => (
   <div>
     <div className="field-label">{label}</div>
@@ -55,6 +84,8 @@ export function MachineHistoryView({
   rowsBeforeScroll?: number;
 }) {
   const [only, setOnly] = useState<MachineEvent['source'] | ''>('');
+  const [reportMsg, setReportMsg] = useState('');
+  const [opening, setOpening] = useState('');
   const more = unread.length > 0;
 
   const shown = useMemo(
@@ -81,6 +112,17 @@ export function MachineHistoryView({
         : String(r.ref ?? '')) },
     { key: 'party', header: 'Who', width: 180 },
     { key: 'detail', header: 'Detail' },
+    // THE SERVICE REPORT, where the record has one (Call History's own column).
+    { key: 'report', header: 'Report', width: 110, wrap: false, sortable: false,
+      render: (r) => (r.report
+        ? <button className="btn btn-sm" disabled={opening === String(r.key)} title={String(r.report)}
+            onClick={() => {
+              setReportMsg(''); setOpening(String(r.key));
+              void openReport(String(r.report)).then((m) => { setReportMsg(m); setOpening(''); });
+            }}>
+            {opening === String(r.key) ? 'Finding…' : '📄 Open'}
+          </button>
+        : '') },
   ];
 
   return (
@@ -149,6 +191,12 @@ export function MachineHistoryView({
                     <span key={u.source}>{i > 0 && '; '}<b>{u.source}</b> ({u.reason})</span>
                   ))}.
                 </span>
+              </div>
+            )}
+            {reportMsg && (
+              <div className="sheet-banner sheet-banner-error">
+                <span>{reportMsg}</span>
+                <button className="btn btn-ghost btn-sm" onClick={() => setReportMsg('')}>✕</button>
               </div>
             )}
             <Toolbar>
