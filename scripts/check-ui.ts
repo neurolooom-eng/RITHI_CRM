@@ -2526,8 +2526,14 @@ console.log('\n-- Machine History opens an old call\'s Service Report --');
   const mv = readFileSync('src/components/machine/MachineHistoryView.tsx', 'utf8');
   eq('Machine History carries the history row\'s Service Report and offers Open, through the Drive lookup',
     /report: s\(\(r\.extra as Record<string, unknown> \| null\)\?\.\['Service Report'\]\)/.test(mh)
-    && /'📄 Open'/.test(mv) && /resolveDriveLinks\(\[ref\.fileName\]\)/.test(mv)
+    && /📄 Open</.test(mv) && /📄 Find & open/.test(mv) && /resolveDriveLinks\(\[ref\.fileName\]\)/.test(mv)
     && /res\.ambiguous\.includes\(ref\.fileName\)/.test(mv), true);
+  // "Report column is there but the link is not there ... add open in drive
+  // option directly" (the user, 2026-10-22).
+  eq('...a Visit row carries its Manual Report too',
+    /byUcn\('Visit', 'reports', '[^']*manual_report,data'/.test(mh) && /report: s\(r\.manual_report\)/.test(mh), true);
+  eq('...and a file name gets Google Drive\'s own search, as a plain link',
+    /drive\.google\.com\/drive\/search\?q=/.test(mv) && /📂 Open in Drive/.test(mv), true);
 }
 
 // PM DUE SAYS WHERE A BATCH WILL SIT (the user, 2026-10-18: "tell me what is

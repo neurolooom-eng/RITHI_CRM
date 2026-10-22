@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.215',
+    date: '2026-10-22',
+    title: 'Machine History: reports on visits too, and Open in Drive',
+    changes: [
+      'Visit rows on Machine History now show their service report in the Report column, as the opened call does.',
+      'Where the record holds only an old AppSheet file name, there is now 📂 Open in Drive. It opens Google Drive\'s own search for that file name, in your Drive and with your own access.',
+      'Find & open is still there, beside it: it finds the one file and opens it.',
+      'A report that is already a link opens directly.',
+    ],
+  },
+  {
     version: '0.10.214',
     date: '2026-10-22',
     title: 'Machine History: open an old call\'s Service Report',
