@@ -1322,7 +1322,10 @@ export const UPLOADS: UploadDef[] = [
       TEXT('engineer', 'call allocated to', 'engineer', 'allocated to'),
       TEXT('item_code', 'item code'),
       TEXT('item_name', 'item name', 'product', 'product name'),
-      TEXT('serial', 'item serial no.', 'item serial no', 'serial no.', 'serial no', 'serial number', 'serial'),
+      // "Product Serial Number" is how the RITHI v1 sheets head it (0452): it was
+      // kept among the other columns, and Machine History, which finds a
+      // history call by its serial, never listed those calls.
+      TEXT('serial', 'item serial no.', 'item serial no', 'serial no.', 'serial no', 'serial number', 'product serial number', 'serial'),
       TEXT('standard_complaint', 'standard complaint'),
       TEXT('complaint_reported', 'complaint reported', 'nature of complaint'),
       // As the file writes it -- "Under Warranty", "Under Contract" -- not WGP / CMC.

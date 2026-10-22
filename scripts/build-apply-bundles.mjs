@@ -548,6 +548,9 @@ const MODULES = {
             // Which register each history call belongs to (0451): chosen on the
             // upload, or read off the row's own Call Type for a Mixed file.
             '0451_call_history_register.sql',
+            // The serial a file wrote under "Product Serial Number", copied into
+            // the serial column Machine History searches by (0452).
+            '0452_call_history_serial_from_file.sql',
             // A PM call whose consumption is a Spare joins the DCCR review
             // (2026-10-06). Restates 0353's / 0344's two review views, so after
             // both; and the DCCR rows whose UC Number was an Excel date, removed.

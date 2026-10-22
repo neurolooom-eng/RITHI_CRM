@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.216',
+    date: '2026-10-22',
+    title: 'Machine History now lists the old installation calls, with their Service Report',
+    changes: [
+      'Most of the old calls that carry a Service Report were not appearing on Machine History. Their file wrote the serial under "Product Serial Number", which the upload did not recognise, so the call had no serial to be found by.',
+      'Those calls now carry their serial: 3,127 of them, taken from the file\'s own column, which is still kept as it was. They appear on Machine History with the Report column filled.',
+      'The Call History upload now reads "Product Serial Number" as the serial, so a re-load or a new sheet is right from the start.',
+    ],
+  },
+  {
     version: '0.10.215',
     date: '2026-10-22',
     title: 'Machine History: reports on visits too, and Open in Drive',
