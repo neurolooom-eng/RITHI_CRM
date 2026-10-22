@@ -64,6 +64,12 @@ async function openReport(raw: string): Promise<string> {
   return `“${ref.fileName}” is not in Drive under that name, so it cannot be opened from here.`;
 }
 
+/** GOOGLE DRIVE'S OWN SEARCH for a file name -- the direct way to it (the user,
+ *  2026-10-22: "add open in drive option directly"). Opens in the viewer's own
+ *  Drive, with their own access; nothing is looked up or shared on the way. */
+export const driveSearchLink = (fileName: string) =>
+  `https://drive.google.com/drive/search?q=${encodeURIComponent(`"${fileName}"`)}`;
+
 const Fact = ({ label, value }: { label: string; value: string }) => (
   <div>
     <div className="field-label">{label}</div>
@@ -113,16 +119,32 @@ export function MachineHistoryView({
     { key: 'party', header: 'Who', width: 180 },
     { key: 'detail', header: 'Detail' },
     // THE SERVICE REPORT, where the record has one (Call History's own column).
-    { key: 'report', header: 'Report', width: 110, wrap: false, sortable: false,
-      render: (r) => (r.report
-        ? <button className="btn btn-sm" disabled={opening === String(r.key)} title={String(r.report)}
-            onClick={() => {
-              setReportMsg(''); setOpening(String(r.key));
-              void openReport(String(r.report)).then((m) => { setReportMsg(m); setOpening(''); });
-            }}>
-            {opening === String(r.key) ? 'Finding…' : '📄 Open'}
-          </button>
-        : '') },
+    // A LINK OPENS DIRECTLY. A bare AppSheet file name gets "Open in Drive" --
+    // Drive's own search for that name, a plain link -- and "Find & open",
+    // which looks the one file up and opens it.
+    { key: 'report', header: 'Report', width: 220, wrap: false, sortable: false,
+      render: (r) => {
+        const raw = String(r.report ?? '');
+        if (!raw) return '';
+        const ref = parseRef(raw);
+        if (ref.url) {
+          return <a className="btn btn-sm" href={ref.url} target="_blank" rel="noopener noreferrer" title={raw}>📄 Open</a>;
+        }
+        if (!ref.fileName) return <span className="muted" title={raw}>not a link</span>;
+        return (
+          <span style={{ display: 'inline-flex', gap: 4 }}>
+            <a className="btn btn-sm" href={driveSearchLink(ref.fileName)} target="_blank" rel="noopener noreferrer"
+               title={`Search Google Drive for “${ref.fileName}”`}>📂 Open in Drive</a>
+            <button className="btn btn-sm" disabled={opening === String(r.key)} title={`Find “${ref.fileName}” and open it`}
+              onClick={() => {
+                setReportMsg(''); setOpening(String(r.key));
+                void openReport(raw).then((m) => { setReportMsg(m); setOpening(''); });
+              }}>
+              {opening === String(r.key) ? 'Finding…' : '📄 Find & open'}
+            </button>
+          </span>
+        );
+      } },
   ];
 
   return (

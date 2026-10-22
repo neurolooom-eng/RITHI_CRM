@@ -238,7 +238,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
     // party can disagree with every other row, which is exactly why it belongs
     // where it can be read beside them rather than only above them.
     bySerial('Product Database', 'products', 'id,item_name,serial_number,party_name,item_status,warranty_number,contract_number,contract_type,active,created_at', 'serial_number', 'id'),
-    ucns.length ? byUcn('Visit', 'reports', 'id,uid,ucn,call_status,engineer,visit_at,updated_at,pending_reason', 'id') : none,
+    ucns.length ? byUcn('Visit', 'reports', 'id,uid,ucn,call_status,engineer,visit_at,updated_at,pending_reason,manual_report,data', 'id') : none,
     ucns.length ? byUcn('Spare', 'spare_consumption', 'id,ucn,part,qty,engineer,created_at,remarks', 'id') : none,
     bySerial('Field Failure', 'field_failure_reports', 'id,ffr_no,ucn,ffr_date,customer_name,product_name,product_serial,problem_reported,ffr_status,capa_no,imported_from', 'product_serial', 'id'),
     bySerial('Feedback', 'feedback', 'id,ucn,call_number,party_name,product_name,serial,complaint,entry_at,imported_from', 'serial', 'id'),
@@ -267,6 +267,12 @@ export async function machineHistory(product: string, serial: string): Promise<M
     // and remove one of them.
     detail: [!s(r.visit_at) && `no visit date — entered ${day(r.updated_at)}`,
              s(r.pending_reason), s(r.uid) && `visit ${s(r.uid)}`].filter(Boolean).join(' · '),
+    // THE VISIT'S SERVICE REPORT (the user, 2026-10-22: "Report column is there
+    // but the link is not there"): the Manual Report the visit was filed with
+    // -- the link the opened call shows -- or, on an imported visit, the
+    // Service Report its file carried.
+    report: s(r.manual_report) || s((r.data as Record<string, unknown> | null)?.['Manual Report'])
+         || s((r.data as Record<string, unknown> | null)?.['Service Report']),
   });
 
   for (const r of spares) {
