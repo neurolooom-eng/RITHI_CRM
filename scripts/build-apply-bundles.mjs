@@ -545,6 +545,9 @@ const MODULES = {
             // Call History from several systems: source, year, duplicates
             // flagged and the latest year shown (0432).
             '0432_call_history_sources.sql',
+            // Which register each history call belongs to (0451): chosen on the
+            // upload, or read off the row's own Call Type for a Mixed file.
+            '0451_call_history_register.sql',
             // A PM call whose consumption is a Spare joins the DCCR review
             // (2026-10-06). Restates 0353's / 0344's two review views, so after
             // both; and the DCCR rows whose UC Number was an Excel date, removed.
@@ -820,7 +823,10 @@ const MODULES = {
       '0440_days_lower_of_complaint_and_breakdown.sql',
       // ...and which date each count came from, three columns after Pending
       // Days (0442): restates 0440's view.
-      '0442_kpi_days_basis.sql'],
+      '0442_kpi_days_basis.sql',
+      // ...and which register each call is on, for the Call Type filter
+      // (0450): restates 0442's view with one column appended.
+      '0450_kpi_register_column.sql'],
   },
   audit: {
     title: 'Audit Log',

@@ -1301,10 +1301,16 @@ export const UPLOADS: UploadDef[] = [
       { to: 'record_year', label: 'Year', type: 'year',
         required: (a) => a.source === 'Yearly sheet',
         hint: 'For a yearly sheet, the sheet\u2019s year (an Old Call carried into it is recorded with this year). Left blank, each call takes the year of its own call date.' },
+      // WHICH REGISTER (0451, the user 2026-10-22: "Add one more Field For PM /
+      // Field / Installation"; asked, recorded BESIDE the file's own Call Type,
+      // which is kept as written). Mixed reads each row's Call Type.
+      { to: 'register', label: 'Call Type', type: 'select', required: true,
+        options: ['Field', 'Installation', 'PM', 'Mixed \u2014 read each row\u2019s Call Type'],
+        hint: 'Which register these calls belong to: Field, Installation or PM. Recorded beside the file\u2019s own Call Type, which is kept as written. For a file holding several types choose Mixed: each row\u2019s register is then read off its own Call Type (INSTALL\u2026 Installation, PM\u2026 PM, anything else Field).' },
     ],
     // Copies of other columns in the old export: kept once, not twice.
     ignore: ['product details', 'party2', 'state2', 'city2'],
-    note: 'HISTORY ONLY — for calls up to 2025. Each row is stored as it is in the file, apart from the live calls: it does not appear in the Field, Installation or PM registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or the Objectives, and nothing is created from it — no visit, no review, no FFR, no notification, no Product Database change. The call status and solved date are the file\u2019s own. One row per UC No. + Call No., so a UC No. used for two calls keeps both, and loading the same file again corrects it rather than adding it twice. Pick the Source (and, for a yearly sheet, its Year) before uploading: when the same UC No. + Call No. comes from another source or year, the LATEST YEAR\u2019s record is shown and the other is kept with it, flagged Duplicate \u2014 nothing else is done about it. Every other column the file carries is kept with the call. Read on Machine History.',
+    note: 'HISTORY ONLY — for calls up to 2025. Each row is stored as it is in the file, apart from the live calls: it does not appear in the Field, Installation or PM registers, Pending Calls, the Dashboard, SLA, My Workload, DCCR, Field Failure or the Objectives, and nothing is created from it — no visit, no review, no FFR, no notification, no Product Database change. The call status and solved date are the file\u2019s own. One row per UC No. + Call No., so a UC No. used for two calls keeps both, and loading the same file again corrects it rather than adding it twice. Pick the Source (and, for a yearly sheet, its Year) and the Call Type \u2014 Field, Installation, PM or Mixed \u2014 before uploading: when the same UC No. + Call No. comes from another source or year, the LATEST YEAR\u2019s record is shown and the other is kept with it, flagged Duplicate \u2014 nothing else is done about it. Every other column the file carries is kept with the call. Read on Machine History.',
     cols: [
       { to: 'ucn', from: ['uc no.', 'uc no', 'uc number', 'ucn'], required: true },
       TEXT('call_no', 'call no.', 'call no', 'call number'),

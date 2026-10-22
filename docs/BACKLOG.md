@@ -107,6 +107,22 @@ up)_
 
 ---
 
+## 2026-10-22 — KPI Export Call Type filter; Call History register (FRS-195.14, FRS-278.10, 0450, 0451, v0.10.213)
+
+- **Shipped.** The user: *"In KPI Export - Add Call Type Filter. In Bulk Upload,
+  Historical Data, Add one more Field For PM / Field / Installation."*
+  - KPI: `kpi_field_inst` restated from 0442 with `"Register"` appended last
+    (from the TABLE, not the Call Type text); the screen filters the count and
+    both downloads on it.
+  - Call History: asked, the value is recorded BESIDE the file's Call Type
+    (`call_history.register`), with Mixed reading each row's own Call Type by
+    `call_table_for()`'s rule. The rows already loaded were backfilled by that
+    rule with the table's triggers paused (call_history_stamp would otherwise
+    rewrite every load time); one record_audit BULK UPDATE row.
+  - `_status.sql` rows 363-364; `call_type_filters_test`.
+
+---
+
 ## 2026-10-21 — New Employee Requests (URS-188, FRS-279, 0449, v0.10.212)
 
 - **Shipped.** The user: *"Add a Place Holder for Reporting Managers to add New

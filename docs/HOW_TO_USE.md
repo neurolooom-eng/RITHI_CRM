@@ -284,7 +284,11 @@ on Roles & Permissions does not reach another team's calls.
   > file again and it corrects, never doubles. Every other column the file has
   > is kept with the call. Read them on **Machine History** (group *Call
   > history*). **Choose the Source** (e-service, WinMax, Yearly sheet, DCCR
-  > register, Other) **and, for a yearly sheet, its Year** before uploading.
+  > register, Other) **and, for a yearly sheet, its Year** before uploading,
+  > **and the Call Type** — Field, Installation or PM — which is recorded
+  > beside the file's own Call Type (kept as written). For a file holding
+  > several types choose **Mixed**: each row's type is then read off its own
+  > Call Type (INSTALL… Installation, PM… PM, anything else Field).
   > When the same UC No. + Call No. comes from another source or year — an Old
   > Call in the next year's sheet, a call in two systems — the **latest year's
   > record is shown**, the other is kept with it and the call is flagged
@@ -1652,7 +1656,10 @@ typed into a form that reads it.
   entirely. **Every date in it is the India date** — Call Attended On, Call
   Solved Date, the days counted and Failure Month — and Call Attended On and
   Call Solved Date match the First Attended and Solved Dates on the call
-  registers.
+  registers. **Call Type** — All, Field, Installation or PM — narrows the
+  count and both downloads to that register's calls (read from the register
+  the call is on, not from how its Call Type is spelt); the file name says
+  which.
 - **Hand Stock Report** `/handstock-report` — **Admin and Technical Support to begin with**;
   every other role is a tick on Roles & Permissions, and that tick gives the
   role the menu entry as well as the page. One line per engineer and part:

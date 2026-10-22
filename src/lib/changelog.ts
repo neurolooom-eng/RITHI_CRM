@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.213',
+    date: '2026-10-22',
+    title: 'KPI Export: Call Type filter. Historical Data: a Call Type box',
+    changes: [
+      'KPI Export has a Call Type filter: All, Field, Installation or PM. The count, the Excel and the CSV follow it, and the file name says which type was chosen.',
+      'The Call History (Historical Data) upload asks for the Call Type of the file: Field, Installation, PM, or Mixed for a file holding several. It is recorded beside the file\'s own Call Type, which is kept exactly as written.',
+      'For Mixed, each row\'s type is read off its own Call Type. The calls already loaded have been given theirs the same way.',
+    ],
+  },
+  {
     version: '0.10.212',
     date: '2026-10-21',
     title: 'New Employee Requests: managers ask, an approver adds them to the User Master',

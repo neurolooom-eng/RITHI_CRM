@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
-import { supabaseConfigured, countKpiFieldInst, listKpiFieldInst } from '../lib/supabase';
+import { supabaseConfigured, countKpiFieldInst, listKpiFieldInst, type KpiRegister } from '../lib/supabase';
 import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiExportRow, toKpiCellRow } from '../lib/kpi';
 import { csvExport } from '../lib/format';
 import { xlsxDownload, xlsxCell } from '../lib/xlsx';
@@ -25,6 +25,8 @@ export function KpiExport() {
   const live = supabaseConfigured();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  // THE CALL TYPE FILTER (0450, the user 2026-10-22): '' is all three.
+  const [register, setRegister] = useState<KpiRegister | ''>('');
   const [count, setCount] = useState<number | null>(null);
   const [err, setErr] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -37,11 +39,11 @@ export function KpiExport() {
     if (!live) return;
     let cancelled = false;
     setErr(false);
-    void countKpiFieldInst({ from: from || undefined, to: to || undefined })
+    void countKpiFieldInst({ from: from || undefined, to: to || undefined, register: register || undefined })
       .then((n) => { if (!cancelled) setCount(n); })
       .catch(() => { if (!cancelled) { setCount(null); setErr(true); } });
     return () => { cancelled = true; };
-  }, [live, from, to]);
+  }, [live, from, to, register]);
 
   const run = async (kind: 'csv' | 'xlsx' = 'csv') => {
     if (busy) return;
@@ -49,7 +51,7 @@ export function KpiExport() {
     setMsg('Reading the calls…');
     try {
       const PAGE = 1000;
-      const range = { from: from || undefined, to: to || undefined };
+      const range = { from: from || undefined, to: to || undefined, register: register || undefined };
       const all: Record<string, unknown>[] = [];
       for (let off = 0; ; off += PAGE) {
         const page = await listKpiFieldInst(range, off, PAGE);
@@ -57,7 +59,7 @@ export function KpiExport() {
         if (page.length < PAGE) break;
         setMsg(`Read ${all.length.toLocaleString()}…`);
       }
-      const span = from || to ? `${from || 'start'}_${to || 'today'}` : todayLocal();
+      const span = `${register ? `${register.toLowerCase()}-` : ''}${from || to ? `${from || 'start'}_${to || 'today'}` : todayLocal()}`;
       const cols = kpiExportColumns();
       if (kind === 'csv') {
         csvExport(`kpi-field-inst-pm-${span}.csv`, cols, all.map(toKpiExportRow),
@@ -80,7 +82,7 @@ export function KpiExport() {
         }], COMPLETE);
       }
       setMsg(`Exported ${all.length.toLocaleString()} call${all.length === 1 ? '' : 's'}.`);
-      logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from, to, kind } });
+      logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from, to, kind, register: register || 'all' } });
     } catch (e) {
       setMsg(`Could not export: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
@@ -112,6 +114,14 @@ export function KpiExport() {
           a call nobody has been to, so every unattended call reads as attended and solved the same
           day; this says how long it has actually been waiting.</li>
       </ul>
+      <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+        <span className="field-label" style={{ marginRight: 4 }}>Call Type</span>
+        {([['', 'All'], ['Field', 'Field'], ['Installation', 'Installation'], ['PM', 'PM']] as [KpiRegister | '', string][]).map(([k, label]) => (
+          <button key={label} className={`btn btn-sm${register === k ? ' btn-primary' : ''}`} onClick={() => setRegister(k)} disabled={busy}>
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="row" style={{ gap: 10, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
         <div>
           <label className="field-label">Registered from</label>

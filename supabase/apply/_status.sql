@@ -2222,14 +2222,14 @@ with checks(sort_order, bundle, provides, present) as (
     (348, 'Objective: the Total column is calculated', 'objective_total() and the trigger zx_quality_objectives_total (0428): a calculated objective''s Total is the sum of its months (FFR count) or the average of the months that carry a figure (every percentage), restated whenever a month changes; a typed objective keeps its typed Total. NO means the Total column still shows the figure typed in from the sheet. Restore: objective.sql (0428)',
         (to_regprocedure('public.objective_total(public.quality_objectives)') is not null
      and exists (select 1 from pg_trigger where tgname = 'zx_quality_objectives_total' and tgrelid = to_regclass('public.quality_objectives')))),
-    (349, 'Call History: the calls before RITHI, kept apart', 'call_history (0429): row-level security on, read like a call, written with bulk.upload, never deleted or read through the public key, keyed by UC No. + Call No., and carrying no trigger but the loader stamp and the source / year / duplicate rule (0432) -- so nothing is created from a historical call. NO means the Call History upload in Bulk Uploads cannot load. Restore: daily_review.sql (0429)',
+    (349, 'Call History: the calls before RITHI, kept apart', 'call_history (0429): row-level security on, read like a call, written with bulk.upload, never deleted or read through the public key, keyed by UC No. + Call No., and carrying no trigger but the loader stamp, the source / year / duplicate rule (0432) and the register it fills on its own row (0451) -- so nothing is created from a historical call. NO means the Call History upload in Bulk Uploads cannot load. Restore: daily_review.sql (0429)',
         (to_regclass('public.call_history') is not null
      and coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.call_history')), false)
      and to_regclass('public.call_history_key') is not null
      and not coalesce(has_table_privilege('authenticated', 'public.call_history', 'delete'), true)
      and not coalesce(has_table_privilege('anon', 'public.call_history', 'select'), true)
      and (select count(*) from pg_trigger where tgrelid = to_regclass('public.call_history') and not tgisinternal
-            and tgname not in ('call_history_stamp', 'call_history_year_default', 'call_history_zz_keep_latest', 'zzz_sys_stamp') and tgname not like 'record_audit%') = 0)),
+            and tgname not in ('call_history_stamp', 'call_history_year_default', 'call_history_zz_keep_latest', 'call_history_register', 'zzz_sys_stamp') and tgname not like 'record_audit%') = 0)),
     (350, 'The old DCCR register keeps its calls as history', 'dccr_history_apply (0430) keeps each call in call_history and files no visit, and _dccr_failure_calls (0431) counts a Call History row with an imported review as a failure, so the 2025 DCCR history left the live tables without moving a Recent Failure Rate. NO means a DCCR-history load still files calls into the live registers, or the failure rates lost 2025. Restore: daily_review.sql (0430), objective.sql (0431)',
         (coalesce((select p.prosrc like '%insert into public.call_history%' and p.prosrc not like '%insert into public.reports%'
                      from pg_proc p where p.oid = to_regprocedure('public.dccr_history_apply()')), false)
@@ -2286,7 +2286,12 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regprocedure('public.reject_employee_request(bigint,text)') is not null
          and to_regprocedure('public.employee_request_login(bigint,text,text)') is not null
          and not has_function_privilege('anon', 'public.approve_employee_request(bigint,jsonb)', 'execute')
-         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.employee_requests') and tgname = 'employee_request_stamp')))
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.employee_requests') and tgname = 'employee_request_stamp'))),
+    (363, 'KPI Export filters by Call Type', 'kpi_field_inst."Register" (0450): Field / Installation / PM, from the table each call was read from, appended last; security_invoker kept. NO means the Call Type filter on the KPI Export answers an error. Restore: performance.sql (0450)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'kpi_field_inst' and column_name = 'Register')),
+    (364, 'Call History records the register beside the file''s Call Type', 'call_history.register + call_history_register() (0451): Field / Installation / PM chosen on the upload, or read off each row''s own Call Type for a Mixed file; the rows already loaded were given theirs. NO means the Call History upload''s Call Type box is refused. Restore: daily_review.sql (0451)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_history' and column_name = 'register')
+        and to_regprocedure('public.call_register_of(text)') is not null)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
