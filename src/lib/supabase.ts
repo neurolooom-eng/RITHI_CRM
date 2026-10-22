@@ -489,7 +489,11 @@ export async function reallocateCalls(
 // Paged, because a year of calls is thousands of rows and PostgREST caps a
 // response at 1,000.
 // ---------------------------------------------------------------------------
-export interface KpiRange { from?: string; to?: string }
+// `register` is the CALL TYPE FILTER (0450, the user 2026-10-22): the register
+// the call is on, read off the view's "Register" column -- never the Call Type
+// text, which is spelt several ways.
+export type KpiRegister = 'Field' | 'Installation' | 'PM';
+export interface KpiRange { from?: string; to?: string; register?: KpiRegister }
 
 const kpiQuery = (range: KpiRange) => {
   let q = must().from('kpi_field_inst').select('*');
@@ -497,6 +501,7 @@ const kpiQuery = (range: KpiRange) => {
   // period on. `to` is inclusive of its whole day.
   if (range.from) q = q.gte('Call Registeration Date', range.from);
   if (range.to) q = q.lte('Call Registeration Date', `${range.to}T23:59:59.999+05:30`);
+  if (range.register) q = q.eq('Register', range.register);
   return q;
 };
 
@@ -504,6 +509,7 @@ export async function countKpiFieldInst(range: KpiRange = {}): Promise<number> {
   let q = must().from('kpi_field_inst').select('"UC Number"', { count: 'exact', head: true });
   if (range.from) q = q.gte('Call Registeration Date', range.from);
   if (range.to) q = q.lte('Call Registeration Date', `${range.to}T23:59:59.999+05:30`);
+  if (range.register) q = q.eq('Register', range.register);
   const { count, error } = await q;
   if (error) throw new Error(errMsg(error));
   return count ?? 0;

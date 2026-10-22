@@ -690,8 +690,13 @@ console.log('\n-- call history, kept apart --');
     /insert into public\.(field_calls|installation_calls|pm_calls|reports|call_reviews)/.test(mig), false);
   const asks = def?.asks ?? [];
   eq('the upload asks the Source always, and the Year for a yearly sheet',
-    [missingAsk(asks, {}), missingAsk(asks, { source: 'Yearly sheet' }), missingAsk(asks, { source: 'WinMax' }), missingAsk(asks, { source: 'Yearly sheet', record_year: '23' })],
+    [missingAsk(asks, {}), missingAsk(asks, { source: 'Yearly sheet' }), missingAsk(asks, { source: 'WinMax', register: 'PM' }), missingAsk(asks, { source: 'Yearly sheet', record_year: '23' })],
     ['Source', 'Year', '', 'Year (a four-digit year)']);
+  // THE CALL TYPE OF THE FILE (0451, the user 2026-10-22), always asked, with
+  // Mixed for a file holding several; the database reads Mixed row by row.
+  eq('...and the Call Type always: Field, Installation, PM or Mixed',
+    [missingAsk(asks, { source: 'WinMax' }), (asks.find((a) => a.to === 'register')?.options ?? []).map((o) => o.split(' ')[0]).join(',')],
+    ['Call Type', 'Field,Installation,PM,Mixed']);
   eq('...and writes them on every row, the year as a number',
     askedFields(asks, { source: 'Yearly sheet', record_year: '2023' }), { source: 'Yearly sheet', record_year: 2023 });
   eq('Machine History reads it as its own group, never as a live call',
