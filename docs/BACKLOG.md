@@ -107,6 +107,21 @@ up)_
 
 ---
 
+## 2026-10-22 — Call History serials from "Product Serial Number" (FRS-278.11, 0452, v0.10.216)
+
+- **Shipped.** The user: *"In call history.. There won't be separate visit
+  entry.. the report link will be present in Service Report column."* Measured
+  live: 2,561 of the 2,568 history calls with a Service Report had an EMPTY
+  serial -- the RITHI v1 sheet heads it "Product Serial Number", which the upload
+  did not know -- so Machine History (by product + serial) never listed them.
+  0452 copies it into `serial` for the 3,127 such rows (triggers paused, load
+  times kept, one record_audit row); the upload now reads the heading.
+- **Still open (proposed 2026-10-19, not yet answered):** the same file's call
+  date is under "Timestamp", also unrecognised, so those rows have no call date
+  and no year.
+
+---
+
 ## 2026-10-22 — Machine History: Visit reports, and Open in Drive (FRS-119.14, v0.10.215)
 
 - **Shipped.** The user: *"Report column is there but the link is not there..
