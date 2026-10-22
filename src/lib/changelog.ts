@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.214',
+    date: '2026-10-22',
+    title: 'Machine History: open an old call\'s Service Report',
+    changes: [
+      'On Machine History, a Call History row whose old file carried a Service Report now has a 📄 Open button.',
+      'A link opens as it is. An old AppSheet file name is looked up in Google Drive by that name and opened.',
+      'If the name matches more than one file in Drive, or none, nothing is opened, and the screen says which so you can find it in Drive by that name.',
+    ],
+  },
+  {
     version: '0.10.213',
     date: '2026-10-22',
     title: 'KPI Export: Call Type filter. Historical Data: a Call Type box',

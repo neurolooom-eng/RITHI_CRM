@@ -53,6 +53,11 @@ export interface MachineEvent {
   ucn: string;
   party: string;
   detail: string;
+  /** THE SERVICE REPORT, as the record holds it (the user, 2026-10-22: "In
+   *  history of there is service report, I need to be able to open the
+   *  report"): a link, or the bare AppSheet file name an old export carried.
+   *  The screen turns it into something that opens. */
+  report?: string;
 }
 
 const s = (v: unknown) => String(v ?? '').trim();
@@ -242,7 +247,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
     bySerial('Ownership', 'ownership_transfers', 'id,reference_no,item_name,serial_number,from_party,to_party,transfer_date,reason,remarks', 'serial_number', 'id'),
     bySerial('Additional entry', 'product_additional_entries', 'id,item_name,serial_number,party_name,warranty_number,contract_number,source_note,remarks,created_at', 'serial_number', 'id'),
     bySerial('Workshop', 'indoor_jobs', 'id,job_no,ucn,product_name,serial,party_name,received_at,status,activity,work_done,disposition', 'serial', 'id'),
-    bySerial('Call history', 'call_history', 'id,ucn,call_no,call_at,call_type,party_name,item_name,serial,standard_complaint,complaint_reported,engineer,call_status,solved_at,source,record_year,duplicate,duplicates', 'serial', 'id'),
+    bySerial('Call history', 'call_history', 'id,ucn,call_no,call_at,call_type,party_name,item_name,serial,standard_complaint,complaint_reported,engineer,call_status,solved_at,source,record_year,duplicate,duplicates,extra', 'serial', 'id'),
   ]);
 
   for (const r of sameMachineRows(master, 'item_name', product, ser)) out.push({
@@ -339,6 +344,8 @@ export async function machineHistory(product: string, serial: string): Promise<M
              r.duplicate === true && `DUPLICATE — also in ${(Array.isArray(r.duplicates) ? r.duplicates : [])
                .map((d) => [s((d as Record<string, unknown>).source), s((d as Record<string, unknown>).record_year)].filter(Boolean).join(' ')).join(', ') || 'another record'}`,
              'history — not a live call'].filter(Boolean).join(' · '),
+    // The file's own "Service Report" column, kept in `extra` (0429).
+    report: s((r.extra as Record<string, unknown> | null)?.['Service Report']),
   });
 
   // NEWEST FIRST, and a row with no date sorts LAST rather than first: an
