@@ -107,6 +107,18 @@ up)_
 
 ---
 
+## 2026-10-22 — Machine History: Visit reports, and Open in Drive (FRS-119.14, v0.10.215)
+
+- **Shipped.** The user: *"Report column is there but the link is not there..
+  add open in drive option directly."* Visit rows now carry their Manual Report
+  (`manual_report` / `data['Manual Report']`, or `data['Service Report']` on an
+  imported visit); a link opens as a plain link; an AppSheet file name also gets
+  "📂 Open in Drive" -- Drive's own search for that name, no bridge, nothing
+  shared -- beside "Find & open". Only 2,568 of 9,192 history calls carry a
+  Service Report at all (measured 2026-10-22). Client only.
+
+---
+
 ## 2026-10-22 — Machine History: open an old call's Service Report (FRS-119.13, v0.10.214)
 
 - **Shipped.** The user: *"In history of there is service report, I need to be
