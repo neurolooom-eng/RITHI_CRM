@@ -57,6 +57,7 @@ import { currentItemStatus, coverEndingIn, endOfNextMonth, monthBounds } from '.
 import { isMissedPm } from '../src/lib/missedPm';
 import { pmBatchTimes, pmCallNumber, shapePmDueRows } from '../src/lib/pmImport';
 import { parseRef as parseRefForCheck } from '../src/lib/reportMapping';
+import { TRAINING_METHODOLOGY as TRAINING_METHODOLOGY_FOR_CHECK, TRAINING_FORM as TRAINING_FORM_FOR_CHECK } from '../src/lib/trainingForm';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2511,6 +2512,23 @@ console.log('\n-- call aging, and where the clock stops --');
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the age is on the row, so the column sorts as a number',
     /out\.agingDays = age\.days;/.test(sb), true);
+}
+
+// TRAINING FORM R/HR/11 (0453; the user, 2026-10-23).
+console.log('\n-- the Training Form R/HR/11 --');
+{
+  const sql = readFileSync('supabase/migrations/0453_training_requests.sql', 'utf8');
+  eq('the risk-to-method table is the template\'s, and the database says the same',
+    Object.entries(TRAINING_METHODOLOGY_FOR_CHECK).every(([r, m]) => new RegExp(`when '${r.toLowerCase()}' then '${m.replace(/[()+]/g, (c) => `\\${c}`)}'`).test(sql))
+      && TRAINING_METHODOLOGY_FOR_CHECK.High === 'Classroom + On Job (1month)', true);
+  eq('...the footer is Rev NOV 2021 and the title TRAINING FORM', `${TRAINING_FORM_FOR_CHECK.title} | ${TRAINING_FORM_FOR_CHECK.tmpl}`,
+    'TRAINING FORM | TMPL No: R/HR/11 Rev: NOV 2021');
+  const pr = readFileSync('src/modules/TrainingFormPrint.tsx', 'utf8');
+  eq('...the form prints PLAN, RECORD and EVALUATION in that order',
+    pr.indexOf('>PLAN<') > 0 && pr.indexOf('>PLAN<') < pr.indexOf('>RECORD<') && pr.indexOf('>RECORD<') < pr.indexOf('>EVALUATION<'), true);
+  const app = readFileSync('src/App.tsx', 'utf8');
+  eq('...and only to a reader of Training or New Employee Requests',
+    /startsWith\('\/training-form\/'\) && !can\(actionForPath\('\/training'\)\) && !can\(actionForPath\('\/new-employee-requests'\)\)/.test(app), true);
 }
 
 // THE CONTRACT ENTRY VIEW'S FORMAT (the user, 2026-10-23).

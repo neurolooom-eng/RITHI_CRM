@@ -4917,9 +4917,12 @@ export interface EmployeeRequest {
   decided_by: string | null; decided_by_name: string; decided_at: string | null; reject_reason: string;
   user_directory_id: number | null; login_email: string; login_created_at: string | null; login_error: string;
   created_at: string;
+  /** The training plan the requester gives (0453); the request raises its Training Request from it. */
+  training_topic: string; trainer_name: string; trainer_designation: string; training_risk: string;
 }
 export const EMPLOYEE_REQUEST_FIELDS = ['name', 'email', 'gmail', 'designation', 'department', 'region',
-  'regional_manager', 'phone', 'address', 'city', 'state', 'remarks'] as const;
+  'regional_manager', 'phone', 'address', 'city', 'state', 'remarks',
+  'training_topic', 'trainer_name', 'trainer_designation', 'training_risk'] as const;
 export type EmployeeRequestDraft = Record<(typeof EMPLOYEE_REQUEST_FIELDS)[number], string>;
 
 export async function listEmployeeRequests(): Promise<EmployeeRequest[]> {

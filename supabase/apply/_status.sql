@@ -2291,7 +2291,13 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'kpi_field_inst' and column_name = 'Register')),
     (364, 'Call History records the register beside the file''s Call Type', 'call_history.register + call_history_register() (0451): Field / Installation / PM chosen on the upload, or read off each row''s own Call Type for a Mixed file; the rows already loaded were given theirs. NO means the Call History upload''s Call Type box is refused. Restore: daily_review.sql (0451)',
         exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_history' and column_name = 'register')
-        and to_regprocedure('public.call_register_of(text)') is not null)
+        and to_regprocedure('public.call_register_of(text)') is not null),
+    (365, 'A New Employee Request raises its Training Request (Training Form R/HR/11)', 'public.training_requests + the employee request''s three triggers (0453): the plan is required on the request, the training request is raised with it, the request''s decision is the training''s approval, and only training.manage edits the rest. NO means a New Employee Request is refused or raises no training request. Restore: training.sql (0453)',
+        (to_regclass('public.training_requests') is not null
+         and to_regprocedure('public.training_methodology(text)') is not null
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.employee_requests') and tgname = 'zz_employee_request_raise_training')
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.employee_requests') and tgname = 'zz_employee_request_training_decision')
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.training_requests') and tgname = 'training_request_guard')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

@@ -107,6 +107,24 @@ up)_
 
 ---
 
+## 2026-10-23 — Training Request (Training Form R/HR/11) with New Employee Requests (FRS-280, 0453, v0.10.219)
+
+- **Shipped.** The user shared the template ("102_2026 Service", R/HR/11) for the
+  training request promised with New Employee Requests. Asked: the requester
+  fills the plan; the request's approver is "Training Approved by"; all three
+  parts kept; a printable PDF; the Request No. typed in ("It is Raised
+  Elsewhere, So i will give the Number myself"); TRAINING FORM Rev NOV 2021 on
+  every page; "*Note 1 & 2" markers with no note text.
+  `public.training_requests` + triggers on `employee_requests` (plan required;
+  raise; decision = approval); `training_request_guard` keeps the approval;
+  training.manage edits. Training page tab "Training Requests";
+  `/training-form/:id` prints it. `_status.sql` row 365; `training_requests_test`.
+- **Printed on A4**, as every other RITHI form, though the template's page is
+  US Letter -- say if Letter is wanted.
+- **Requests raised before 0453** carry no training plan and raised none.
+
+---
+
 ## 2026-10-23 — Training: All active users in one go (FRS-093, v0.10.218)
 
 - **Shipped.** The user: *"In Training Module, Add a Provision to add for all

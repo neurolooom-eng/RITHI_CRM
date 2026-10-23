@@ -17,6 +17,7 @@ import {
 } from '../lib/training';
 import { audienceIds, audienceIsEmpty, EMPTY_AUDIENCE, type Audience } from '../lib/audience';
 import { AudiencePicker } from '../components/people/AudiencePicker';
+import { TrainingRequests } from './TrainingRequests';
 import { PersonProfile } from '../components/people/PersonProfile';
 
 // ===========================================================================
@@ -46,7 +47,8 @@ export function Training() {
   const mayManage = live && can('training.manage');
   const departments = useMaster('department', [], live).values;
 
-  const [tab, setTab] = useState<'assignments' | 'sessions'>('assignments');
+  // TRAINING REQUESTS (Training Form R/HR/11, 0453) -- raised by New Employee Requests.
+  const [tab, setTab] = useState<'assignments' | 'sessions' | 'requests'>('assignments');
   const [dir, setDir] = useState<DirectoryRow[]>([]);
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [status, setStatus] = useState<TrainingStatusRow[]>([]);
@@ -202,7 +204,7 @@ export function Training() {
     <div>
       <PageHeader title="Training" icon="🎓" onRefresh={() => void load()} refreshing={busy}
         subtitle="Who must be trained on what, sessions with bulk attendance and assessment, and every person's past training."
-        count={tab === 'assignments' ? visible.length : sessions.length}
+        count={tab === 'assignments' ? visible.length : tab === 'sessions' ? sessions.length : undefined}
         actions={mayManage && (
           <div className="row" style={{ gap: 6 }}>
             <button className="btn" onClick={() => setAssign({ docId: '', topic: '', due: '', audience: EMPTY_AUDIENCE })}>＋ Assign training</button>
@@ -214,9 +216,10 @@ export function Training() {
       <div className="row" style={{ gap: 6, marginBottom: 8 }}>
         <button className={`btn btn-sm ${tab === 'assignments' ? 'btn-primary' : ''}`} onClick={() => setTab('assignments')}>Assignments ({status.length})</button>
         <button className={`btn btn-sm ${tab === 'sessions' ? 'btn-primary' : ''}`} onClick={() => setTab('sessions')}>Sessions ({sessions.length})</button>
+        <button className={`btn btn-sm ${tab === 'requests' ? 'btn-primary' : ''}`} onClick={() => setTab('requests')}>Training Requests</button>
       </div>
 
-      {tab === 'assignments' ? (
+      {tab === 'requests' ? <TrainingRequests /> : tab === 'assignments' ? (
         <DataTable<TrainingStatusRow & Record<string, unknown>>
           columns={COLS} rows={visible as (TrainingStatusRow & Record<string, unknown>)[]} getRowId={(r) => String(r.id)}
           storageKey="trainingAssignments" emptyText={busy ? 'Loading…' : 'No training assigned that you may see.'}

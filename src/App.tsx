@@ -23,6 +23,7 @@ import { RolePermissions } from './modules/RolePermissions';
 import { AuditLog } from './modules/AuditLog';
 import { UserMasterView } from './modules/UserMasterView';
 import { NewEmployeeRequests } from './modules/NewEmployeeRequests';
+import { TrainingFormPrint } from './modules/TrainingFormPrint';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { PendingCalls } from './modules/PendingCalls';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
@@ -115,7 +116,7 @@ function Shell() {
       || location.pathname.startsWith('/indoor-pdt/') || location.pathname.startsWith('/indoor-register/')
       || location.pathname.startsWith('/indoor-dc/')
       || location.pathname.startsWith('/mtn/') || location.pathname.startsWith('/mrn-print/')
-      || location.pathname === '/equipment-list') {
+      || location.pathname === '/equipment-list' || location.pathname.startsWith('/training-form/')) {
     // THE PRINTED REPORT ANSWERS TO THE REGISTER'S OWN KEY (D-026). It used to
     // be reachable by URL by anybody signed in, so a role without the Field
     // Failure Register read every report row-level security let it see. The
@@ -162,6 +163,15 @@ function Shell() {
     }
     // THE EQUIPMENT LIST (2026-10-15) answers to Product & Party Search's key,
     // the screen that prints it; the page itself asks export.data.
+    // THE TRAINING FORM R/HR/11 (0453) answers to either screen that links to
+    // it -- Training, or New Employee Requests; its row is RLS-scoped.
+    if (location.pathname.startsWith('/training-form/') && !can(actionForPath('/training')) && !can(actionForPath('/new-employee-requests'))) {
+      return (
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to Training or New Employee Requests. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      );
+    }
     if (location.pathname === '/equipment-list' && !can(actionForPath('/lookup'))) {
       return (
         <div style={{ padding: 32 }} className="muted">
@@ -193,6 +203,7 @@ function Shell() {
           <Route path="/mtn/:uid" element={<MtnPrint />} />
           <Route path="/mrn-print/:uid" element={<MrnPrint />} />
           <Route path="/equipment-list" element={<EquipmentListPrint />} />
+          <Route path="/training-form/:id" element={<TrainingFormPrint />} />
         </Routes>
       </ErrorBoundary>
     );

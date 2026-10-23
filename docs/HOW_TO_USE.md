@@ -1345,8 +1345,11 @@ typed into a form that reads it.
   - **Who may use it** is set on Roles & Permissions — the page, **Request a new
     employee** and **Approve new-employee requests**. Until they are ticked
     only an administrator can open it.
-  - **The training request** a new employee is also to get is not built yet:
-    it waits for its format.
+  - **The training plan goes with the request** — Training Topic, Trainer
+    name and designation, and the Risk (Low: Classroom; Medium: Classroom +
+    Practical; High: Classroom + On Job (1month)). It raises the person's
+    **Training Request** (Training Form R/HR/11); its approval is the
+    request's own decision. **📄 Training Form** on the opened request prints it.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
   > Each list has its own **Add**, **Edit** and **Delete** permission. **✎ Edit**
@@ -1444,6 +1447,14 @@ typed into a form that reads it.
   > the people — by role, designation, department, region or name, or **All
   > active users on the User Master** in one go (the count says how many).
   > The same tick is on a session's attendees and on a QMS upload's trainees.
+  > **Training Requests** (the third tab) are the Training Forms R/HR/11 that
+  > New Employee Requests raise: the plan as the manager gave it, Approved /
+  > Not approved as the request was decided. Here you type the **Training
+  > Request No.** (it is raised elsewhere), fill the **RECORD** (training from
+  > / to, each employee's content and status) and the **EVALUATION** (required
+  > or not and why, the method, the plan with evaluator, dates and rating,
+  > re-assessment, remarks), and print **📄 Training Form** — A4, the R/HR/11
+  > header on every page, Rev NOV 2021, signatures left for ink.
   > **Record session** is bulk training: topic or document, date,
   > trainer, method, the attendance sheet / certificates, and each attendee's
   > Attended, **Pass / Fail**, score and remarks.
