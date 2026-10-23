@@ -107,6 +107,17 @@ up)_
 
 ---
 
+## 2026-10-23 — Training: All active users in one go (FRS-093, v0.10.218)
+
+- **Shipped.** The user: *"In Training Module, Add a Provision to add for all
+  Active Users from User Master in one go."* `Audience.all` in
+  `src/lib/audience.ts` (active rows only); a tick on the shared AudiencePicker,
+  so Assign training, a session's attendees and a QMS upload's trainees all have
+  it; `assignTraining` writes in batches of 500. check:paging pins the rule.
+  Client only.
+
+---
+
 ## 2026-10-23 — Contract Register entry list in the sheet's format (FRS-176.17, v0.10.217)
 
 - **Shipped.** The user: *"In Contract Entry View, Maintain this format - MC

@@ -14,6 +14,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.218',
+    date: '2026-10-23',
+    title: 'Training: everyone active on the User Master in one go',
+    changes: [
+      'When choosing people for training, there is now a tick: All active users on the User Master. It shows how many people that is.',
+      'It works when assigning training, when adding a session\'s attendees, and when choosing trainees on a QMS document upload.',
+      'Inactive people are never included. Anyone who already has that training assigned is skipped, as before.',
+    ],
+  },
+  {
     version: '0.10.217',
     date: '2026-10-23',
     title: 'Contract Register: the entry list in the contract sheet\'s format',

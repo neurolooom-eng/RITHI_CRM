@@ -29,9 +29,17 @@ export function AudiencePicker({ dir, departments, value, onChange }: {
   const n = useMemo(() => audienceIds(dir, value).length, [dir, value]);
   const set = (k: keyof Audience, v: string[]) => onChange({ ...value, [k]: v });
 
+  // ALL ACTIVE USERS IN ONE GO (the user, 2026-10-23). The other choices are
+  // a union with it, so they add nothing while it is ticked and are greyed.
+  const everyone = value.all === true;
   return (
     <div>
-      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+      <label className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 6 }}>
+        <input type="checkbox" checked={everyone} onChange={(e) => onChange({ ...value, all: e.target.checked })} />
+        <span>All active users on the User Master <b>({active.length.toLocaleString()})</b></span>
+      </label>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap', opacity: everyone ? 0.5 : 1, pointerEvents: everyone ? 'none' : undefined }}
+           aria-disabled={everyone}>
         <div style={{ minWidth: 170 }}>
           <MultiPick values={value.roles.map((r) => roleLabelFor(r) || r)} options={[...roleLabels.keys()]} noun="roles"
             allLabel="— roles —" onChange={(v) => set('roles', v.map((l) => roleLabels.get(l) ?? l))} />
@@ -54,7 +62,9 @@ export function AudiencePicker({ dir, departments, value, onChange }: {
         </div>
       </div>
       <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
-        <b>{n.toLocaleString()}</b> {n === 1 ? 'person' : 'people'} will be assigned — anyone matching any choice above, active on the User Master.
+        <b>{n.toLocaleString()}</b> {n === 1 ? 'person' : 'people'} will be assigned — {everyone
+          ? 'everyone active on the User Master.'
+          : 'anyone matching any choice above, active on the User Master.'}
       </div>
     </div>
   );

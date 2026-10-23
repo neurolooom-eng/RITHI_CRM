@@ -1441,7 +1441,10 @@ typed into a form that reads it.
   > document. A bulk load assigns no training.
 - **Training** `/training` — who must be trained on what, and where each stands.
   > **Assign training** picks a QMS document (or types a topic), a due date and
-  > the people. **Record session** is bulk training: topic or document, date,
+  > the people — by role, designation, department, region or name, or **All
+  > active users on the User Master** in one go (the count says how many).
+  > The same tick is on a session's attendees and on a QMS upload's trainees.
+  > **Record session** is bulk training: topic or document, date,
   > trainer, method, the attendance sheet / certificates, and each attendee's
   > Attended, **Pass / Fail**, score and remarks.
   > **Complete** means attended a session on it, or confirmed **read &
