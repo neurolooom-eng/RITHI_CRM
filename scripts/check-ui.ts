@@ -2513,6 +2513,18 @@ console.log('\n-- call aging, and where the clock stops --');
     /out\.agingDays = age\.days;/.test(sb), true);
 }
 
+// THE CONTRACT ENTRY VIEW'S FORMAT (the user, 2026-10-23).
+console.log('\n-- Contract Register: the entry list in the sheet\'s format --');
+{
+  const cr = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  const block = /const contractEntryColumns: Column<Row>\[\] = \[([\s\S]*?)\n  \];/.exec(cr)?.[1] ?? '';
+  eq('exactly the thirteen headings, in the user\'s order',
+    [...block.matchAll(/header: '([^']+)'/g)].map((m) => m[1]).join(' | '),
+    'MC Number | Contract Entry Date | Party Name | Payment Schedule | Bill Generate At | Contract Type | Contract Start Date | Contract Period (Years) | Contract End Date | P M Visits (TOTAL) | Contract Period (Months) | Status | Prev MC Number');
+  eq('...used for the contract list, with a fresh layout key',
+    /kind === 'contract' \? contractEntryColumns :/.test(cr) && /'cover-contract-entries-v2'/.test(cr), true);
+}
+
 // OPENING AN OLD CALL'S SERVICE REPORT (the user, 2026-10-22). The two shapes
 // the live Call History holds, read the way Machine History reads them.
 console.log('\n-- Machine History opens an old call\'s Service Report --');

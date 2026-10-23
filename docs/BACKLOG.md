@@ -107,6 +107,19 @@ up)_
 
 ---
 
+## 2026-10-23 — Contract Register entry list in the sheet's format (FRS-176.17, v0.10.217)
+
+- **Shipped.** The user: *"In Contract Entry View, Maintain this format - MC
+  Number, Contract Entry Date, Party Name, Payment Schedule, Bill Generate At,
+  Contract Type, Contract Start Date, Contract Period (Years), Contract End
+  Date, P M Visits (TOTAL), Contract Period (Months), Status, Prev MC Number."*
+  The Entries list (and its CSV / Excel) is exactly those 13; Status is the
+  form's `contractStatusText`; a new layout key so a saved old layout does not
+  win. Machines and the old State column are gone from that list, as the format
+  has neither. The Warranty Register's list is unchanged. Client only.
+
+---
+
 ## 2026-10-22 — Call History serials from "Product Serial Number" (FRS-278.11, 0452, v0.10.216)
 
 - **Shipped.** The user: *"In call history.. There won't be separate visit

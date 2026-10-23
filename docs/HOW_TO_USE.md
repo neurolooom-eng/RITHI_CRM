@@ -844,7 +844,12 @@ against the call it was fitted to.
   > Every generated call — PM or installation — shows its status (Unattended,
   > Unsolved, Report Pending, Solved) in the usual colours.
 - **Contract Register** `/contracts` — contract entries (`MC`) and the machines
-  covered.
+  covered. **The Entries list** reads, in this order: MC Number, Contract Entry
+  Date, Party Name, Payment Schedule, Bill Generate At, Contract Type, Contract
+  Start Date, Contract Period (Years), Contract End Date, P M Visits (TOTAL),
+  Contract Period (Months), Status and Prev MC Number — and the CSV and Excel
+  downloads carry the same. Status is the entry's own: Active, About to Expire
+  or Contract Expired, from the end date and today.
   > **PM schedule.** A saved entry shows, under its products, every PM visit
   > of each machine — due date, and Generated (with its call), Missed PM, Due or
   > Upcoming. **Generate** creates a due or missed visit's PM call, dated the 1st
