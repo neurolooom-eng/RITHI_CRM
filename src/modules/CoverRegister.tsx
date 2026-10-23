@@ -32,7 +32,7 @@ import {
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   proposeConversion, conversionHeader, convertWarrantyToContract, contractsFromSale, suggestedContractPmVisits,
   machinesWithAnotherCustomer,
-  CONTRACT, type ConversionDraft,
+  CONTRACT, contractStatusText, type ConversionDraft,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
 // THE PRICING RULE COMES FROM ONE PLACE. GST and "total = rate + tax" are the
@@ -1642,12 +1642,35 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
   };
 
-  const headerColumns: Column<Row>[] = [
+  // THE CONTRACT ENTRY VIEW, IN THE SHEET'S OWN ORDER (the user, 2026-10-23:
+  // "In Contract Entry View, Maintain this format - MC Number, Contract Entry
+  // Date, Party Name, Payment Schedule, Bill Generate At, Contract Type,
+  // Contract Start Date, Contract Period (Years), Contract End Date, P M
+  // Visits (TOTAL), Contract Period (Months), Status, Prev MC Number"). Those
+  // thirteen and nothing else, under those headings, and the downloads follow.
+  // Status is the one the entry form shows, worked out from the end date and
+  // today (contractStatusText), coloured by the same rule as the tiles.
+  const contractEntryColumns: Column<Row>[] = [
+    { key: 'mc_number', header: 'MC Number', width: 120, wrap: false },
+    { key: 'entry_at', header: 'Contract Entry Date', width: 140, wrap: false, render: (r) => fmtDate(r.entry_at) },
+    { key: 'party_name', header: 'Party Name', width: 260 },
+    { key: 'payment_schedule', header: 'Payment Schedule', width: 130, wrap: false },
+    { key: 'bill_generate_at', header: 'Bill Generate At', width: 160, wrap: false },
+    { key: 'contract_type', header: 'Contract Type', width: 110, wrap: false },
+    { key: 'contract_start', header: 'Contract Start Date', width: 140, wrap: false, render: (r) => fmtDate(r.contract_start) },
+    { key: 'contract_years', header: 'Contract Period (Years)', width: 150, align: 'right', wrap: false },
+    { key: 'contract_end', header: 'Contract End Date', width: 140, wrap: false, render: (r) => fmtDate(r.contract_end) },
+    { key: 'pm_visits_total', header: 'P M Visits (TOTAL)', width: 130, align: 'right', wrap: false },
+    { key: 'contract_months', header: 'Contract Period (Months)', width: 160, align: 'right', wrap: false },
+    { key: 'contract_status_now', header: 'Status', width: 140, wrap: false,
+      render: (r) => { const t = contractStatusText(r); return t ? <span className={`badge badge-${TONES[stateOf(str(r.contract_end))] ?? 'neutral'}`}>{t}</span> : <span className="muted">—</span>; } },
+    { key: 'prev_mc_number', header: 'Prev MC Number', width: 130, wrap: false },
+  ];
+
+  const headerColumns: Column<Row>[] = kind === 'contract' ? contractEntryColumns : [
     { key: cfg.key, header: cfg.keyLabel, width: 120, wrap: false },
     { key: 'party_name', header: 'Party', width: 260 },
-    ...(kind === 'contract'
-      ? [{ key: 'contract_type', header: 'Type', width: 80, wrap: false } as Column<Row>]
-      : [{ key: 'invoice_no', header: 'Invoice', width: 120, wrap: false } as Column<Row>]),
+    { key: 'invoice_no', header: 'Invoice', width: 120, wrap: false },
     { key: kind === 'sale' ? 'warranty_start' : 'contract_start', header: 'Start', width: 110, wrap: false, render: (r) => fmtDate(r[kind === 'sale' ? 'warranty_start' : 'contract_start']) },
     { key: cfg.endColumn, header: 'End', width: 110, wrap: false, render: (r) => fmtDate(r[cfg.endColumn]) },
     { key: 'item_count', header: 'Machines', width: 90, align: 'right', wrap: false },
@@ -2092,6 +2115,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // ===========================================================================
   const exportValue = (r: Row, key: string): unknown => {
     if (key === 'status_now') return stateOf(str(r[cfg.endColumn]));
+    // The Contract Entry view's Status, as the entry form words it.
+    if (key === 'contract_status_now') return contractStatusText(r);
     if (key === 'overridden') return Array.isArray(r.overridden) ? r.overridden.join(', ') : '';
     if (key === 'install_pending') return installPending(r) ? 'Pending' : isCallNumber(r.inst_call) ? str(r.inst_call) : '';
     return r[key];
@@ -2117,7 +2142,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           columns={headerColumns}
           rows={rows}
           getRowId={(r) => str(r.id)}
-          storageKey={`cover-${kind}-entries`}
+          // A NEW KEY FOR THE CONTRACT LIST (2026-10-23): a layout somebody saved
+          // for the old seven columns would otherwise keep its order and widths
+          // over the format the user set.
+          storageKey={kind === 'contract' ? 'cover-contract-entries-v2' : `cover-${kind}-entries`}
           // FEWER ROWS WHEN THE PANE IS NARROW. The split gives each side its
           // own scroller; a table that also wants sixteen rows puts a second
           // scrollbar inside the first, and the reader has to work out which

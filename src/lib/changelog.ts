@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.217',
+    date: '2026-10-23',
+    title: 'Contract Register: the entry list in the contract sheet\'s format',
+    changes: [
+      'The Contract Register\'s Entries list now shows MC Number, Contract Entry Date, Party Name, Payment Schedule, Bill Generate At, Contract Type, Contract Start Date, Contract Period (Years), Contract End Date, P M Visits (TOTAL), Contract Period (Months), Status and Prev MC Number, in that order.',
+      'The CSV and Excel downloads of the list carry the same columns.',
+      'Status is the one the entry shows: Active, About to Expire or Contract Expired.',
+      'If you had rearranged this list before, it starts again from this order.',
+    ],
+  },
+  {
     version: '0.10.216',
     date: '2026-10-22',
     title: 'Machine History now lists the old installation calls, with their Service Report',
