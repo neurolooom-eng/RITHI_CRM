@@ -374,6 +374,10 @@ console.log('-- who is trained on a new QMS document (the audience picker) --');
   eq('two choices are a UNION, not an intersection', au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, departments: ['Sales'], people: ['Bala'] }), [2, 3]);
   eq('a region, ignoring case and spaces', au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, regions: [' south '] }), [1, 3]);
   eq('an inactive person is never assigned, even by name', au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, people: ['Dev'] }), []);
+  // ALL ACTIVE USERS IN ONE GO (the user, 2026-10-23).
+  eq('All active users: everyone active, nobody inactive',
+    au.audienceIds(dir, { ...au.EMPTY_AUDIENCE, all: true }), dir.filter((d) => d.validity).map((d) => d.id));
+  eq('...and it counts as a choice', au.audienceIsEmpty({ ...au.EMPTY_AUDIENCE, all: true }), false);
 }
 
 console.log('-- the Standard Complaint master: bulk products and filters --');

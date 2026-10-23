@@ -91,9 +91,17 @@ export async function assignTraining(
 ): Promise<{ ok: boolean; created: number; error?: string }> {
   if (!dirIds.length) return { ok: true, created: 0 };
   const rows = dirIds.map((id) => ({ dir_id: id, document_id: t.document_id, topic: t.topic.trim(), due_date: t.due_date || null, assigned_by_name: t.assigned_by_name }));
-  const { data, error } = await db().from('training_assignments')
-    .upsert(rows, { onConflict: 'dir_id,topic_key', ignoreDuplicates: true }).select('id');
-  return error ? { ok: false, created: 0, error: msg(error) } : { ok: true, created: (data ?? []).length };
+  // IN BATCHES, now that "All active users" can make the whole User Master one
+  // assignment (2026-10-23): one request each, and a failure says how many
+  // were already written rather than losing the count.
+  let created = 0;
+  for (let i = 0; i < rows.length; i += 500) {
+    const { data, error } = await db().from('training_assignments')
+      .upsert(rows.slice(i, i + 500), { onConflict: 'dir_id,topic_key', ignoreDuplicates: true }).select('id');
+    if (error) return { ok: false, created, error: `${msg(error)}${created ? ` (${created} assigned before it stopped)` : ''}` };
+    created += (data ?? []).length;
+  }
+  return { ok: true, created };
 }
 export async function cancelTraining(id: number, reason: string): Promise<Res> {
   const { data, error } = await db().from('training_assignments').update({ cancelled: true, cancel_reason: reason.trim() }).eq('id', id).select('id');
