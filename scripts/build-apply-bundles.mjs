@@ -998,7 +998,10 @@ const MODULES = {
             // A new employee asked for by a Reporting / Regional Manager and
             // approved into the User Master (0449). Its own table and three
             // functions; the User Master's own Add user is untouched.
-            '0449_new_employee_requests.sql'],
+            '0449_new_employee_requests.sql',
+            // The Training Request (Training Form R/HR/11) a new employee
+            // request raises (0453): its plan, record and evaluation.
+            '0453_training_requests.sql'],
   },
   masters: {
     title: 'Master Value Lists',

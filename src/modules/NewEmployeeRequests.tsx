@@ -31,6 +31,8 @@ import { useMaster } from '../lib/masters';
 import { formatDayTime } from '../lib/dates';
 import { logAudit } from '../lib/audit';
 import { generatePassword } from '../lib/password';
+import { trainingRequestForEmployee, type TrainingRequest } from '../lib/training';
+import { TRAINING_METHODOLOGY, TRAINING_RISKS, type TrainingRisk } from '../lib/trainingForm';
 import {
   supabaseConfigured, listEmployeeRequests, raiseEmployeeRequest, approveEmployeeRequest, rejectEmployeeRequest,
   recordEmployeeRequestLogin, sbSignUpLogin, listDirectory,
@@ -68,6 +70,14 @@ export function NewEmployeeRequests() {
   const [open, setOpen] = useState<EmployeeRequest | null>(null);
   const [edit, setEdit] = useState<ApproverDraft | null>(null);
   const [reason, setReason] = useState('');
+  // THE TRAINING REQUEST THIS REQUEST RAISED (0453), read when it is opened.
+  const [training, setTraining] = useState<TrainingRequest | null | undefined>(undefined);
+  useEffect(() => {
+    if (!open) { setTraining(undefined); return; }
+    let alive = true;
+    void trainingRequestForEmployee(open.id).then((t) => { if (alive) setTraining(t); }).catch(() => { if (alive) setTraining(null); });
+    return () => { alive = false; };
+  }, [open]);
   // THE TEMPORARY PASSWORD, shown once to the approver who made the login.
   const [issued, setIssued] = useState<{ email: string; password: string; needsConfirm?: boolean } | null>(null);
   const [dir, setDir] = useState<DirectoryRow[]>([]);
@@ -237,10 +247,38 @@ export function NewEmployeeRequests() {
             </p>
             <PersonFields value={draft} onChange={(v) => setDraft({ ...draft, ...v })} names={names} regions={regions} departments={departments}
               reportingManager={user?.fullName || user?.email || ''} />
+            {/* THE TRAINING PLAN (Training Form R/HR/11, 0453; the user,
+                2026-10-23: the requester fills it). The request raises the
+                Training Request from it; Trainee, Designation and Manager come
+                from the request itself, the approval from its decision. */}
+            <div className="rep-sec-title" style={{ marginTop: 14 }}>Training plan — Training Form R/HR/11</div>
+            <div className="rep-grid">
+              <label className="rep-field rep-span2">
+                <span className="field-label">Training Topic *</span>
+                <input className="input" value={draft.training_topic} placeholder="e.g. Product training in Chennai"
+                  onChange={(e) => setDraft({ ...draft, training_topic: e.target.value })} />
+              </label>
+              <label className="rep-field">
+                <span className="field-label">Trainer name *</span>
+                <input className="input" list="ner-names" value={draft.trainer_name} onChange={(e) => setDraft({ ...draft, trainer_name: e.target.value })} />
+              </label>
+              <label className="rep-field">
+                <span className="field-label">Trainer Designation</span>
+                <input className="input" value={draft.trainer_designation} placeholder="e.g. National Service Manager"
+                  onChange={(e) => setDraft({ ...draft, trainer_designation: e.target.value })} />
+              </label>
+              <label className="rep-field">
+                <span className="field-label">Training Impact on Product / Process (Risk) *</span>
+                <SelectPicker value={draft.training_risk} onChange={(v) => setDraft({ ...draft, training_risk: v })} placeholder="— Low / Medium / High —"
+                  options={TRAINING_RISKS.map((r) => ({ value: r, label: `${r.toUpperCase()} RISK — ${TRAINING_METHODOLOGY[r]}` }))} />
+                {draft.training_risk && <span className="muted rep-hint">Training Methodology: {TRAINING_METHODOLOGY[draft.training_risk as TrainingRisk]}</span>}
+              </label>
+            </div>
             <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
               <button className="btn" onClick={() => setDraft(null)} disabled={busy}>Cancel</button>
               <button className="btn btn-primary" onClick={() => void submit()}
-                disabled={busy || !draft.name.trim() || !(draft.email.trim() || draft.gmail.trim())}>
+                disabled={busy || !draft.name.trim() || !(draft.email.trim() || draft.gmail.trim())
+                  || !draft.training_topic.trim() || !draft.trainer_name.trim() || !draft.training_risk}>
                 {busy ? 'Sending…' : 'Send for approval'}
               </button>
             </div>
@@ -257,6 +295,16 @@ export function NewEmployeeRequests() {
               {open.decided_at && <> · {open.status.toLowerCase()} by <b>{open.decided_by_name || '—'}</b> on {formatDayTime(open.decided_at)}</>}
             </p>
             {issuedBanner}
+            {/* THE TRAINING REQUEST IT RAISED (0453), and its form. */}
+            {training && (
+              <div className="sheet-banner sheet-banner-info">
+                <span>
+                  Training Request{training.req_no ? <> <b>{training.req_no}</b></> : <> (no number yet)</>}: {training.topic} —
+                  trainer {training.trainer_name}, {training.risk} risk ({TRAINING_METHODOLOGY[training.risk]}) · {training.approval}.
+                </span>
+                <a className="btn btn-sm" href={`#/training-form/${training.id}`} target="_blank" rel="noopener noreferrer">📄 Training Form</a>
+              </div>
+            )}
             {open.status === 'Rejected' && <div className="sheet-banner sheet-banner-error"><span>Rejected: {open.reject_reason}</span></div>}
             {open.status === 'Approved' && (
               <div className="sheet-banner sheet-banner-ok">

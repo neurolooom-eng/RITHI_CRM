@@ -961,6 +961,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Approvers: correct any field, set the role and tags, then approve — or reject with a reason',
       'Approving adds the person to the User Master and makes their login, showing the temporary password once',
       'Make the login again on an approved request whose login could not be made',
+      'Give the training plan with the request — topic, trainer, risk — and print its Training Form R/HR/11',
     ],
     records: ['employee_requests', 'user_directory', 'notifications', 'rpc:approve_employee_request', 'rpc:reject_employee_request', 'audit_log'],
     rules: [

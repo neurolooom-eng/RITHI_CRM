@@ -36,8 +36,11 @@ grant select on public.harness to authenticated;
 \echo '--- 1. a Reporting Manager raises a request; the database stamps it ---'
 call public.be('ner.rm@example.com');
 set role authenticated;
-insert into public.employee_requests (name, email, designation, region, regional_manager, reporting_manager, status, decided_by_name)
-values ('  NEW PERSON ', 'New.Person@Example.com', 'Service Engineer', 'South', 'RGM ONE', 'SOMEBODY ELSE', 'Approved', 'forged');
+-- The training plan (0453) is part of every request now.
+insert into public.employee_requests (name, email, designation, region, regional_manager, reporting_manager, status, decided_by_name,
+                                      training_topic, trainer_name, training_risk)
+values ('  NEW PERSON ', 'New.Person@Example.com', 'Service Engineer', 'South', 'RGM ONE', 'SOMEBODY ELSE', 'Approved', 'forged',
+        'Product training', 'P.M. Bagyaraj', 'Low');
 select (select req_no like 'NE-%' and status = 'Pending' and decided_by_name = '' and reporting_manager = 'RM ONE'
                and requested_by_role = 'rm' and name = 'NEW PERSON' and email = 'new.person@example.com'
           from public.employee_requests where name = 'NEW PERSON')
@@ -54,7 +57,7 @@ reset role;
 call public.be('ner.eng@example.com');
 set role authenticated;
 \echo '    expect ERROR below -- row-level security: no users.request'
-insert into public.employee_requests (name, email) values ('SNEAK', 'sneak@example.com');
+insert into public.employee_requests (name, email, training_topic, trainer_name, training_risk) values ('SNEAK', 'sneak@example.com', 'T', 'X', 'Low');
 select count(*) = 0 as "an engineer sees nobody's request" from public.employee_requests;
 reset role;
 
@@ -113,8 +116,8 @@ reset role;
 \echo '--- 8. one person, one User Master row; a rejection needs a reason ---'
 call public.be('ner.rm@example.com');
 set role authenticated;
-insert into public.employee_requests (name, email) values ('SAME AGAIN', 'NEW.PERSON@example.com');
-insert into public.employee_requests (name, gmail) values ('TO REJECT', 'to.reject@gmail.com');
+insert into public.employee_requests (name, email, training_topic, trainer_name, training_risk) values ('SAME AGAIN', 'NEW.PERSON@example.com', 'T', 'X', 'Low');
+insert into public.employee_requests (name, gmail, training_topic, trainer_name, training_risk) values ('TO REJECT', 'to.reject@gmail.com', 'T', 'X', 'Low');
 reset role;
 call public.be('ner.ts@example.com');
 set role authenticated;

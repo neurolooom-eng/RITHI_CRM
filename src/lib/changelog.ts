@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.219',
+    date: '2026-10-23',
+    title: 'Training Request (Training Form R/HR/11) with every New Employee Request',
+    changes: [
+      'A New Employee Request now asks for the training plan: Training Topic, Trainer name and designation, and the Risk (Low, Medium or High).',
+      'Each request raises the person\'s Training Request. The training is approved or not approved along with the request, by the same person; a rejection reason becomes "If No Reason".',
+      'On the Training page, the new Training Requests tab is where the Training Request No. is typed in, and where the Record (dates, employees, content, status) and the Evaluation (plan, evaluator, dates, rating, re-assessment, remarks) are filled in.',
+      '📄 Training Form prints it as R/HR/11 on A4: the company header on every page, Plan, Record and Evaluation in the template\'s order, and the Rev NOV 2021 footer.',
+    ],
+  },
+  {
     version: '0.10.218',
     date: '2026-10-23',
     title: 'Training: everyone active on the User Master in one go',

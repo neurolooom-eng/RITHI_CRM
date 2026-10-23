@@ -152,3 +152,48 @@ export async function saveSession(
   return { ok: true, id };
 }
 
+
+// ---- TRAINING REQUESTS: Training Form R/HR/11 (0453) -----------------------
+// Raised with a New Employee Request (its plan the requester's), approved by
+// that request's decision, numbered by hand, and filled in -- record and
+// evaluation -- by whoever may manage training.
+export interface TrainingRecordLine { name: string; content: string; status: string }
+export interface TrainingEvalLine { plan: string; evaluator: string; planned_date: string; actual: string; rating: string }
+export interface TrainingRequest {
+  id: number; employee_request_id: number | null;
+  req_no: string; req_date: string; trainee_name: string; designation: string; manager_name: string;
+  topic: string; trainer_name: string; trainer_designation: string; risk: 'Low' | 'Medium' | 'High';
+  approval: 'Pending' | 'Approved' | 'Not approved'; approved_by_name: string; approved_at: string | null; not_approved_reason: string;
+  from_date: string | null; to_date: string | null; record_lines: TrainingRecordLine[];
+  evaluation_required: boolean | null; evaluation_justification: string; evaluation_method: string;
+  evaluation_plan: TrainingEvalLine[]; reassessment: '' | 'Yes' | 'No'; remarks: string;
+  created_at: string;
+}
+/** What an edit may write. The approval is the employee request's decision's alone. */
+export const TRAINING_REQUEST_EDITABLE = ['req_no', 'req_date', 'trainee_name', 'designation', 'manager_name', 'topic',
+  'trainer_name', 'trainer_designation', 'risk', 'from_date', 'to_date', 'record_lines', 'evaluation_required',
+  'evaluation_justification', 'evaluation_method', 'evaluation_plan', 'reassessment', 'remarks'] as const;
+
+export async function listTrainingRequests(): Promise<TrainingRequest[]> {
+  return allRows<TrainingRequest>((a, b) => db().from('training_requests').select('*')
+    .order('created_at', { ascending: false }).order('id', { ascending: false }).range(a, b) as never, 20000);
+}
+export async function getTrainingRequest(id: number): Promise<TrainingRequest | null> {
+  const { data, error } = await db().from('training_requests').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(msg(error));
+  return (data as TrainingRequest | null) ?? null;
+}
+export async function trainingRequestForEmployee(employeeRequestId: number): Promise<TrainingRequest | null> {
+  const { data, error } = await db().from('training_requests').select('*').eq('employee_request_id', employeeRequestId).maybeSingle();
+  if (error) throw new Error(msg(error));
+  return (data as TrainingRequest | null) ?? null;
+}
+export async function saveTrainingRequest(t: TrainingRequest): Promise<Res> {
+  const patch: Record<string, unknown> = {};
+  TRAINING_REQUEST_EDITABLE.forEach((k) => { patch[k] = (t as unknown as Record<string, unknown>)[k]; });
+  patch.from_date = t.from_date || null; patch.to_date = t.to_date || null;
+  // NO ERROR IS NOT "SAVED" (finding 48): row-level security refuses with zero rows.
+  const { data, error } = await db().from('training_requests').update(patch).eq('id', t.id).select('id');
+  if (error) return { ok: false, error: msg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: 'Not saved — this needs the Manage training permission.' };
+}
