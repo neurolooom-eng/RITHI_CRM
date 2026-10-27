@@ -1345,6 +1345,11 @@ const MODULES = {
             // the machine, and its files (the user, 2026-10-06); redefines
             // 0383's sync_product_machine.
             '0391_transfer_ot_number_invoice_files.sql',
+            // The Product Database's party is always the latest sale entry's or
+            // ownership transfer's, enforced by a trigger on products, and every
+            // machine re-mapped once (the user, 2026-10-27, VEGA | 31). After
+            // 0391, whose sync it now completes without rewriting it.
+            '0457_product_party_follows_latest_owner.sql',
             // PM Due (the user, 2026-10-08): the month's PM visits from the
             // Warranty and Contract Registers, visit k on start + k x months x
             // 30 / visits days, only what the raised PM calls have not covered.

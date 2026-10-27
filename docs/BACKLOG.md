@@ -107,6 +107,30 @@ up)_
 
 ---
 
+## 2026-10-27 — Product Database party follows the latest sale entry or transfer; one-time re-mapping (FRS-282, D-172, 0457, v0.10.223)
+
+- **Reported.** VEGA | 31 read RAM MULTISPECIALITY HOSPITA,AHMEDABAD (with a
+  Kanpur address) while SA8127, MC5361, MC6206, call 25C17F0020 and Product
+  Database 2.0 all named LOTUS SUPER SPECIALITY HOSPITAL, KANPUR — measured on
+  the live project with the new `_trace_this_machine.sql` (probe mode, read
+  only). `machine_current_party()` answered LOTUS. Cause: nothing guarded
+  `products.party_name` (the AppSheet import's party stood) and
+  `sync_product_machine()` never sets the party of an existing machine.
+- **Shipped.** The user: "Change this Rule and Do a 1 Time Mapping as per the
+  Actual Logic. Sale Entry, Ownership Transfer which ever is latest - Party
+  Details should be used". `zz_products_party_follows_owner` (BEFORE INSERT OR
+  UPDATE, every column) + `machine_owner_details()`; one-time re-mapping
+  through the trigger, old values in `products_party_remap_backup`, listed by
+  `_product_party_remap.sql`. `_status.sql` row 368;
+  `product_party_follows_owner_test`.
+- **Decided, and worth knowing:** a contract does NOT decide the party here
+  (CW-012's wider rule stays on Product Database 2.0); an upload's party is
+  discarded, not refused; details move only when the party changes, so a
+  corrected address for the right owner stands; a machine with neither a sale
+  nor a transfer is left alone (0238).
+
+---
+
 ## 2026-10-27 — Seeing a signature: administrators only, non-auditable, hidden in Audit Mode (NAR-011, 0456, v0.10.222)
 
 - **Shipped.** The user: "I want admins to be able to see the signature. It's a

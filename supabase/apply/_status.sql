@@ -2307,7 +2307,11 @@ with checks(sort_order, bundle, provides, present) as (
     (367, 'The signature on User Master: administrators only, every look audited, refused in Audit Mode', 'user_signature_of() (0455, narrowed by 0456): one person''s signature to a holder of users.signature.view (administrators), writing signature.view to audit_log in the same call, refused while Audit Mode is on. NO means Show signature answers an error, or still answers whoever edits User Master details. Restore: training.sql (0456)',
         to_regprocedure('public.user_signature_of(uuid)') is not null
         and position('users.signature.view' in pg_get_functiondef(to_regprocedure('public.user_signature_of(uuid)'))) > 0
-        and position('audit_mode()' in pg_get_functiondef(to_regprocedure('public.user_signature_of(uuid)'))) > 0)
+        and position('audit_mode()' in pg_get_functiondef(to_regprocedure('public.user_signature_of(uuid)'))) > 0),
+    (368, 'The Product Database''s party follows the latest sale entry or ownership transfer', 'zz_products_party_follows_owner + machine_owner_details() (0457): every insert and update of products takes the party of the later of the latest sale entry and transfer, with the owner''s details, whatever an upload sends; and the one-time re-mapping has run. NO means an upload can still give a sold machine another party. Restore: sales_contracts.sql (0457)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.products') and tgname = 'zz_products_party_follows_owner')
+        and to_regprocedure('public.machine_owner_details(text,text)') is not null
+        and exists (select 1 from public.one_time_fixes_done where name = '0457_product_party_follows_latest_owner'))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

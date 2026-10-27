@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.223',
+    date: '2026-10-27',
+    title: 'Product Database: the party is always the latest sale entry or ownership transfer',
+    changes: [
+      'Each machine\'s party on the Product Database is now always the party of its latest sale entry or ownership transfer, whichever is later, with that owner\'s address, city, state and Service Engineer.',
+      'A Product Database upload or edit that names another party for such a machine is ignored; the party goes back to the owner. To change the owner, record an ownership transfer. A machine with no sale entry and no transfer keeps the party it was loaded with.',
+      'Every machine was re-mapped once to this rule. What each one showed before is kept, so it can be checked.',
+      'Why VEGA | 31 showed RAM MULTISPECIALITY, Ahmedabad: the old import had put that party there, and nothing corrected it although its sale entry, contracts and calls all name LOTUS SUPER SPECIALITY HOSPITAL, Kanpur. It now shows LOTUS.',
+    ],
+  },
+  {
     version: '0.10.222',
     date: '2026-10-27',
     title: 'Administrators can see a person\'s signature on User Master',
