@@ -1287,8 +1287,9 @@ typed into a form that reads it.
   > those still to do and when each one saved theirs, and **⬇ CSV**.
   > The list has a **Signature** column (Saved with the date / Not
   > yet / No login), a **signature filter** beside the tag box, and it goes in
-  > the CSV. Open a person and press **✍️ Show signature** to see the image
-  > itself; each look is recorded in the audit log (`signature.view`), and
+  > the CSV. **Administrators** can open a person and press **✍️ Show
+  > signature** to see the image itself; each look is recorded in the audit
+  > log (`signature.view`), the button is hidden while Audit Mode is on, and
   > seeing it does not let you place it — only its owner can sign with it.
   > **Open a person (the row, or ⋯ → view) for their profile:** Employee Code,
   > Joining Date, Department, Designation, both managers, Mail ID, their
@@ -2111,7 +2112,7 @@ typed into a form that reads it.
   with a link straight to this tab; **Later** quiets it until next time, and
   once one is saved it never comes back. **My Signature** lives here, not in Settings:
   only you can set or use it, and it goes only in the block that names you.
-  Whoever may edit User Master details can see it on your User Master entry —
-  every look is recorded in the audit log — and remove a leaver's; nobody but
-  you can place it on anything.
+  An administrator can see it on your User Master entry — every look is
+  recorded in the audit log, and never while Audit Mode is on — and remove a
+  leaver's; nobody but you can place it on anything.
 - **Version History** `/version-history` — what changed in each release.

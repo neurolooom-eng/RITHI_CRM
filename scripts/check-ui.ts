@@ -2567,9 +2567,17 @@ console.log('\n-- a Training Form is signed by the people it names; the signatur
   eq('the tracker is on User Master for whoever edits its details', /\{editable && !editing && <SignatureTracker rows=\{sigRows\} err=\{sigErr\} \/>\}/.test(um), true);
   const s455 = readFileSync('supabase/migrations/0455_signature_on_user_master.sql', 'utf8');
   eq('...the signature itself is shown one person at a time, every look audited in the same call (0455)',
-    /has_perm\('users\.manage\.details'\)/.test(s455) && /'signature\.view'/.test(s455)
-      && /\{editable && sigFor\(r\)\?\.has_signature && <SignatureLook /.test(um) && /sbSignatureOf\(userId\)/.test(um), true);
-  eq('...and My Profile tells its owner who can see it', /can <i>see<\/i> it on your User Master entry/.test(prof), true);
+    /'signature\.view'/.test(s455)
+      && /sbSignatureOf\(userId\)/.test(um), true);
+  eq('...and My Profile tells its owner who can see it', /An administrator\s+can <i>see<\/i> it on your User Master entry/.test(prof), true);
+  // NAR-011 (0456): administrators only, by a key no migration grants; never in Audit Mode.
+  const s456 = readFileSync('supabase/migrations/0456_signature_view_admins_only.sql', 'utf8');
+  const sqlAllMig = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql')).map((f) => readFileSync(`supabase/migrations/${f}`, 'utf8')).join('\n');
+  eq('seeing a signature is users.signature.view, refused in Audit Mode, and no migration grants the key',
+    /has_perm\('users\.signature\.view'\)/.test(s456) && /audit_mode\(\)/.test(s456)
+      && !/"users\.signature\.view"/.test(sqlAllMig) && !/'\["[^']*users\.signature\.view/.test(sqlAllMig), true);
+  eq('...the screen asks the same key and hides it in Audit Mode',
+    /can\('users\.signature\.view'\) && !auditOn && sigFor\(r\)\?\.has_signature && <SignatureLook /.test(um), true);
 }
 
 // THE CONTRACT ENTRY VIEW'S FORMAT (the user, 2026-10-23).

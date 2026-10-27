@@ -11,9 +11,10 @@
 // for — is a system that signs documents on people's behalf, and a mark applied
 // by software to a record somebody else is accountable for is not a signature.
 //
-// The storage (0172) lets nobody read anybody else's row. Since 0455 (the user,
-// 2026-10-27) user_signature_of() SHOWS one person's signature to whoever may
-// edit User Master details, each look audited -- seeing, never placing: nothing
+// The storage (0172) lets nobody read anybody else's row. Since 0455/0456 (the
+// user, 2026-10-27, NAR-011) user_signature_of() SHOWS one person's signature
+// to an administrator, each look audited, never in Audit Mode -- seeing, never
+// placing: nothing
 // here or in sign_training_request() ever reaches for anybody's signature but
 // the signed-in person's own.
 // ===========================================================================

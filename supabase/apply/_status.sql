@@ -2304,8 +2304,10 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regprocedure('public.signature_tracker()') is not null
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.training_requests') and tgname = 'training_request_guard'
                        and (tgtype & 4) <> 0))),
-    (367, 'The signature on User Master, every look audited', 'user_signature_of() (0455): one person''s signature to whoever edits User Master details, writing signature.view to audit_log in the same call. NO means Show signature on User Master answers an error. Restore: training.sql (0455)',
-        to_regprocedure('public.user_signature_of(uuid)') is not null)
+    (367, 'The signature on User Master: administrators only, every look audited, refused in Audit Mode', 'user_signature_of() (0455, narrowed by 0456): one person''s signature to a holder of users.signature.view (administrators), writing signature.view to audit_log in the same call, refused while Audit Mode is on. NO means Show signature answers an error, or still answers whoever edits User Master details. Restore: training.sql (0456)',
+        to_regprocedure('public.user_signature_of(uuid)') is not null
+        and position('users.signature.view' in pg_get_functiondef(to_regprocedure('public.user_signature_of(uuid)'))) > 0
+        and position('audit_mode()' in pg_get_functiondef(to_regprocedure('public.user_signature_of(uuid)'))) > 0)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
