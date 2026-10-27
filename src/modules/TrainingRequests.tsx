@@ -28,6 +28,7 @@ import { parseTrainingDoc } from '../lib/trainingDoc';
 import { uploadToDrive } from '../lib/sheets';
 import { formatDayTime } from '../lib/dates';
 import { TRAINING_METHODOLOGY, TRAINING_RATINGS, TRAINING_RISKS } from '../lib/trainingForm';
+import { safeUrl } from '../lib/safeUrl';
 
 const APPROVAL_TONE: Record<string, string> = { Pending: '#b45309', Approved: '#2e7d32', 'Not approved': '#b91c1c' };
 const BLANK_LINE: TrainingRecordLine = { name: '', content: '', status: '' };
@@ -202,7 +203,7 @@ export function TrainingRequests() {
         {edit && (
           <div>
             <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginBottom: 8, flexWrap: 'wrap' }}>
-              {edit.source_doc_url && <a className="btn btn-sm" href={edit.source_doc_url} target="_blank" rel="noopener noreferrer">📎 HR document{edit.source_doc_name ? ` (${edit.source_doc_name})` : ''}</a>}
+              {edit.source_doc_url && <a className="btn btn-sm" href={safeUrl(edit.source_doc_url)} target="_blank" rel="noopener noreferrer">📎 HR document{edit.source_doc_name ? ` (${edit.source_doc_name})` : ''}</a>}
               {edit.id === 0 && docFile && <span className="muted" style={{ alignSelf: 'center' }}>📎 {docFile.name} — uploaded on Save</span>}
               {edit.id !== 0 && <a className="btn btn-sm" href={`#/training-form/${edit.id}`} target="_blank" rel="noopener noreferrer">📄 Training Form</a>}
             </div>

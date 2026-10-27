@@ -9,6 +9,7 @@ import { MASTER_LISTS, masterListPath } from '../../modules/masterLists';
 import { useModuleCounts, countLabel } from '../../lib/counts';
 import { NotificationBell } from './NotificationBell';
 import { SignatureReminder } from './SignatureReminder';
+import { safeUrl } from '../../lib/safeUrl';
 import './layout.css';
 import { RITHI_LOGO } from '../../lib/brand';
 import { watchMachineRegister } from '../../lib/machinestore';
@@ -399,7 +400,7 @@ function ModuleSearch() {
   const close = () => { setQ(''); setOpen(false); };
   const goModule = (to: string) => { navigate(to); close(); };
   const goHit = (h: SearchHit) => {
-    if (h.href) window.open(h.href, '_blank', 'noopener,noreferrer');
+    if (h.href && safeUrl(h.href)) window.open(safeUrl(h.href), '_blank', 'noopener,noreferrer');
     else if (h.to) navigate(h.to, { state: h.state });
     close();
   };

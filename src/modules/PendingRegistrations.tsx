@@ -19,6 +19,7 @@ import { db } from '../lib/db';
 import { C } from './collections';
 import { useAuth } from '../lib/auth';
 import './fieldcalls.css';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // PENDING CALL REGISTRATIONS — requests with no UC Number yet.
@@ -629,7 +630,7 @@ function RequestActions({
               <div className="reg-detail-row" key={k}>
                 <div className="reg-detail-k">{k}</div>
                 <div className="reg-detail-v">{/^https?:\/\/\S+$/i.test(String(row[k]).trim())
-                  ? <a href={String(row[k]).trim()} target="_blank" rel="noopener noreferrer">Open {k}</a>
+                  ? <a href={safeUrl(String(row[k]).trim())} target="_blank" rel="noopener noreferrer">Open {k}</a>
                   : String(row[k])}</div>
               </div>
             ))}

@@ -19,6 +19,7 @@
 import { isUrl, linkLabel } from '../../lib/callreview';
 import { partCode, partName } from '../../lib/parts';
 import { fmtLongDate, fmtLongSmart } from '../../lib/format';
+import { safeUrl } from '../../lib/safeUrl';
 
 // EVERY DATE ON THIS PANE READS DD-MMM-YYYY (the user, 2026-09-12: "Fix the
 // Date Field -- follow the DD-MMM-YYYY"). It used to render the visit's own
@@ -130,7 +131,7 @@ export function CallContext({ visits, spares, busy, noVisitsNote }: CallContextP
                         the rest stays text. `noopener` because the target is
                         Drive, not this app. */}
                     <dd>{isUrl(String(val))
-                      ? <a href={String(val)} target="_blank" rel="noopener noreferrer">{linkLabel(k, String(val))}</a>
+                      ? <a href={safeUrl(String(val))} target="_blank" rel="noopener noreferrer">{linkLabel(k, String(val))}</a>
                       : looksLikeDate(k) ? fmtLongSmart(val) : String(val)}</dd>
                   </div>
                 ))}

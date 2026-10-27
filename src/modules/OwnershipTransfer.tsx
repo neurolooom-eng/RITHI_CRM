@@ -18,6 +18,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
 import { DocPreview } from '../components/doc/DocPreview';
 import { uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // OWNERSHIP TRANSFER — where a machine has been, and who has it now.
@@ -248,7 +249,7 @@ export function OwnershipTransfer() {
         ? `${fmtLongDate(r.warranty_start)} → ${fmtLongDate(r.warranty_end ?? '')}`
         : <span className="muted">—</span>) },
     { key: 'reason', header: 'Reason', width: 160 },
-    { key: 'document_url', header: 'Document', width: 110, render: (r) => (r.document_url ? <a href={r.document_url} target="_blank" rel="noreferrer">open</a> : <span className="muted">—</span>) },
+    { key: 'document_url', header: 'Document', width: 110, render: (r) => (r.document_url ? <a href={safeUrl(r.document_url)} target="_blank" rel="noreferrer">open</a> : <span className="muted">—</span>) },
     { key: 'recorded_by_name', header: 'Recorded By', width: 150 },
     ...(mayInstall ? [{ key: '_inst', header: 'Installation call', width: 170, sortable: false, wrap: false,
       render: (r: OT & Record<string, unknown>) => (

@@ -12,6 +12,7 @@ import {
   type MappedRow, type CallKey, type ExistingVisit, type VisitDecision,
 } from '../lib/reportMapping';
 import { splitSharedKeys } from '../lib/visitkey';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // BULK REPORT → CALL MAPPING — putting recovered visit history back.
@@ -233,7 +234,7 @@ export function ReportMapping() {
     {
       key: 'manual_report', header: 'Becomes', width: 200,
       render: (r) => (r.manual_report
-        ? <a href={r.manual_report} target="_blank" rel="noreferrer">open in Drive</a>
+        ? <a href={safeUrl(r.manual_report)} target="_blank" rel="noreferrer">open in Drive</a>
         : r.ref.fileName
           ? <span className="muted">{step === 'read' ? 'awaiting lookup' : 'not found'}</span>
           : <span className="muted">{r.ref.note}</span>),

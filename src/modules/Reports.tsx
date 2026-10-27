@@ -13,6 +13,7 @@ import { DocPreview } from '../components/doc/DocPreview';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
 import { todayLocal } from '../lib/dates';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // VISIT REPORTS / SERVICE REPORTS — the visit history, one row per visit.
@@ -246,7 +247,7 @@ export function Reports() {
         <button type="button" className="svc-report-link"
                 onClick={(e) => { e.stopPropagation(); setDocFor(r); }}
                 title="Show the signed service report">📄 Show</button>
-        <a className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }} href={url}
+        <a className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }} href={safeUrl(url)}
            target="_blank" rel="noreferrer"
            onClick={(e) => e.stopPropagation()}>Open in Drive ↗</a>
       </span>

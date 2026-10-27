@@ -21,6 +21,7 @@ import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
 import { localIsoDate, toIsoDate, formatDay } from '../lib/dates';
 import './fieldcalls.css';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // CALL REPORTING — "Visit Entry" against a Field / Installation / PM call.
@@ -735,7 +736,7 @@ export function CallReportDrawer({
               <>
                 <button type="button" className="svc-report-link" onClick={() => setShowReport(true)}
                         title="Show the report you uploaded">📄 Show the report</button>
-                <a className="rep-upload-file" href={manualLink} target="_blank" rel="noopener noreferrer">Open in Drive ↗</a>
+                <a className="rep-upload-file" href={safeUrl(manualLink)} target="_blank" rel="noopener noreferrer">Open in Drive ↗</a>
                 <label className={`btn btn-sm ${uploading ? 'is-busy' : ''}`}>
                   {uploading ? 'Uploading…' : 'Replace'}
                   <input type="file" hidden accept=".pdf,image/*" disabled={uploading}

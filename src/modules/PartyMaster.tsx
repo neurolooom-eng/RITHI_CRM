@@ -24,6 +24,7 @@ import { kycDocs, withKycDoc, withoutKycDoc, isKycVerified, type KycDoc } from '
 import './knowledgebase.css';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // PARTY MASTER — live from Supabase `parties`, with a local browser cache +
@@ -80,7 +81,7 @@ const COLUMNS: Column<Row>[] = [
       return (
         <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
           {docs.map((d, i) => (
-            <a key={d.url} href={d.url} target="_blank" rel="noreferrer" title={d.name || d.url}
+            <a key={d.url} href={safeUrl(d.url)} target="_blank" rel="noreferrer" title={d.name || d.url}
                onClick={(e) => e.stopPropagation()}>
               📄 {docs.length > 1 ? i + 1 : 'Open'}
             </a>
@@ -758,7 +759,7 @@ export function PartyMaster() {
               )}
               {kycDocs(edit.kyc_docs).map((d) => (
                 <div key={d.url} className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                  <a href={d.url} target="_blank" rel="noreferrer">📄 {d.name || 'Record'}</a>
+                  <a href={safeUrl(d.url)} target="_blank" rel="noreferrer">📄 {d.name || 'Record'}</a>
                   <span className="muted" style={{ fontSize: 12 }}>
                     {d.by ? `${d.by} · ` : ''}{d.at ? timeAgo(d.at) : ''}
                   </span>

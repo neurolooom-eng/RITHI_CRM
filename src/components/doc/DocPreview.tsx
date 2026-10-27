@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { driveFileId, drivePreviewUrl } from '../../lib/drive';
 import { fetchAppDocumentBlob, sheetsConfigured } from '../../lib/sheets';
 import './docpreview.css';
+import { safeUrl } from '../../lib/safeUrl';
 
 // ===========================================================================
 // DOCUMENT PREVIEW — the report, in the app.
@@ -109,7 +110,7 @@ export function DocPreview({ url, title, subtitle, onClose }: {
           {mode === 'bytes' && (
             <a className="btn btn-sm" href={blobUrl} download={fileName || 'report'} title="Save a copy">⭳ Download</a>
           )}
-          <a className="btn btn-sm" href={url} target="_blank" rel="noreferrer"
+          <a className="btn btn-sm" href={safeUrl(url)} target="_blank" rel="noreferrer"
              title="Open the original in Google Drive — needs an account with access to the folder">
             Open in Drive ↗
           </a>
@@ -178,7 +179,7 @@ export function DocPreview({ url, title, subtitle, onClose }: {
               It opens in a new tab exactly as it always has — reports uploaded through the app are
               shown here; this one was linked from somewhere else.
             </p>
-            <a className="btn btn-primary" href={url} target="_blank" rel="noreferrer">Open it ↗</a>
+            <a className="btn btn-primary" href={safeUrl(url)} target="_blank" rel="noreferrer">Open it ↗</a>
           </div>
         )}
       </div>

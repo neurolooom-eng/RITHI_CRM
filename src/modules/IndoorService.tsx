@@ -33,6 +33,7 @@ import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
 import './indoor.css';
 import { formatDay, formatDayTime } from '../lib/dates';
+import { safeUrl } from '../lib/safeUrl';
 
 /** R/SER/07's "Status" is the machine's COVER, in the one vocabulary (0208). */
 const COVERS = ['WGP', 'OGP', 'CMC', 'AMC'];
@@ -309,7 +310,7 @@ export function IndoorService() {
         ? (r) => {
             const j = r._job;
             if ((j.report_file_url ?? '').trim()) {
-              return <a href={j.report_file_url} target="_blank" rel="noopener noreferrer"
+              return <a href={safeUrl(j.report_file_url)} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()} title={j.report_file_name}>{j.indoor_report_no || 'report'} ↗</a>;
             }
             if (j.cleaned_at && mayWork) {
@@ -1209,7 +1210,7 @@ function IndoorJobDrawer({
               </Value>
               <Value label="File">
                 {reported
-                  ? <a href={job.report_file_url} target="_blank" rel="noopener noreferrer">{job.report_file_name || 'open'} ↗</a>
+                  ? <a href={safeUrl(job.report_file_url)} target="_blank" rel="noopener noreferrer">{job.report_file_name || 'open'} ↗</a>
                   : <span className="ind-muted">—</span>}
               </Value>
               {(job.findings ?? '').trim() ? <Value label="Complaint observation" wide>{job.findings}</Value> : null}
@@ -1739,7 +1740,7 @@ function IndoorReportForm({ job, patch, onDone }: {
         <div className="ind-field">
           <span className="ind-label">The report *</span>
           <span className="ind-filepick">
-            {link ? <a href={link} target="_blank" rel="noopener noreferrer">{name || 'uploaded'} ↗</a> : null}
+            {link ? <a href={safeUrl(link)} target="_blank" rel="noopener noreferrer">{name || 'uploaded'} ↗</a> : null}
             <label className={`btn btn-sm${busy || !reportNo.trim() ? ' is-off' : ''}`}>
               {busy ? 'Uploading…' : link ? 'Replace' : '⭱ Choose the file'}
               <input type="file" hidden accept=".pdf,image/*" disabled={busy || !reportNo.trim()}

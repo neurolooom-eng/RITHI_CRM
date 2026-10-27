@@ -72,6 +72,8 @@
 --   0350_delete_guard_counts_every_name.sql
 --   0381_master_reads_once_per_query.sql
 --   0459_admin_uploads_a_signature.sql
+--   0461_anonymous_caller_holds_nothing.sql
+--   0463_profile_only_for_the_user_master.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -475,6 +477,8 @@
 --   0245_sys_columns_view_tail.sql
 --   0248_lock_down_internal_functions.sql
 --   0338_helpers_not_public.sql
+--   0462_security_scan_lockdown.sql
+--   0464_no_profile_no_rows.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -6115,6 +6119,189 @@ begin
 end $$;
 revoke execute on function public.set_user_signature(uuid, text) from public, anon;
 grant execute on function public.set_user_signature(uuid, text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0461_anonymous_caller_holds_nothing.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0461 -- SECURITY SCAN FIXES (2026-10-27; the user: "Do a Security Scan -
+-- Both Penetration Testing and Vulnerabilities Scan").
+--
+-- 1. AN ANONYMOUS CALLER HOLDS NO PERMISSION. Found by the penetration test
+--    (docs/SECURITY_SCAN.md, F-01): has_perm() fell back to the Engineer set
+--    when nobody was signed in, so a request carrying only the public key --
+--    which is in the website for anybody to read -- could read feedback and
+--    the quality objectives and insert call requests, spare requests,
+--    feedback, consumption lines and pending registrations. 0300 had closed
+--    the signed-in-without-a-profile case; the not-signed-in case was missed.
+--    Restated from 0300 with one rule added first; nothing else changes.
+--
+-- 2. THE SIGNATURE NOTIFICATION'S LINK (0459) was written '#/profile?...',
+--    and the bell hands a link to the router, which wants the route itself
+--    ('/new-employee-requests' is how every other notification writes it).
+--    Restated with '/profile?tab=signature', and any already sent repaired.
+-- ===========================================================================
+
+create or replace function public.has_perm(action text)
+returns boolean language sql stable security definer set search_path = public as $$
+  with role_row as (
+    select r.permissions from public.app_roles r
+     where r.role = public.my_role() and jsonb_array_length(coalesce(r.permissions, '[]'::jsonb)) > 0
+  ),
+  fallback as (
+    select r.permissions from public.app_roles r where r.role = 'engineer'
+  ),
+  perms as (
+    select permissions from role_row
+    union all
+    select permissions from fallback where not exists (select 1 from role_row)
+  ),
+  keys as (
+    select action as k
+    union all
+    select pp.parent from public.perm_parents pp where pp.child = action
+  )
+  select case
+    -- NOBODY SIGNED IN HOLDS NOTHING (0461, security scan 2026-10-27). With no
+    -- session auth.uid() is NULL, my_role() finds no profile, and the CTEs
+    -- above fall back to the ENGINEER set -- so the public key alone, which
+    -- ships in the website, carried an engineer's rights on every policy
+    -- written has_perm(): it read feedback and the quality objectives and
+    -- inserted call requests, spare requests and feedback. 'anon' is the role
+    -- Supabase gives a request with no login; a migration or maintenance
+    -- connection has no such claim and is unaffected.
+    when auth.uid() is null and coalesce(auth.role(), '') = 'anon' then false
+    when auth.uid() is not null
+     and not exists (select 1 from public.profiles p where p.id = auth.uid())
+      then coalesce(public.is_super_admin(), false)
+    else public.is_admin()
+      or exists (select 1 from perms p, keys where p.permissions ? keys.k)
+      or (select bool_or(public.my_extra_perms() ? keys.k) from keys)
+  end;
+$$;
+
+create or replace function public.set_user_signature(p_user uuid, p_signature text)
+returns void language plpgsql security definer set search_path = public as $$
+declare who text; whose_name text; whose_title text; whose_email text;
+begin
+  if auth.uid() is null or not coalesce(public.has_perm('users.signature.upload'), false) then
+    raise exception 'Uploading somebody''s signature is for administrators ("Upload a person''s signature" on Roles & Permissions).' using errcode = '42501';
+  end if;
+  if coalesce(public.audit_mode(), false) then
+    raise exception 'A signature cannot be uploaded for somebody while Audit Mode is on.' using errcode = '42501';
+  end if;
+  if p_user = auth.uid() then
+    raise exception 'Use My Profile -> Signature for your own.';
+  end if;
+  if coalesce(p_signature, '') !~ '^data:image/(png|jpeg|jpg|webp);base64,' then
+    raise exception 'The signature must be a PNG, JPEG or WebP image.';
+  end if;
+  if length(p_signature) > 1500000 then
+    raise exception 'The signature image is too large -- under about 1 MB, please.';
+  end if;
+  select coalesce(nullif(btrim(p.full_name), ''), p.email), coalesce(p.designation, ''), p.email
+    into whose_name, whose_title, whose_email from public.profiles p where p.id = p_user;
+  if whose_email is null then raise exception 'No login for that person -- they must sign in once first.'; end if;
+  select coalesce(nullif(btrim(p.full_name), ''), p.email) into who from public.profiles p where p.id = auth.uid();
+
+  perform set_config('rithi.signature_upload', 'on', true);
+  insert into public.user_signatures as s (user_id, signature, name_line, title_line, set_by, set_by_name)
+  values (p_user, p_signature, coalesce(whose_name, ''), coalesce(whose_title, ''), auth.uid(), coalesce(who, ''))
+  on conflict (user_id) do update set signature = excluded.signature, set_by = excluded.set_by, set_by_name = excluded.set_by_name,
+    name_line = case when btrim(s.name_line) = '' then excluded.name_line else s.name_line end,
+    title_line = case when btrim(s.title_line) = '' then excluded.title_line else s.title_line end;
+  perform set_config('rithi.signature_upload', '', true);
+
+  insert into public.audit_log (user_id, email, actor, action, target, status, meta)
+  values (auth.uid(), coalesce((select email from public.profiles where id = auth.uid()), ''), coalesce(who, ''),
+          'signature.upload', coalesce(whose_name, p_user::text), 'ok', jsonb_build_object('user_id', p_user));
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  values (p_user, coalesce(whose_email, ''), 'signature', 'Your signature was added by ' || coalesce(who, 'an administrator'),
+          'An administrator uploaded your signature to RITHI. It goes on a form only when you press Sign. If it is not yours, or you want another, replace it on My Profile -> Signature.',
+          '/profile?tab=signature');
+end $$;
+revoke execute on function public.set_user_signature(uuid, text) from public, anon;
+grant execute on function public.set_user_signature(uuid, text) to authenticated;
+
+-- Guarded: on a fresh rebuild this module runs before notifications exists.
+do $$ begin
+  if to_regclass('public.notifications') is not null then
+    update public.notifications set link = '/profile?tab=signature'
+     where kind = 'signature' and link = '#/profile?tab=signature';
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0463_profile_only_for_the_user_master.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0463 -- A LOGIN GETS A PROFILE ONLY IF THE USER MASTER NAMES IT (security
+-- scan, 2026-10-27; docs/SECURITY_SCAN.md, F-02).
+--
+-- Found on the live project: self sign-up is open with no email confirmation,
+-- and ensure_my_profile() -- which the app calls at every sign-in -- gave ANY
+-- login a profile: its User Master role where the address was on the User
+-- Master, and otherwise ENGINEER, active. So anybody on the internet could
+-- make an account, sign in, and hold an engineer's rights. Two live profiles
+-- were found on no User Master row (counted, not named, by
+-- _who_can_sign_in.sql).
+--
+-- Now a profile is made only for an address on an ACTIVE User Master row --
+-- "the User Master is the master" (0199). Anybody else stays an unresolved
+-- login, which holds nothing (0300) and, with 0464, reads nothing. Existing
+-- profiles are not touched: the two found are for the user to judge.
+--
+-- What this does NOT close, and the scan says so: with email confirmation off,
+-- somebody who knows the address of a person on the User Master who has not
+-- signed in yet could sign up with it. That needs "Confirm email" on in the
+-- Supabase project -- the user's decision, since creating a login then needs
+-- the new person to confirm their address.
+-- ===========================================================================
+create or replace function public.ensure_my_profile()
+returns public.profiles language plpgsql security definer set search_path = public as $$
+declare
+  me   uuid := auth.uid();
+  mail text := lower(coalesce(auth.email(), ''));
+  dir  public.user_directory;
+  p    public.profiles;
+  want text;
+begin
+  if me is null then return null; end if;
+
+  select * into p from public.profiles where id = me;
+  if found then return p; end if;
+
+  -- ONLY AN ACTIVE USER MASTER ROW makes a profile (0463).
+  select * into dir from public.user_directory
+   where mail <> '' and (lower(btrim(email)) = mail or lower(btrim(gmail)) = mail)
+     and coalesce(validity, true)
+   limit 1;
+  if not found then return null; end if;
+
+  want := nullif(btrim(coalesce(dir.role, '')), '');
+  if want is not null and not exists (select 1 from public.app_roles where role = want) then
+    want := null;  -- not a role the matrix knows: fall back rather than guess
+  end if;
+
+  insert into public.profiles (id, email, full_name, role, designation, active)
+  values (
+    me,
+    coalesce(auth.email(), ''),
+    coalesce(nullif(btrim(coalesce(dir.name, '')), ''), coalesce(auth.email(), '')),
+    coalesce(want, 'engineer'),
+    coalesce(dir.designation, ''),
+    true
+  )
+  on conflict do nothing;   -- id or email already taken: leave what is there
+
+  select * into p from public.profiles where id = me;
+  return p;   -- null if the email belongs to another profile; the caller copes
+end $$;
+revoke all on function public.ensure_my_profile() from public;
+revoke execute on function public.ensure_my_profile() from anon;
+grant execute on function public.ensure_my_profile() to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
@@ -66121,6 +66308,90 @@ begin
     exception when undefined_object then null;   -- a plain Postgres has no service_role
     end;
   end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0462_security_scan_lockdown.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0462 -- WHAT THE PUBLIC KEY CAN CALL, AFTER THE SECURITY SCAN (2026-10-27;
+-- docs/SECURITY_SCAN.md, F-03). 0248's rule applied to what the scan found
+-- still callable by the not-signed-in role:
+--   * spare_request_rollup(text) re-derives a request's stage from its lines
+--     and writes it past the stage guard. Only definer triggers call it; the
+--     app never does. Withdrawn from every API role.
+--   * dispatch_spare_lines (three overloads) and receive_spare_shipments are
+--     called by the app, signed in; each checks its own permission inside.
+--     Withdrawn from the not-signed-in role only.
+-- Guarded, like 0248, so a project behind on other modules is unharmed.
+-- ===========================================================================
+do $$
+declare fn text;
+begin
+  foreach fn in array array['public.spare_request_rollup(text)'] loop
+    if to_regprocedure(fn) is null then continue; end if;
+    execute format('revoke execute on function %s from public', fn);
+    begin execute format('revoke execute on function %s from anon, authenticated', fn);
+    exception when undefined_object then null; end;
+  end loop;
+  foreach fn in array array[
+    'public.dispatch_spare_lines(bigint[],text,text,date,text)',
+    'public.dispatch_spare_lines(bigint[],numeric[],text,text,date,text)',
+    'public.dispatch_spare_lines(bigint[],numeric[],boolean[],text,text,date,text)',
+    'public.receive_spare_shipments(bigint[],text,text)'] loop
+    if to_regprocedure(fn) is null then continue; end if;
+    execute format('revoke execute on function %s from public', fn);
+    begin
+      execute format('revoke execute on function %s from anon', fn);
+      execute format('grant execute on function %s to authenticated', fn);
+    exception when undefined_object then null; end;
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0464_no_profile_no_rows.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0464 -- NO PROFILE, NO ROWS (security scan, 2026-10-27;
+-- docs/SECURITY_SCAN.md, F-02).
+--
+-- Many read policies say only `auth.role() = 'authenticated'` -- the Party
+-- Master, the Product Database, the User Master, the master lists, the
+-- settings. On a project where anybody can make a login, that is anybody. A
+-- RESTRICTIVE policy is AND-ed with every other policy on its table, so one
+-- named `zz_needs_a_profile` on every table with row-level security says: a
+-- caller with no profile gets nothing from it, whatever else allows. Every
+-- one of the 72 live accounts has a profile (counted 2026-10-27), so nobody
+-- loses anything; an unresolved login, which already held no permission
+-- (0300), now also reads no row.
+--
+-- (select public.has_a_profile()) is an InitPlan -- asked once per query, not
+-- once per row (the 0250 lesson). Definer functions and triggers run as the
+-- owner and are unaffected, which is how ensure_my_profile() still makes a
+-- profile for somebody who has none.
+--
+-- LAST IN THE ORDER (the lockdown module) and attached to EVERY table with
+-- row-level security that exists when it runs -- re-run lockdown.sql after a
+-- new table, as with sys_columns.sql. _status.sql row 374 counts the tables
+-- without it.
+-- ===========================================================================
+create or replace function public.has_a_profile()
+returns boolean language sql stable security definer set search_path = public as $$
+  select auth.uid() is not null and exists (select 1 from public.profiles where id = auth.uid());
+$$;
+revoke all on function public.has_a_profile() from public;
+grant execute on function public.has_a_profile() to anon, authenticated;
+
+do $$
+declare r record;
+begin
+  for r in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relrowsecurity loop
+    execute format('drop policy if exists zz_needs_a_profile on public.%I', r.relname);
+    execute format('create policy zz_needs_a_profile on public.%I as restrictive for all to anon, authenticated using ((select public.has_a_profile())) with check ((select public.has_a_profile()))', r.relname);
+  end loop;
 end $$;
 
 commit;

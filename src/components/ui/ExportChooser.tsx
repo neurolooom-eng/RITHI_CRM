@@ -11,6 +11,7 @@ import { useAuth } from '../../lib/auth';
 import { setExportChooser, type ExportJob } from '../../lib/exportscope';
 import { saveAsGoogleSheet, sheetsConfigured } from '../../lib/sheets';
 import { logAudit } from '../../lib/audit';
+import { safeUrl } from '../../lib/safeUrl';
 
 type Phase = { k: 'choose' } | { k: 'saving'; secs: number } | { k: 'done'; url: string } | { k: 'failed'; error: string };
 
@@ -61,7 +62,7 @@ export function ExportChooser() {
       )}
       {phase.k === 'saving' && <p>Writing the Google Sheet… {phase.secs > 0 ? `${phase.secs}s` : ''} A large register can take a minute or two.</p>}
       {phase.k === 'done' && (
-        <p>Saved. <a href={phase.url} target="_blank" rel="noreferrer">Open the Google Sheet</a></p>
+        <p>Saved. <a href={safeUrl(phase.url)} target="_blank" rel="noreferrer">Open the Google Sheet</a></p>
       )}
       {phase.k === 'failed' && (
         <>

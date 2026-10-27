@@ -8,6 +8,7 @@ import { partyDiffers, type MachineEvent, type MachineHistory, type MachineNow }
 import { partial } from '../../lib/exportscope';
 import { parseRef } from '../../lib/reportMapping';
 import { resolveDriveLinks } from '../../lib/sheets';
+import { safeUrl } from '../../lib/safeUrl';
 
 // ===========================================================================
 // ONE MACHINE'S LIFE, RENDERED ONCE.
@@ -47,17 +48,20 @@ export const MACHINE_SOURCES = SOURCES;
 async function openReport(raw: string): Promise<string> {
   const ref = parseRef(raw);
   if (ref.kind === 'drive-link' || ref.kind === 'other-url' || ref.kind === 'drive-id') {
-    window.open(ref.url, '_blank', 'noopener');
+    const u = safeUrl(ref.url);
+    if (!u) return `This report reference cannot be opened: “${raw}”.`;
+    window.open(u, '_blank', 'noopener');
     return '';
   }
   if (!ref.fileName) return `This report reference cannot be opened: “${raw}”.`;
   const w = window.open('', '_blank');
   if (w) w.document.title = 'Finding the report…';
   const res = await resolveDriveLinks([ref.fileName]);
-  const link = res.links[ref.fileName];
+  const link = safeUrl(res.links[ref.fileName]);
   if (link) { if (w) w.location.href = link; else window.open(link, '_blank', 'noopener'); return ''; }
   // An AppSheet link still opens in AppSheet when Drive does not have the file.
-  if (ref.kind === 'appsheet-url') { if (w) w.location.href = raw; else window.open(raw, '_blank', 'noopener'); return ''; }
+  const safeRaw = safeUrl(raw);
+  if (ref.kind === 'appsheet-url' && safeRaw) { if (w) w.location.href = safeRaw; else window.open(safeRaw, '_blank', 'noopener'); return ''; }
   w?.close();
   if (!res.ok) return `Could not look the report up in Drive: ${res.error ?? 'the lookup failed'}.`;
   if (res.ambiguous.includes(ref.fileName)) return `More than one file in Drive is called “${ref.fileName}”, so none is opened. Find it in Drive by that name.`;
@@ -128,7 +132,7 @@ export function MachineHistoryView({
         if (!raw) return '';
         const ref = parseRef(raw);
         if (ref.url) {
-          return <a className="btn btn-sm" href={ref.url} target="_blank" rel="noopener noreferrer" title={raw}>📄 Open</a>;
+          return <a className="btn btn-sm" href={safeUrl(ref.url)} target="_blank" rel="noopener noreferrer" title={raw}>📄 Open</a>;
         }
         if (!ref.fileName) return <span className="muted" title={raw}>not a link</span>;
         return (

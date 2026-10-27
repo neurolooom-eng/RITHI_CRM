@@ -10,6 +10,7 @@ import {
   planConversion, conversionTally, namesToLookUp, writesFor,
   type ConvertRow,
 } from '../../lib/reportMapping';
+import { safeUrl } from '../../lib/safeUrl';
 
 // ===========================================================================
 // THE REPORTS ALREADY IN THE REGISTER.
@@ -149,7 +150,7 @@ export function ConvertLoadedReports(
       key: 'becomes', header: 'Becomes', width: 200,
       render: (p) => {
         const url = p.link || links[p.ref.fileName] || '';
-        if (url) return <a href={url} target="_blank" rel="noreferrer">open in Drive</a>;
+        if (url) return <a href={safeUrl(url)} target="_blank" rel="noreferrer">open in Drive</a>;
         return <span className="muted">{phase === 'resolved' ? 'not found in Drive — left alone' : 'awaiting lookup'}</span>;
       },
     },

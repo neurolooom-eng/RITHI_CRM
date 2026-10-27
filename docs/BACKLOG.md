@@ -107,6 +107,34 @@ up)_
 
 ---
 
+## 2026-10-27 — Security scan: penetration test, live read-only check, fixes (FRS-285, D-174–D-176, 0461–0464, v0.10.226)
+
+- **Asked:** "Do a Security Scan - Both Penetration Testing and Vulnerabilities
+  Scan"; where it may run: "Local copy + read-only live checks".
+- **Found and FIXED:** F-01 the public key carried the Engineer set through
+  `has_perm()` (live: 25 relations returned rows) → 0461; F-02 open self
+  sign-up + `ensure_my_profile()` made anybody an Engineer, and
+  `auth.role() = 'authenticated'` reads gave a profile-less login the masters
+  → 0463 + 0464 (`zz_needs_a_profile`, restrictive, every RLS table, in
+  `lockdown`); F-03 `spare_request_rollup()` callable by the API → 0462;
+  F-04 30 stored links rendered raw (`javascript:` would run) → `safeUrl()`;
+  the rich editor loaded unsanitised HTML; npm audit fix (non-breaking).
+- **OPEN, the user's decisions:** (1) "Confirm email" OFF in the Supabase
+  project — 77 User Master addresses with no login could be claimed by
+  whoever signs up first; turning it on means a new login must confirm its
+  address before signing in. (2) Two profiles on no User Master row (one
+  admin, one engineer created this month) — named by
+  `_profiles_not_on_user_master.sql`, to be run in the SQL editor only.
+  (3) react-router open-redirect advisory needs v7 (no attacker-controlled
+  navigation found); vite/esbuild advisories affect the dev server only.
+  (4) The site sends no Content-Security-Policy (GitHub Pages sets no
+  headers; a meta CSP is possible).
+- **The repository and its Actions logs are PUBLIC.** Two probes earlier on
+  2026-10-27 printed customer names (the VEGA | 31 trace) into a public log.
+  Probes run through the workflow now print counts only.
+
+---
+
 ## 2026-10-27 — Training Form Record for big lists; device copy notices server changes; admin uploads a signature (FRS-283, FRS-284, NAR-012, D-173, 0458–0460, v0.10.224–225)
 
 - **Training (0458).** The user, with "101_2026 Service": fill the Record

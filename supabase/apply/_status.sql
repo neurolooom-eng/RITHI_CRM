@@ -543,7 +543,7 @@ with checks(sort_order, bundle, provides, present) as (
                   where tgrelid = to_regclass('public.quality_objectives')
                     and tgname = 'zz_quality_objectives_cutoff_guard')
      and not exists (select 1 from pg_policies
-                      where schemaname = 'public' and tablename = 'objective_cutoffs'
+                      where schemaname = 'public' and tablename = 'objective_cutoffs' and permissive = 'PERMISSIVE'
                         and cmd <> 'SELECT'))),
     (107, 'Objective: the Installation Base carries the WHOLE Product Master row', 'objective_evidence returns `details` jsonb on a machine row -- everything the Product Master upload kept in products.extra under the SPREADSHEET''S OWN HEADINGS (Item Details Long, Item Details, Sold Through, State, City, Address, Item Code, PO No., PO Date). Nine of the sixteen columns Failure Analysis needs have no column anywhere; the importer is declared extraInto:extra and keeps them. ONE jsonb rather than nine typed columns, so the next field wanted is a line on the page and not another drop-and-recreate of a function four files define (0140). Restore: objective.sql',
         coalesce((select pg_get_function_result(p.oid) like '%details%'
@@ -944,7 +944,7 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.part_rename_impact(text)') is not null
      and to_regclass('public.part_rename_ticket') is not null
      and (select relrowsecurity from pg_class where oid = to_regclass('public.part_rename_ticket'))
-     and not exists (select 1 from pg_policies where tablename = 'part_rename_ticket'))),
+     and not exists (select 1 from pg_policies where tablename = 'part_rename_ticket' and permissive = 'PERMISSIVE'))),
     (151, 'DCCR: the review may correct which product failed', 'call_reviews.actual_product + field_failure_register.live_product_name / live_product_changed (0197). The user: "Accessory Issues are also Logged in the Main Product -- Like CPX Care Failure is logged in Extend-XT or Orion-G ... I can select the Actual Product [Accessory in this case] and the Failure is included in the Accessory and Excluded from the Main Product." THE ASK HAS TWO HALVES and one effective value satisfies both by construction: the report is counted ONCE, under whatever that value is. Two columns, or a flag beside the original, would let a count include it twice or neither -- and a Pareto that double-counts is worse than one merely wrong. THE CALL IS NEVER REWRITTEN: it says a machine was down and an engineer went to it, which stays true; the review records what actually FAILED, and both are readable with the difference exposed rather than hidden. The row tests the VIEW COLUMN rather than the table column, because the column alone changes no count -- it is the view every rate and Pareto reads. NO means Change product? saves and nothing moves. Restore: daily_review.sql',
         (to_regclass('public.field_failure_register') is null
          or exists (select 1 from information_schema.columns
@@ -1498,8 +1498,8 @@ with checks(sort_order, bundle, provides, present) as (
     (208, 'Hand stock can be adjusted, with a reason, and a rename carries it', 'handstock_adjustments and the tenth arm of handstock_movements (0266), and the User Master rename list including it (0267). The user, 2026-09-30: WinMax''s "eBizWiz Admin" account was how quantity was added to reconcile an engineer; this replaces it -- + or - with a mandatory reason and a reference such as the MTN number, recorded by whoever holds consumption.reconcile, never edited or deleted. Checks: the table with row-level security ON and only a read and an insert policy, the Adjustment arm in the movements view with security_invoker kept, the rename function naming the table, and the public key refused. NO means the Adjust stock button on Hand Stock reads "not on the project yet", or an adjustment is invisible to the balance. Restore: HandStock_X.sql (repository root), then user_directory.sql',
         (to_regclass('public.handstock_adjustments') is not null
          and (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.handstock_adjustments'))
-         and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'handstock_adjustments') = 2
-         and not exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'handstock_adjustments'
+         and (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = 'handstock_adjustments' and p.permissive = 'PERMISSIVE') = 2
+         and not exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = 'handstock_adjustments' and p.permissive = 'PERMISSIVE'
                           and p.cmd in ('UPDATE', 'DELETE', 'ALL'))
          and coalesce(pg_get_viewdef(to_regclass('public.handstock_movements')) ilike '%handstock_adjustments%', false)
          and coalesce((select c.reloptions::text ilike '%security_invoker=on%' from pg_class c where c.oid = to_regclass('public.handstock_movements')), false)
@@ -1687,7 +1687,7 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.indoor_pdt') is not null
          and to_regprocedure('public.indoor_job_is_imported(text,text)') is not null
          and exists (select 1 from pg_trigger where tgname = 'zz_indoor_pdt_stamp' and tgrelid = to_regclass('public.indoor_pdt'))
-         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_pdt' and cmd in ('DELETE', 'ALL'))
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_pdt' and permissive = 'PERMISSIVE' and cmd in ('DELETE', 'ALL'))
          and coalesce((select p.prosrc like '%indoor_job_is_imported%' and p.prosrc like '%reads NOT OK%'
                          from pg_proc p where p.oid = to_regprocedure('public.indoor_jobs_guard()')), false))),
     (250, 'Indoor_DC: the workshop''s own delivery challan', 'indoor_dcs + indoor_dc_lines (0321): an IDC-YYMM-NNNN number issued by the database (next_indoor_dc_no() + indoor_dc_counters, monthly by the DC date; a number sent is discarded), readable with the Indoor Service Register''s key, with NO write policy and no write grant -- the only writer is create_indoor_dc(), which asks indoor.dispatch, takes Ready units for one consignee, TRIES each unit against indoor_jobs_guard()''s leaving rules and refuses it in the guard''s words, and stamps each job dispatch_ref = the IDC number and dc_date = the DC date. Never deleted (no_hard_delete). Since 0323 the function takes no DC date (the date of entry) and an AUTHORISED BY, which is why this row names its 0323 signature. NO means indoor.sql has not been re-run since. Restore: indoor.sql (0323)',
@@ -1699,7 +1699,7 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regprocedure('public.indoor_job_product_code(text,text)') is not null
          and exists (select 1 from pg_trigger where tgname = 'zz_indoor_dcs_stamp' and tgrelid = to_regclass('public.indoor_dcs'))
          and exists (select 1 from pg_trigger where tgname = 'no_hard_delete' and tgrelid = to_regclass('public.indoor_dcs'))
-         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename in ('indoor_dcs', 'indoor_dc_lines')
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename in ('indoor_dcs', 'indoor_dc_lines') and permissive = 'PERMISSIVE'
                            and cmd <> 'SELECT')
          and not has_function_privilege('anon', to_regprocedure('public.next_indoor_dc_no(date)'), 'EXECUTE')
          and coalesce((select p.prosrc like '%indoor.dispatch%' and p.prosrc like '%indoor_dc_trial_passed%'
@@ -1728,7 +1728,7 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regprocedure('public.approve_indoor_dc(text,boolean)') is not null
          and to_regprocedure('public.reject_indoor_dc(text,text)') is not null
          and to_regclass('public.indoor_dc_release_tickets') is not null
-         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_dc_release_tickets')
+         and not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'indoor_dc_release_tickets' and permissive = 'PERMISSIVE')
          and not has_function_privilege('anon', to_regprocedure('public.approve_indoor_dc(text,boolean)'), 'EXECUTE')
          and not has_function_privilege('anon', to_regprocedure('public.reject_indoor_dc(text,text)'), 'EXECUTE')
          and not has_function_privilege('anon', to_regprocedure('public.record_indoor_visit(bigint,text,boolean)'), 'EXECUTE')
@@ -1954,7 +1954,7 @@ with checks(sort_order, bundle, provides, present) as (
         (exists (select 1 from pg_policy where polrelid = to_regclass('public.feedback') and polname = 'fb_read'
                   and pg_get_expr(polqual, polrelid) like '%SELECT has_perm%')
          and exists (select 1 from pg_policy where polrelid = to_regclass('public.products') and polname = 'products_update')
-         and not exists (select 1 from pg_policy where polrelid = to_regclass('public.products')
+         and not exists (select 1 from pg_policy where polrelid = to_regclass('public.products') and polpermissive
                           and polcmd in ('d', '*')))),
     (280, 'Updating feedback asks the permission once per query', 'fb_update asks has_perm() inside a sub-select, as 0347 does for fb_read and fb_write; same audience (0348, D-132). NO means data_integrity.sql has not been re-run since. Restore: data_integrity.sql (0348)',
         exists (select 1 from pg_policy where polrelid = to_regclass('public.feedback') and polname = 'fb_update'
@@ -2320,7 +2320,18 @@ with checks(sort_order, bundle, provides, present) as (
         and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'user_signatures' and column_name = 'set_by_name')
         and position('rithi.signature_upload' in coalesce(pg_get_functiondef(to_regprocedure('public.user_signature_stamp()')), '')) > 0),
     (371, 'A device''s copy notices a change on the server', 'products_sys_updated_on_idx + parties_sys_updated_on_idx (0460): what the "anything changed?" check reads. NO means that check scans the whole table. Restore: sys_columns.sql (0460)',
-        to_regclass('public.products_sys_updated_on_idx') is not null and to_regclass('public.parties_sys_updated_on_idx') is not null)
+        to_regclass('public.products_sys_updated_on_idx') is not null and to_regclass('public.parties_sys_updated_on_idx') is not null),
+    (372, 'Security: a caller who is not signed in holds no permission', 'has_perm() answers no to the anon role (0461, security scan F-01). NO means the public key in the website still carries an engineer''s rights. Restore: rbac.sql (0461)',
+        position('auth.role(), '''') = ''anon''' in coalesce(pg_get_functiondef(to_regprocedure('public.has_perm(text)')), '')) > 0),
+    (373, 'Security: internal and signed-in-only functions withdrawn from the public key', 'spare_request_rollup() off every API role; dispatch and receipt off anon (0462, F-03). NO means the public key can still call them. Restore: lockdown.sql (0462)',
+        to_regprocedure('public.spare_request_rollup(text)') is null
+        or (not has_function_privilege('anon', 'public.spare_request_rollup(text)', 'execute')
+            and not has_function_privilege('authenticated', 'public.spare_request_rollup(text)', 'execute'))),
+    (374, 'Security: a login on no User Master row gets no profile, and no profile reads no row', 'ensure_my_profile() only for an active User Master address (0463) + zz_needs_a_profile on every table with row-level security (0464, F-02). NO names how many tables lack the rule: re-run lockdown.sql. Restore: rbac.sql (0463), lockdown.sql (0464)',
+        position('coalesce(validity, true)' in coalesce(pg_get_functiondef(to_regprocedure('public.ensure_my_profile()')), '')) > 0
+        and not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                         where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relrowsecurity
+                           and not exists (select 1 from pg_policies pp where pp.schemaname = 'public' and pp.tablename = c.relname and pp.policyname = 'zz_needs_a_profile')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
