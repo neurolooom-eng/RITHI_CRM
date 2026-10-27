@@ -13,7 +13,10 @@
 //   * REFRESHED EVERY SIX HOURS (mastercache.ts's window for the product list,
 //     set by the user). Older than that it is still SERVED -- a two-day-old
 //     register is far better than an error in a basement -- and refreshed as
-//     soon as there is a signal.
+//     soon as there is a signal. AND SOONER WHEN THE SERVER HAS CHANGED (0460):
+//     every check (each 15 minutes, and when the tab comes back) asks whether
+//     any row was written after the copy's latest sys_updated_on, and a yes
+//     downloads again -- a young copy is not a current one.
 //   * REPLACED ONLY BY A COMPLETE DOWNLOAD. A walk that stops part-way is
 //     kept IN MEMORY and resumed from the last machine it has (keyset), never
 //     stored as the register.
@@ -52,7 +55,20 @@ export const PARTY_REFRESH_MS = 10 * 24 * 60 * 60 * 1000;
 // register may have moved enough that stitching old and new pages is unwise.
 const PARTIAL_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
-interface Stored { v: string; user: string; at: number; packed: PackedRows }
+interface Stored { v: string; user: string; at: number; packed: PackedRows;
+  /** The latest sys_updated_on in the copy, as the SERVER wrote it (0460) --
+   *  what "has anything changed?" is asked against, so no device clock is
+   *  involved. Absent on a copy made before it. */
+  mark?: string }
+
+/** The latest sys_updated_on among the rows, compared as the server's own
+ *  strings (one format, one zone: the order of the strings is the order of the
+ *  instants). '' when no row carries one. */
+export function latestMark(rows: Record<string, unknown>[]): string {
+  let m = '';
+  for (const r of rows) { const v = typeof r.sys_updated_on === 'string' ? r.sys_updated_on : ''; if (v > m) m = v; }
+  return m;
+}
 
 export interface MachineRegisterStatus {
   machines: number;        // on this device
@@ -120,7 +136,7 @@ function register<T extends { id: number }>(o: {
   /** How long a copy is used before it is downloaded again. */
   refreshMs: number;
 }) {
-  let memory: { user: string; at: number; items: T[] } | null = null;
+  let memory: { user: string; at: number; items: T[]; mark?: string } | null = null;
   let loaded: Promise<void> | null = null;
   let partial: { user: string; started: number; state: DownloadState<Record<string, unknown> & { id: number }> } | null = null;
   let running: Promise<void> | null = null;
@@ -138,7 +154,7 @@ function register<T extends { id: number }>(o: {
     if (!s || s.v !== VERSION || s.user !== user || !s.packed) return;
     try {
       const items = unpackRows(s.packed).map(o.toItem);
-      memory = { user, at: s.at, items };
+      memory = { user, at: s.at, items, mark: s.mark };
       publish({ machines: items.length, at: s.at });
     } catch { /* an unreadable copy is no copy */ }
     scheduleReport();
@@ -152,6 +168,20 @@ function register<T extends { id: number }>(o: {
     return (data ?? []).map((r) => ({ ...(r as Record<string, unknown>), id: Number(r.id) }));
   }
 
+  /** Has any row been written on the server after this copy? One indexed
+   *  lookup (0460). An unanswered question keeps the copy -- no signal is not
+   *  a reason to throw away what the device has. */
+  async function changedSince(m: { at: number; mark?: string }): Promise<boolean> {
+    try {
+      const c = getSupabase(); if (!c) return false;
+      // A copy made before 0460 has no mark: the device's own time, less ten
+      // minutes for a clock that runs fast.
+      const after = m.mark || new Date(m.at - 10 * 60 * 1000).toISOString();
+      const { data, error } = await c.from(o.table).select('id').gt('sys_updated_on', after).limit(1);
+      return !error && (data ?? []).length > 0;
+    } catch { return false; }
+  }
+
   function refresh(opts: { force?: boolean } = {}): Promise<void> {
     if (running) return running;
     running = (async () => {
@@ -161,8 +191,12 @@ function register<T extends { id: number }>(o: {
         const user = await currentUser();
         if (!user) return;
         const fresh = memory && memory.user === user && Date.now() - memory.at < o.refreshMs;
-        if (fresh && !opts.force) return;
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        // YOUNG IS NOT THE SAME AS CURRENT (0460; the user, 2026-10-27: "Why is
+        // VEGA|31 still with the Wrong customer?" -- the database had been
+        // corrected and this copy, three hours old, had not been asked). A young
+        // copy is kept only while the server says nothing changed after it.
+        if (fresh && !opts.force && !(await changedSince(memory!))) return;
 
         const resume = partial && partial.user === user && Date.now() - partial.started < PARTIAL_MAX_AGE_MS
           ? partial : { user, started: Date.now(), state: { rows: [], lastId: 0 } };
@@ -181,8 +215,9 @@ function register<T extends { id: number }>(o: {
         // THE SIGNED-IN PERSON MAY HAVE CHANGED during a long walk.
         if ((await currentUser()) !== user) return;
         const at = Date.now();
-        memory = { user, at, items: r.rows.map(o.toItem) };
-        await idb('readwrite', (st) => st.put({ v: VERSION, user, at, packed: packRows(r.rows) } satisfies Stored, o.key));
+        const mark = latestMark(r.rows);
+        memory = { user, at, items: r.rows.map(o.toItem), mark };
+        await idb('readwrite', (st) => st.put({ v: VERSION, user, at, packed: packRows(r.rows), mark } satisfies Stored, o.key));
         publish({ downloading: false, machines: r.rows.length, at, progress: r.rows.length, error: '', duplicates: r.duplicates ?? 0 });
       } catch (e) {
         publish({ downloading: false, error: e instanceof Error ? e.message : String(e) });
@@ -297,7 +332,8 @@ export const localParties = parties.local;
 export const onMachineRegister = machines.on;
 export const onPartyRegister = parties.on;
 
-/** Refresh both registers (each only if older than six hours, or `force`). */
+/** Refresh both registers: each when older than its window, when the server
+ *  has written a row after the copy (0460), or on `force`. */
 export function refreshMachineRegister(opts: { force?: boolean } = {}): Promise<void> {
   return Promise.all([machines.refresh(opts), parties.refresh(opts)]).then(() => undefined);
 }

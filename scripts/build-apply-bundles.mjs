@@ -302,6 +302,9 @@ const MODULES = {
             // once per row (0381). Redefines 0008's, so after it; the tail
             // does not touch them.
             '0381_master_reads_once_per_query.sql',
+            // An administrator may upload a person's signature (0459, NAR-012):
+            // restates 0172's stamp above, so in this module, before the tail.
+            '0459_admin_uploads_a_signature.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -1011,7 +1014,11 @@ const MODULES = {
             '0455_signature_on_user_master.sql',
             // ...narrowed to administrators (its own key, granted by nobody)
             // and refused in Audit Mode (0456, NAR-011).
-            '0456_signature_view_admins_only.sql'],
+            '0456_signature_view_admins_only.sql',
+            // A form from HR: only the Record is filled in, the plan and the
+            // evaluation locked; the content of training per designation
+            // (0458). Restates 0454's guard, so after it.
+            '0458_training_record_only_and_content_by_designation.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -1627,7 +1634,9 @@ const MODULES = {
     // 0245 is a GUARDED MIRROR (check:bundles MIRRORS): the views written
     // `select t.*` rebuilt so they carry the new columns, each its owner's
     // definition word for word. LAST in the module, or 0244 would run after it.
-    files: ['0244_sys_columns.sql', '0245_sys_columns_view_tail.sql'],
+    // 0460: the indexes a device's copy asks "anything changed?" with -- on
+    // sys_updated_on, which 0244 creates, so after it and before the tail.
+    files: ['0244_sys_columns.sql', '0460_device_copy_sees_server_changes.sql', '0245_sys_columns_view_tail.sql'],
   },
   lockdown: {
     title: 'What the public key can reach',

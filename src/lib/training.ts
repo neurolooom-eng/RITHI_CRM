@@ -246,3 +246,40 @@ export function partsToSign(rows: TrainingRequest[], names: string[]): ToSign[] 
   }
   return out;
 }
+
+// ---- the content of training per designation (0458) -----------------------
+// The user, 2026-10-27: "For Content of Training - it has to be Mapped per
+// Role"; asked: per User Master DESIGNATION, from "a list I fill on screen".
+export interface TrainingContentRow { id: number; designation: string; content: string; updated_at: string }
+export async function listTrainingContent(): Promise<TrainingContentRow[]> {
+  const { data, error } = await db().from('training_content_by_designation').select('id, designation, content, updated_at')
+    .order('designation', { ascending: true }).order('id', { ascending: true });
+  if (error) throw new Error(msg(error));
+  return (data ?? []) as TrainingContentRow[];
+}
+/** Save one designation's content; one list per designation, whatever its case. */
+export async function saveTrainingContent(designation: string, content: string, id?: number): Promise<Res> {
+  const q = id
+    ? db().from('training_content_by_designation').update({ designation, content }).eq('id', id).select('id')
+    : db().from('training_content_by_designation').insert({ designation, content }).select('id');
+  const { data, error } = await q;
+  if (error) return { ok: false, error: msg(error) };
+  return (data ?? []).length ? { ok: true } : { ok: false, error: 'Not saved — this needs the Manage training permission.' };
+}
+/** The content a designation gets, matched ignoring case and surrounding spaces; '' where none is kept. */
+export function contentFor(rows: TrainingContentRow[], designation: string): string {
+  const k = String(designation ?? '').trim().toLowerCase();
+  return rows.find((r) => r.designation.trim().toLowerCase() === k)?.content ?? '';
+}
+/** People to add to a form's Record, each with their designation's content; names already on it skipped. */
+export function linesToAdd(people: { name: string; designation: string }[], existing: TrainingRecordLine[], content: TrainingContentRow[]): TrainingRecordLine[] {
+  const have = new Set(existing.map((l) => String(l.name ?? '').trim().toLowerCase()).filter(Boolean));
+  const out: TrainingRecordLine[] = [];
+  for (const p of people) {
+    const n = String(p.name ?? '').trim();
+    if (!n || have.has(n.toLowerCase())) continue;
+    have.add(n.toLowerCase());
+    out.push({ name: n, content: contentFor(content, p.designation), status: '' });
+  }
+  return out;
+}

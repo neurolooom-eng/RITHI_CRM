@@ -27,6 +27,10 @@ import { COMPANY_LOGO } from '../lib/brand';
 import './indoorprint.css';
 
 const pad = <T,>(rows: T[], n: number, blank: T): T[] => [...rows, ...Array.from({ length: Math.max(0, n - rows.length) }, () => blank)];
+/** The template's Record table holds seven employees; more go on the attached
+ *  Record sheet (the user, 2026-10-27: "Since the List is Huge in Service, it
+ *  can go multiple pages" -- asked: an attached Record sheet from page 3). */
+export const RECORD_ROWS_ON_FORM = 7;
 
 export function TrainingFormPrint() {
   const { id = '' } = useParams();
@@ -63,14 +67,36 @@ export function TrainingFormPrint() {
   );
 }
 
+/** The header on every page: the company, HR, and "TRAINING FORM [101/2026]"
+ *  (the user, 2026-10-27: "Add the Training Number along with the Training
+ *  Form in Square Brackets"). */
+function TrfHead({ t }: { t: TrainingRequest }) {
+  return (
+    <table className="ip-head">
+      <tbody>
+        <tr>
+          <td className="ip-logo" rowSpan={2}><img src={COMPANY_LOGO} alt="Air Liquide Medical Systems" /></td>
+          <td className="ip-mid">{TRAINING_FORM.org}<br />{TRAINING_FORM.dept}</td>
+          <td className="ip-pg" rowSpan={2}>PAGE NO:</td>
+        </tr>
+        <tr><td className="ip-mid">{trainingFormTitle(t.req_no)}</td></tr>
+      </tbody>
+    </table>
+  );
+}
+export const trainingFormTitle = (reqNo: string) => `${TRAINING_FORM.title}${reqNo.trim() ? ` [${reqNo.trim()}]` : ''}`;
+
 /** THE SHEET ITSELF, pure: the print page and a sample render draw the same one. */
 export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
   const approved = t.approval === 'Approved' ? `${t.approved_by_name}${t.approved_at ? ` — ${formatDay(t.approved_at)}` : ''}`
     : t.approval === 'Not approved' ? `Not approved — ${t.approved_by_name}${t.approved_at ? `, ${formatDay(t.approved_at)}` : ''}` : '';
-  const lines = pad(t.record_lines ?? [], 4, { name: '', content: '', status: '' });
+  const all = t.record_lines ?? [];
+  const attached = all.length > RECORD_ROWS_ON_FORM;
+  const lines = attached ? [] : pad(all, 4, { name: '', content: '', status: '' });
   const evals = pad(t.evaluation_plan ?? [], 2, { plan: '', evaluator: '', planned_date: '', actual: '', rating: '' });
 
   return (
+    <>
       <section className="ip-sheet ip-portrait trf-sheet">
       {/* THE FORM'S OWN STYLE, WITH THE SHEET, so wherever the sheet is drawn it
           looks the same. A NAMED PAGE, so another form's "@page { size: ... }"
@@ -87,18 +113,7 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
 .trf-scale { font-size: 8pt; line-height: 1.3; }`}</style>
       <table className="trf-frame">
         {/* THE HEADER ON EVERY PAGE: a table's head repeats in print. */}
-        <thead><tr><td>
-          <table className="ip-head">
-            <tbody>
-              <tr>
-                <td className="ip-logo" rowSpan={2}><img src={COMPANY_LOGO} alt="Air Liquide Medical Systems" /></td>
-                <td className="ip-mid">{TRAINING_FORM.org}<br />{TRAINING_FORM.dept}</td>
-                <td className="ip-pg" rowSpan={2}>PAGE NO:</td>
-              </tr>
-              <tr><td className="ip-mid">{TRAINING_FORM.title}</td></tr>
-            </tbody>
-          </table>
-        </td></tr></thead>
+        <thead><tr><td><TrfHead t={t} /></td></tr></thead>
         <tbody><tr><td>
 
           <div className="trf-sec">PLAN</div>
@@ -162,12 +177,11 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
               <th>Status</th><th>Signature</th>
             </tr></thead>
             <tbody>
-              {lines.map((l, i) => (
-                <tr key={i} className="trf-ink">
-                  <td className="ip-c">{l.name ? i + 1 : ''}</td><td>{l.name}</td><td>{l.content}</td><td>{l.status}</td>
-                  <td>{l.signature && <img className="ip-sign-ink" style={{ maxHeight: '8mm', maxWidth: '30mm' }} src={l.signature} alt={`${l.name} signature`} />}</td>
-                </tr>
-              ))}
+              {attached ? (
+                <tr className="trf-ink"><td colSpan={5} className="ip-c">
+                  <b>See attached Record sheet</b> — {all.length} employees{t.req_no ? `, Training Request ${t.req_no}` : ''}
+                </td></tr>
+              ) : lines.map((l, i) => <RecordRow key={i} l={l} i={i} />)}
             </tbody>
           </table>
 
@@ -209,6 +223,59 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
       {/* THE FOOTER AFTER THE FORM: a repeated table foot is placed unreliably
           in print (Chrome pushed it alone onto a second page). The HEADER
           still repeats on a second page through the table head. */}
+      <div className="ip-foot">
+        <div className="ip-foot-notice">{TRAINING_FORM.notice}</div>
+        <div className="ip-foot-tmpl">{TRAINING_FORM.tmpl}</div>
+      </div>
+    </section>
+    {attached && <RecordSheet t={t} />}
+    </>
+  );
+}
+
+function RecordRow({ l, i }: { l: { name: string; content: string; status: string; signature?: string }; i: number }) {
+  return (
+    <tr className="trf-ink">
+      <td className="ip-c">{l.name ? i + 1 : ''}</td><td>{l.name}</td><td>{l.content}</td><td>{l.status}</td>
+      <td>{l.signature && <img className="ip-sign-ink" style={{ maxHeight: '8mm', maxWidth: '30mm' }} src={l.signature} alt={`${l.name} signature`} />}</td>
+    </tr>
+  );
+}
+
+/** THE ATTACHED RECORD SHEET (the user, 2026-10-27: "Simple Create a Sheet in
+ *  the Same format for Record as Page 3 and Onwards"): a new page after the
+ *  form, the same header, the training dates and trainer, then every employee
+ *  over as many pages as it takes -- the column headings repeated on each. */
+function RecordSheet({ t }: { t: TrainingRequest }) {
+  return (
+    <section className="ip-sheet ip-portrait trf-sheet trf-record-sheet">
+      <style>{`@media print { .trf-record-sheet { break-before: page; page-break-before: always; } .trf-record-sheet .trf-rec > thead { display: table-header-group; } .trf-record-sheet .trf-rec tr { page-break-inside: avoid; } }`}</style>
+      <table className="trf-frame">
+        <thead><tr><td><TrfHead t={t} /></td></tr></thead>
+        <tbody><tr><td>
+          <div className="trf-sec">RECORD — attached sheet{t.req_no ? ` [${t.req_no}]` : ''}</div>
+          <table className="ip-grid trf-keep">
+            <colgroup><col style={{ width: '62%' }} /><col style={{ width: '38%' }} /></colgroup>
+            <tbody>
+              <tr>
+                <td><span className="ip-label">Training Topic: </span>{t.topic}<br />
+                  <span className="ip-label">Training From (Date) : </span>{formatDay(t.from_date)}
+                  <span style={{ marginLeft: 28 }} className="ip-label">To (Date) : </span>{formatDay(t.to_date)}</td>
+                <td><span className="ip-label">Trainer: </span>{t.trainer_name}<br /><span className="ip-label">Trainer Signature:</span>
+                  {t.trainer_signed?.signature && <img className="ip-sign-ink" style={{ maxHeight: '10mm' }} src={t.trainer_signed.signature} alt="Trainer signature" />}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table className="ip-grid trf-rec">
+            <colgroup><col style={{ width: '8%' }} /><col style={{ width: '26%' }} /><col style={{ width: '34%' }} /><col style={{ width: '14%' }} /><col style={{ width: '18%' }} /></colgroup>
+            <thead><tr>
+              <th className="ip-c">S. No</th><th>Name of the Employee</th>
+              <th>Content of the training</th><th>Status</th><th>Signature</th>
+            </tr></thead>
+            <tbody>{(t.record_lines ?? []).map((l, i) => <RecordRow key={i} l={l} i={i} />)}</tbody>
+          </table>
+        </td></tr></tbody>
+      </table>
       <div className="ip-foot">
         <div className="ip-foot-notice">{TRAINING_FORM.notice}</div>
         <div className="ip-foot-tmpl">{TRAINING_FORM.tmpl}</div>

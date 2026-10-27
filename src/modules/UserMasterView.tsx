@@ -8,7 +8,7 @@ import { csvExport, fmtLongDate, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
   listDirectory, saveDirectoryRow, deleteDirectoryRow, updateProfile, sbAdminCreateUser, sbAdminResetPassword, userActivity,
-  supabaseConfigured, sbSignatureTracker, sbSignatureOf, type DirectoryRow, type UserActivity, type SignatureTrackerRow, type MySignature,
+  supabaseConfigured, sbSignatureTracker, sbSignatureOf, sbSetUserSignature, type DirectoryRow, type UserActivity, type SignatureTrackerRow, type MySignature,
 } from '../lib/supabase';
 import { formatDay, formatDayTime } from '../lib/dates';
 import { useAuditMode } from '../lib/auditMode';
@@ -21,6 +21,7 @@ import { PersonProfile } from '../components/people/PersonProfile';
 import { SignatureTracker } from '../components/people/SignatureTracker';
 import { MultiPick } from '../components/ui/MultiPick';
 import { TagInput, TagChips, tidyTags, hasTag } from '../components/ui/TagInput';
+import { SignaturePad } from '../components/ui/SignaturePad';
 
 // ===========================================================================
 // USER MASTER — the directory of everyone, whether or not they have ever
@@ -48,7 +49,7 @@ const emptyRow = (): DirectoryRow => ({
 });
 
 export function UserMasterView() {
-  const { users, can, reloadUsers, rolePerms } = useAuth();
+  const { users, can, reloadUsers, rolePerms, realUser } = useAuth();
   const auditOn = useAuditMode().on;
   // EVERY role the database knows, not only the ones in the code: a role added
   // on Roles & Permissions that no picker offers is a role nobody can be put
@@ -208,6 +209,7 @@ export function UserMasterView() {
     sbSignatureTracker().then((r) => { if (on) setSigRows(r); }).catch((e) => { if (on) setSigErr(e instanceof Error ? e.message : String(e)); });
     return () => { on = false; };
   }, [editable]);
+  const reloadSigs = async () => { try { setSigRows(await sbSignatureTracker()); } catch { /* the card keeps what it had */ } };
   const sigByEmail = useMemo(() => {
     const m = new Map<string, SignatureTrackerRow>();
     (sigRows ?? []).forEach((t) => { if (t.email) m.set(t.email.toLowerCase(), t); });
@@ -935,6 +937,11 @@ export function UserMasterView() {
                   (users.signature.view, granted by no migration), on request,
                   every look audited -- and not at all while Audit Mode is on. */}
               {can('users.signature.view') && !auditOn && sigFor(r)?.has_signature && <SignatureLook userId={sigFor(r)!.user_id} name={r.name} />}
+              {/* UPLOADING IT FOR THEM (0459, NAR-012): administrators only, never
+                  in Audit Mode, never your own, and only for a person who has a login. */}
+              {can('users.signature.upload') && !auditOn && prof && prof.id !== realUser?.id && (
+                <SignatureUpload userId={prof.id} name={r.name || prof.fullName} has={!!sigFor(r)?.has_signature} onDone={() => void reloadSigs()} />
+              )}
               {/* PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0264). */}
               {live && r.id > 0 && <PersonProfile person={r} />}
             </div>
@@ -1231,6 +1238,46 @@ function SignatureLook({ userId, name }: { userId: string; name: string }) {
           </div>
           {(sig.name_line || sig.title_line) && <div style={{ fontSize: 13, marginTop: 4 }}>{sig.name_line}{sig.title_line ? ` · ${sig.title_line}` : ''}</div>}
           {sig.updated_at && <div className="muted" style={{ fontSize: 12 }}>Saved {formatDayTime(sig.updated_at)}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===========================================================================
+// UPLOADING A PERSON'S SIGNATURE (0459, NAR-012; the user, 2026-10-27, as
+// Admin: "I have a few user's signature, How to add it?"). Upload only -- an
+// administrator does not draw anybody's signature. The database records the
+// upload in the audit log and tells the person, who can replace it on My
+// Profile; it goes on a form only when THEY press Sign.
+// ===========================================================================
+function SignatureUpload({ userId, name, has, onDone }: { userId: string; name: string; has: boolean; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [ink, setInk] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    const res = await sbSetUserSignature(userId, ink);
+    setBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not save the signature.' }); return; }
+    setMsg({ tone: 'ok', text: `Saved as ${name}'s signature. They have been told, and can replace it on My Profile.` });
+    setInk(''); setOpen(false); onDone();
+  };
+  return (
+    <div className="rep-form" style={{ marginTop: 8 }}>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        {!open && <button className="btn btn-sm" onClick={() => setOpen(true)}>⬆ {has ? 'Replace signature' : 'Upload signature'}</button>}
+        <span className="muted" style={{ fontSize: 12 }}>Recorded in the audit log; {name || 'the person'} is told and can replace it. Only they can sign with it.</span>
+      </div>
+      {msg && <div className={`sheet-banner sheet-banner-${msg.tone}`} style={{ marginTop: 6 }}><span>{msg.text}</span></div>}
+      {open && (
+        <div style={{ marginTop: 6 }}>
+          <SignaturePad value={ink} onChange={setInk} uploadOnly />
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            <button className="btn btn-sm btn-primary" disabled={busy || !ink} onClick={() => void save()}>{busy ? 'Saving…' : `Save as ${name}'s signature`}</button>
+            <button className="btn btn-sm" disabled={busy} onClick={() => { setOpen(false); setInk(''); }}>Cancel</button>
+          </div>
         </div>
       )}
     </div>

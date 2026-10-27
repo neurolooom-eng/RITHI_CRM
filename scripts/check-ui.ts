@@ -2580,6 +2580,30 @@ console.log('\n-- a Training Form is signed by the people it names; the signatur
     /can\('users\.signature\.view'\) && !auditOn && sigFor\(r\)\?\.has_signature && <SignatureLook /.test(um), true);
 }
 
+// THE TRAINING FORM RECORD, THE DEVICE COPY'S CHANGE CHECK, AND AN ADMIN'S
+// SIGNATURE UPLOAD (the user, 2026-10-27).
+console.log('\n-- a Training Form from HR: Record only; the device copy notices changes; admin signature upload --');
+{
+  const g = readFileSync('supabase/migrations/0458_training_record_only_and_content_by_designation.sql', 'utf8');
+  eq('an HR form keeps its plan and evaluation as saved, and the Record saves',
+    /if old\.employee_request_id is null then[\s\S]*new\.topic\s*:= old\.topic;[\s\S]*new\.evaluation_plan\s*:= old\.evaluation_plan;/.test(g)
+      && !/new\.record_lines\s*:= old\.record_lines/.test(g) && !/new\.from_date\s*:= old\.from_date/.test(g), true);
+  const pr = readFileSync('src/modules/TrainingFormPrint.tsx', 'utf8');
+  eq('...the header reads TRAINING FORM [number], and more than seven go on an attached Record sheet',
+    pr.includes("`${TRAINING_FORM.title}${reqNo.trim() ? ` [${reqNo.trim()}]` : ''}`")
+      && /RECORD_ROWS_ON_FORM = 7/.test(pr) && /See attached Record sheet/.test(pr) && /break-before: page/.test(pr), true);
+  const ms = readFileSync('src/lib/machinestore.ts', 'utf8');
+  eq('a young device copy is kept only while the server says nothing changed after it',
+    ms.includes('if (fresh && !opts.force && !(await changedSince(memory!))) return;') && ms.includes(".gt('sys_updated_on', after).limit(1)"), true);
+  const s459 = readFileSync('supabase/migrations/0459_admin_uploads_a_signature.sql', 'utf8');
+  const um2 = readFileSync('src/modules/UserMasterView.tsx', 'utf8');
+  eq('an administrator\'s upload: its own key, refused in Audit Mode, audited, the person told; upload only on screen',
+    s459.includes("has_perm('users.signature.upload')") && s459.includes('audit_mode()') && s459.includes("'signature.upload'")
+      && s459.includes('insert into public.notifications')
+      && um2.includes("can('users.signature.upload') && !auditOn && prof && prof.id !== realUser?.id")
+      && um2.includes('<SignaturePad value={ink} onChange={setInk} uploadOnly />'), true);
+}
+
 // THE PRODUCT DATABASE'S PARTY (the user, 2026-10-27: "Sale Entry, Ownership
 // Transfer which ever is latest - Party Details should be used").
 console.log('\n-- the Product Database party follows the latest sale entry or transfer --');

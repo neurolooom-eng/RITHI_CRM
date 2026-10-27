@@ -443,6 +443,8 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // NAR-011 (0456): administrators only -- no migration grants it -- and not a
   // child of users.manage. Hidden and refused while Audit Mode is on.
   { group: 'Admin', key: 'users.signature.view', label: 'See a person\u2019s signature on User Master (hidden in Audit Mode)' },
+  // NAR-012 (0459): administrators only, as above.
+  { group: 'Admin', key: 'users.signature.upload', label: 'Upload a person\u2019s signature on User Master (hidden in Audit Mode)' },
   // NEW EMPLOYEE REQUESTS (0449). Neither is a child of users.manage: who may
   // ask and who may approve are decided on their own. Approving makes an
   // Engineer login; any other role still needs "Assign roles" (ud_role_guard).
@@ -817,7 +819,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/parties', label: 'Party Master', actions: ['masters.edit', 'masters.edit.records', 'masters.parties.add', 'masters.parties.edit', 'masters.parties.delete', 'masters.edit.kyc', 'masters.edit.swap_serviceman'] },
     { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view', 'pd2.rebuild'] },
     { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.edit', 'masters.edit.records', 'masters.product_master.add', 'masters.product_master.edit', 'masters.product_master.delete'] },
-    { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password', 'users.signature.view'] },
+    { path: '/user-master', label: 'User Master', actions: ['users.manage', 'users.manage.details', 'users.manage.create', 'users.manage.disable', 'users.manage.access', 'users.reset_password', 'users.signature.view', 'users.signature.upload'] },
     // Beside the User Master, as in the menu (0449).
     { path: '/new-employee-requests', label: 'New Employee Requests', actions: ['users.request', 'users.request.approve'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.edit', 'masters.edit.records', 'masters.parts.add', 'masters.parts.edit', 'masters.parts.delete', 'masters.edit.rename_part'] },

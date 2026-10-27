@@ -199,10 +199,14 @@ function MySignatureCard() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // UPLOADED BY AN ADMINISTRATOR (0459): said here, so its owner knows and can
+  // replace it; saving their own clears it.
+  const [setBy, setSetBy] = useState('');
 
   useEffect(() => {
     if (!onDb) { setLoaded(true); return; }
     void sbMySignature().then((s) => {
+      setSetBy(s?.set_by_name ?? '');
       setInk(s?.signature ?? '');
       setSaved(s?.signature ?? '');
       // Defaulted from the profile only when nothing has been saved: once
@@ -226,7 +230,7 @@ function MySignatureCard() {
         : (res.error ?? 'Could not save your signature.') });
       return;
     }
-    setSaved(ink);
+    setSaved(ink); setSetBy('');
     setMsg({ tone: 'ok', text: 'Saved. Documents you print will carry it.' });
   };
 
@@ -252,6 +256,12 @@ function MySignatureCard() {
         <div className="muted">Loading…</div>
       ) : (
         <>
+          {setBy && saved && (
+            <div className="sheet-banner sheet-banner-info">
+              <span>This signature was <b>uploaded by {setBy}</b>, an administrator. It goes on a form only when you press Sign.
+                If it is not yours, or you want another, draw or upload your own below and Save.</span>
+            </div>
+          )}
           <SignaturePad value={ink} onChange={setInk} />
 
           <div className="row" style={{ gap: 12, marginTop: 14, flexWrap: 'wrap' }}>

@@ -2311,7 +2311,16 @@ with checks(sort_order, bundle, provides, present) as (
     (368, 'The Product Database''s party follows the latest sale entry or ownership transfer', 'zz_products_party_follows_owner + machine_owner_details() (0457): every insert and update of products takes the party of the later of the latest sale entry and transfer, with the owner''s details, whatever an upload sends; and the one-time re-mapping has run. NO means an upload can still give a sold machine another party. Restore: sales_contracts.sql (0457)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.products') and tgname = 'zz_products_party_follows_owner')
         and to_regprocedure('public.machine_owner_details(text,text)') is not null
-        and exists (select 1 from public.one_time_fixes_done where name = '0457_product_party_follows_latest_owner'))
+        and exists (select 1 from public.one_time_fixes_done where name = '0457_product_party_follows_latest_owner')),
+    (369, 'A Training Form from HR: only the Record is filled in; content of training by designation', 'training_content_by_designation + the guard keeping the plan and evaluation of a form from the HR document (0458). NO means the content list answers an error, or an edit can change an HR form''s plan. Restore: training.sql (0458)',
+        to_regclass('public.training_content_by_designation') is not null
+        and position('old.evaluation_method' in coalesce(pg_get_functiondef(to_regprocedure('public.training_request_guard()')), '')) > 0),
+    (370, 'An administrator may upload a person''s signature', 'set_user_signature() + user_signatures.set_by / set_by_name + the stamp honouring the one administrative path (0459). NO means Upload signature on User Master answers an error. Restore: rbac.sql (0459)',
+        to_regprocedure('public.set_user_signature(uuid,text)') is not null
+        and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'user_signatures' and column_name = 'set_by_name')
+        and position('rithi.signature_upload' in coalesce(pg_get_functiondef(to_regprocedure('public.user_signature_stamp()')), '')) > 0),
+    (371, 'A device''s copy notices a change on the server', 'products_sys_updated_on_idx + parties_sys_updated_on_idx (0460): what the "anything changed?" check reads. NO means that check scans the whole table. Restore: sys_columns.sql (0460)',
+        to_regclass('public.products_sys_updated_on_idx') is not null and to_regclass('public.parties_sys_updated_on_idx') is not null)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
