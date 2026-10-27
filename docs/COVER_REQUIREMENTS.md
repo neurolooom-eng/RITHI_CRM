@@ -151,10 +151,10 @@ per day.
 
 ## D. Ownership
 
-**CW-011 — A change of owner is a dated record, and it is read.** · *v0.10.128 · 06-Oct-2026*
+**CW-011 — A change of owner is a dated record, and it is read.** · *v0.10.223 · 27-Oct-2026*
 *§7.5.9.* Who owns a machine shall be derived from the ownership transfer
 register where one exists, not left at whoever first bought it.
-**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer for that PRODUCT + SERIAL only since 0330 (2026-10-03), with the transfer's Ref and Date and the new owner's Party Master address (0329); the form picks the machine by product + serial from the Product Database since 0.10.108 (FRS-260). Since 0.10.115 a transfer may give the new owner a FRESH WARRANTY (0383): start and months entered, years and end worked out, which the machine wears — numbered with the transfer's Reference no. — while it starts on or after the sale's; the sale entry is not changed (FRS-263). Since 0.10.128 the OT number is given by the database, and a transfer's invoice is carried to the machine (FRS-266).
+**Status: Partial.** `ownership_transfers` records it (0072), Machine History shows it and Product Database 2.0 reads it (CW-012). The stored owner on `public.products` is moved by the latest transfer for that PRODUCT + SERIAL only since 0330 (2026-10-03), with the transfer's Ref and Date and the new owner's Party Master address (0329); the form picks the machine by product + serial from the Product Database since 0.10.108 (FRS-260). Since 0.10.115 a transfer may give the new owner a FRESH WARRANTY (0383): start and months entered, years and end worked out, which the machine wears — numbered with the transfer's Reference no. — while it starts on or after the sale's; the sale entry is not changed (FRS-263). Since 0.10.128 the OT number is given by the database, and a transfer's invoice is carried to the machine (FRS-266). **Since 0.10.223 (0457) the stored owner can no longer drift**: a trigger on `products` writes the party of the LATER of the latest sale entry and the latest transfer on every insert and update, with that owner's details, whatever an upload or edit sends, and every machine was re-mapped once (FRS-282; reported on VEGA | 31, D-172). A machine with neither keeps its imported party.
 
 **CW-012 — The most recently dated evidence decides the party.** · *v0.10.66 · 03-Oct-2026*
 *§7.5.9.* Where the registers disagree about who owns a machine, the latest
@@ -162,6 +162,10 @@ dated claim shall win — a transfer is one dated claim among several, not
 permanently the last word.
 **Status: Met (2.0).** A machine sold in 2020, transferred in 2021 and put under
 a new contract in 2024 belongs to whoever the 2024 contract names.
+**On the Product Database (`products`) the rule is NARROWER, by the user's
+decision of 2026-10-27**: *"Sale Entry, Ownership Transfer which ever is
+latest - Party Details should be used"* — a contract names a party there but
+never decides it (FRS-282, 0457). 2.0 is unchanged.
 
 **CW-013 — A machine may not be transferred to the party that already owns it.** · *v0.10.66 · 03-Oct-2026*
 *§4.2.5.* A transfer from a party to itself is not a transfer.

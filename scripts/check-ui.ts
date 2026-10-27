@@ -2580,6 +2580,19 @@ console.log('\n-- a Training Form is signed by the people it names; the signatur
     /can\('users\.signature\.view'\) && !auditOn && sigFor\(r\)\?\.has_signature && <SignatureLook /.test(um), true);
 }
 
+// THE PRODUCT DATABASE'S PARTY (the user, 2026-10-27: "Sale Entry, Ownership
+// Transfer which ever is latest - Party Details should be used").
+console.log('\n-- the Product Database party follows the latest sale entry or transfer --');
+{
+  const sql = readFileSync('supabase/migrations/0457_product_party_follows_latest_owner.sql', 'utf8');
+  eq('a trigger on products writes the rule\'s party on every insert and update, not only of party_name',
+    /create trigger zz_products_party_follows_owner before insert or update on public\.products/.test(sql)
+      && /machine_current_party\(p_item_name, p_serial\)/.test(sql), true);
+  eq('...a machine with neither a sale nor a transfer is left alone, and the one-time mapping is backed up and guarded',
+    /no sale, no transfer: left alone/.test(sql) && /products_party_remap_backup/.test(sql)
+      && /one_time_fixes_done where name = '0457_product_party_follows_latest_owner'/.test(sql), true);
+}
+
 // THE CONTRACT ENTRY VIEW'S FORMAT (the user, 2026-10-23).
 console.log('\n-- Contract Register: the entry list in the sheet\'s format --');
 {

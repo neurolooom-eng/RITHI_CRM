@@ -1069,6 +1069,17 @@ set to zero.
   > **ownership transfer** gives it the new owner, their address and the
   > Transfer Ref and Date. Invoice, warranty term, accessories and transfer
   > details are in ⚙ Columns.
+  > **The party is always the latest sale entry's or ownership transfer's**
+  > (whichever is later), with that owner's address, city, state and Service
+  > Engineer. An upload or an edit naming another party for such a machine is
+  > **ignored** — the party goes back to the owner on save. To change who owns
+  > a machine, record an **ownership transfer**. Contracts and calls name a
+  > party too but never decide it here. A machine with **no sale entry and no
+  > transfer** keeps the party it was loaded with. To see why a machine shows
+  > the party it does, run
+  > [`_trace_this_machine.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/_trace_this_machine.sql)
+  > with its product and serial: every register that names it, and what the
+  > rule answers.
 
 ## Masters & documents
 
