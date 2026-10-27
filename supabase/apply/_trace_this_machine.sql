@@ -22,8 +22,8 @@
 -- ===========================================================================
 
 with ask as (
-  select 'CHANGE-ME-PRODUCT'::text as product,   -- e.g.  VEGA
-         'CHANGE-ME-SERIAL'::text  as serial     -- e.g.  31
+  select 'VEGA'::text as product,   -- e.g.  VEGA
+         '31'::text  as serial     -- e.g.  31
 ),
 k as (
   select product, serial, lower(btrim(product)) as p, lower(btrim(serial)) as s,
