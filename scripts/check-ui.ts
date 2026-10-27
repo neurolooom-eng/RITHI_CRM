@@ -59,6 +59,8 @@ import { pmBatchTimes, pmCallNumber, shapePmDueRows } from '../src/lib/pmImport'
 import { parseRef as parseRefForCheck } from '../src/lib/reportMapping';
 import { TRAINING_METHODOLOGY as TRAINING_METHODOLOGY_FOR_CHECK, TRAINING_FORM as TRAINING_FORM_FOR_CHECK } from '../src/lib/trainingForm';
 import { parseTrainingDoc as parseTrainingDocForCheck } from '../src/lib/trainingDoc';
+import { unassignedScreens as unassignedScreensForCheck, coverage as coverageForCheck } from '../src/lib/validationDoc';
+import { RISKS as RISKS_FOR_DOC_CHECK } from '../src/lib/validation';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2578,6 +2580,22 @@ console.log('\n-- a Training Form is signed by the people it names; the signatur
       && !/"users\.signature\.view"/.test(sqlAllMig) && !/'\["[^']*users\.signature\.view/.test(sqlAllMig), true);
   eq('...the screen asks the same key and hides it in Audit Mode',
     /can\('users\.signature\.view'\) && !auditOn && sigFor\(r\)\?\.has_signature && <SignatureLook /.test(um), true);
+}
+
+// THE VALIDATION DOCUMENT IN THE TEMPLATE'S SECTIONS (the user, 2026-10-27).
+console.log('\n-- the validation document R/QMS/SV/13 Rev 02 and the Security Scan --');
+{
+  eq('every screen belongs to one process of the validation document', unassignedScreensForCheck(), []);
+  const cov = coverageForCheck();
+  eq('...and every risk of the register appears exactly once', cov.reduce((n, c) => n + c.risks.length, 0), RISKS_FOR_DOC_CHECK.length);
+  eq('...both Word documents are published beside the app',
+    existsSync('public/docs/RITHI_Software_Validation_R-QMS-SV-13_Rev02.docx') && existsSync('public/docs/RITHI_Security_Scan_2026-10-27.docx')
+      && existsSync('docs/validation/template/SoftwareValidation_RITHI_R-QMS-SV-13_Rev01.docx'), true);
+  const sv = readFileSync('src/modules/SoftwareValidation.tsx', 'utf8');
+  eq('...and Software Validation offers them, with the scan', /key: 'secscan', label: 'Security Scan & Documents'/.test(sv)
+    && sv.includes('docs/RITHI_Software_Validation_R-QMS-SV-13_Rev02.docx') && sv.includes('docs/RITHI_Security_Scan_2026-10-27.docx'), true);
+  const gen = readFileSync('scripts/validation-docx.ts', 'utf8');
+  eq('...the sign-off is left blank: every cell after the label column emptied', gen.includes("(n++ === 0 ? tc : tc.replace(/<w:r\\b[\\s\\S]*?<\\/w:r>/g, ''))"), true);
 }
 
 // THE SECURITY SCAN'S CONTROLS (2026-10-27, docs/SECURITY_SCAN.md).

@@ -4,17 +4,17 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-10-27T10:50:30.158Z
-- **Took** 256s
-- **Commit** `2cd0d014` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.226
+- **Run at** 2026-10-27T13:06:41.241Z
+- **Took** 301s
+- **Commit** `77e5aa1b` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.227
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
 | Database suites | 200 | 200 |
-| Automated checks | 20 | 22 |
+| Automated checks | 22 | 22 |
 | Labelled `expect ERROR` outcomes matched | 470 | 470 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
@@ -43,7 +43,7 @@ stopped working produces a suite that runs clean.
 | `check:kyc` | ✅ pass | all passed |
 | `check:machine` | ✅ pass | all passed |
 | `check:mapping` | ✅ pass | all passed |
-| `check:nar003` | ❌ **FAIL** | > esbuild scripts/check-report-mapping.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-report-mapping.mjs --log-level=error && node node_modules/.cache/check-report-mapping.mjs · > esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-u |
+| `check:nar003` | ✅ pass | all passed |
 | `check:orders` | ✅ pass |   ✓ 202 order columns across 73 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
@@ -53,7 +53,7 @@ stopped working produces a suite that runs clean.
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 393 functions |
 | `check:scheduled-export` | ✅ pass | all passed |
 | `check:status` | ✅ pass | every one of the 372 _status.sql rows reads yes on a fully-applied database (1 skipped) |
-| `check:ui` | ❌ **FAIL** | > esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-ui.mjs |
+| `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
 | `check:views` | ✅ pass | every view over an RLS-protected table applies RLS to the reader |
