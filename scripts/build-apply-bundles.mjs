@@ -1008,7 +1008,10 @@ const MODULES = {
             '0454_training_signing_and_upload.sql',
             // The signature on User Master: one person's image, to whoever
             // edits User Master details, every look audited (0455).
-            '0455_signature_on_user_master.sql'],
+            '0455_signature_on_user_master.sql',
+            // ...narrowed to administrators (its own key, granted by nobody)
+            // and refused in Audit Mode (0456, NAR-011).
+            '0456_signature_view_admins_only.sql'],
   },
   masters: {
     title: 'Master Value Lists',

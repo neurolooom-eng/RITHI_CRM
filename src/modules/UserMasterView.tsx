@@ -11,6 +11,7 @@ import {
   supabaseConfigured, sbSignatureTracker, sbSignatureOf, type DirectoryRow, type UserActivity, type SignatureTrackerRow, type MySignature,
 } from '../lib/supabase';
 import { formatDay, formatDayTime } from '../lib/dates';
+import { useAuditMode } from '../lib/auditMode';
 import { logAudit } from '../lib/audit';
 import { generatePassword } from '../lib/password';
 import './fieldcalls.css';
@@ -48,6 +49,7 @@ const emptyRow = (): DirectoryRow => ({
 
 export function UserMasterView() {
   const { users, can, reloadUsers, rolePerms } = useAuth();
+  const auditOn = useAuditMode().on;
   // EVERY role the database knows, not only the ones in the code: a role added
   // on Roles & Permissions that no picker offers is a role nobody can be put
   // on, which is a feature that does nothing.
@@ -929,8 +931,10 @@ export function UserMasterView() {
                   </tbody>
                 </table>
               </div>
-              {/* THE SIGNATURE ITSELF (0455), on request, every look audited. */}
-              {editable && sigFor(r)?.has_signature && <SignatureLook userId={sigFor(r)!.user_id} name={r.name} />}
+              {/* THE SIGNATURE ITSELF (0455/0456, NAR-011): administrators only
+                  (users.signature.view, granted by no migration), on request,
+                  every look audited -- and not at all while Audit Mode is on. */}
+              {can('users.signature.view') && !auditOn && sigFor(r)?.has_signature && <SignatureLook userId={sigFor(r)!.user_id} name={r.name} />}
               {/* PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0264). */}
               {live && r.id > 0 && <PersonProfile person={r} />}
             </div>

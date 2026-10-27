@@ -14,14 +14,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.222',
+    date: '2026-10-27',
+    title: 'Administrators can see a person\'s signature on User Master',
+    auditHidden: true,
+    changes: [
+      'Open a person on User Master and press ✍️ Show signature to see their signature itself. This is for administrators only now; before, anyone who could edit User Master details could.',
+      'Every look is recorded in the audit log: who looked, at whose, and when.',
+      'While Audit Mode is on, the button is hidden and RITHI refuses to show a signature to anyone.',
+      'Seeing a signature does not let anybody use it. Only its owner can put it on a form, by pressing Sign on the part that names them. My Profile → Signature says so.',
+    ],
+  },
+  {
     version: '0.10.221',
     date: '2026-10-27',
     title: 'User Master shows each person\'s signature',
     changes: [
       'User Master has a Signature column: Saved with the date, Not yet, or No login (never signed in). Filter on it beside the tag box; it is in the CSV too.',
-      'Open a person and press ✍️ Show signature to see their signature itself. Every look is recorded in the audit log: who looked, at whose, and when.',
-      'Seeing a signature does not let anybody use it. Only its owner can put it on a form, by pressing Sign on the part that names them.',
-      'For anyone who may edit User Master details. My Profile → Signature now says who can see it.',
+      'For anyone who may edit User Master details. Seeing the signature itself is in the entry after this one.',
     ],
   },
   {

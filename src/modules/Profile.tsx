@@ -177,9 +177,9 @@ export function Profile() {
 // The user's ask (2026-09-12): "Add a Provision for users to Save their
 // signatures." Here rather than in Settings because Settings is
 // administrator-only and this is the most personal thing in the system —
-// nobody else can save it (0172). Since 0455 (the user, 2026-10-27) whoever
-// may edit User Master details can SEE it, one person at a time, each look
-// recorded in the audit log -- and still cannot place it on anything.
+// nobody else can save it (0172). Since 0455/0456 (the user, 2026-10-27,
+// NAR-011) an ADMINISTRATOR can SEE it, one person at a time, each look
+// recorded in the audit log, never in Audit Mode -- and still cannot place it.
 //
 // THE PAGE SAYS SO, in as many words. A signature is worth what its exclusivity
 // is worth, and a person deciding whether to put their own mark into a computer
@@ -297,7 +297,7 @@ function MySignatureCard() {
               because the second half is the part that would otherwise be
               discovered by surprise. */}
           <div className="muted rep-hint" style={{ marginTop: 14 }}>
-            <b>Only you can save or use this signature.</b> Whoever may edit User Master details
+            <b>Only you can save or use this signature.</b> An administrator
             can <i>see</i> it on your User Master entry, and every time they do, it is recorded in the
             audit log; your manager cannot. Nobody but you can put it on a document: it goes on a form
             only when <b>you</b> press Sign on the part that names you, or print a document that names

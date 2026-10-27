@@ -107,6 +107,23 @@ up)_
 
 ---
 
+## 2026-10-27 — Seeing a signature: administrators only, non-auditable, hidden in Audit Mode (NAR-011, 0456, v0.10.222)
+
+- **Shipped.** The user: "I want admins to be able to see the signature. It's a
+  Non Auditable requirement"; asked: "Administrators only", "Hide in Audit
+  Mode". `user_signature_of()` now asks `has_perm('users.signature.view')` — a
+  key NO migration grants and no child of users.manage, so administrators only
+  (a key rather than `is_admin()`, the 0302–0307 rule) — and refuses while
+  `audit_mode()`. The image half of FRS-281.7 / OQ-300 moved to NAR-011; the
+  Saved / Not yet column stays auditable. The 0.10.221 changelog entry lost its
+  two image bullets to the `auditHidden` 0.10.222 entry, so Version History in
+  Audit Mode says nothing about seeing signatures. `_status.sql` row 367 moved
+  with the definition.
+- **The user may tick `users.signature.view` for another role** on Roles &
+  Permissions; nothing does it for them.
+
+---
+
 ## 2026-10-27 — The signature on User Master (FRS-281.7, 0455, v0.10.221)
 
 - **Shipped.** The user: "Show signature in User Master". Asked, and shown that
