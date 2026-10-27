@@ -206,6 +206,7 @@ export function TrainingRequests() {
               {edit.source_doc_url && <a className="btn btn-sm" href={safeUrl(edit.source_doc_url)} target="_blank" rel="noopener noreferrer">📎 HR document{edit.source_doc_name ? ` (${edit.source_doc_name})` : ''}</a>}
               {edit.id === 0 && docFile && <span className="muted" style={{ alignSelf: 'center' }}>📎 {docFile.name} — uploaded on Save</span>}
               {edit.id !== 0 && <a className="btn btn-sm" href={`#/training-form/${edit.id}`} target="_blank" rel="noopener noreferrer">📄 Training Form</a>}
+              {edit.id !== 0 && <a className="btn btn-sm" href={`#/training-form/${edit.id}?part=record`} target="_blank" rel="noopener noreferrer" title="The Record alone, on A4 pages numbered from 3, to go with HR's two pages">📄 Record sheet</a>}
             </div>
 
             {planRo && !ro && <div className="sheet-banner sheet-banner-info"><span>From HR's document: only the <b>RECORD</b> is filled in here — training dates, names, content and status. The plan and the evaluation are as the document gave them.</span></div>}

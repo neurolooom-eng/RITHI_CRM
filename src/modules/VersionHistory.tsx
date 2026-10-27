@@ -44,10 +44,10 @@ export function VersionHistory() {
                 <tr key={e.version}>
                   <td><span className="badge badge-primary">v{e.version}</span></td>
                   <td className="vh-nowrap">{fmtDate(e.date)}</td>
-                  <td><b>{e.title}</b></td>
+                  <td><b>{auditOn && e.auditTitle ? e.auditTitle : e.title}</b></td>
                   <td>
                     <ul className="vh-list">
-                      {e.changes.map((c, i) => <li key={i}>{c}</li>)}
+                      {e.changes.map((c, i) => (auditOn && e.auditHiddenChanges?.includes(i) ? null : <li key={i}>{c}</li>))}
                     </ul>
                   </td>
                 </tr>

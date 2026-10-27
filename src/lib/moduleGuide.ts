@@ -109,14 +109,18 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     does: [
       'Work the register, the Review Desk and the Review 2 / Review 3 worklists',
       'Answer Review 2 (Risk to Patient, Warranty Failure 1 yr, Frequent Failure) and Review 3 (Complaint Grouping, Root Cause Key Word)',
-      'Answer Review 2 = NO in bulk for eligible calls, or switch Auto review on',
+      'Answer Review 2 = NO in bulk for eligible calls',
       'Open the call’s visits, spares and Machine History, and Raise FFR from the review',
       'Export the register as a CSV',
+    ],
+    // NAR-013: the Auto Review is non-auditable, not shown in Audit Mode.
+    notAudited: [
+      'Switch Auto review on or off — Review 2 answered No each morning in your name; it never answers a first-year failure or a call with no known age',
     ],
     records: ['call_reviews', 'field_call_review', 'field_call_review_summary', 'reports', 'spare_consumption', 'field_failure_reports', 'masters', 'product_master', 'app_settings', 'rpc:frequent_failure', 'rpc:bulk_set_review2', 'rpc:auto_answer_review2', 'rpc:set_auto_review', 'audit_log'],
     rules: [
       'Answering YES to any Review 2 question raises a Field Failure Report by itself; a later NO leaves it standing as withdrawn',
-      'Bulk answers and Auto review never answer a first-year failure or a call with no known age — those are reviewed one at a time',
+      'Bulk answers never answer a first-year failure or a call with no known age — those are reviewed one at a time',
       '“Change product?” counts the failure against the accessory that actually failed; the call itself is not changed',
     ],
   },

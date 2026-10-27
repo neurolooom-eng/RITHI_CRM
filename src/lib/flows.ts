@@ -37,6 +37,9 @@ export interface FlowStep {
   area: FlowArea;
   /** One or two sentences: what the step does and what it refuses. */
   detail: string;
+  /** Shown instead of `detail` while Audit Mode is on, where the detail also
+   *  describes a non-auditable track (NAR-013, the Auto Review). */
+  auditDetail?: string;
   /** The records it writes or reads — table or view names. */
   records?: string[];
   /** URS / FRS / test / CR / SR / CW IDs that state this step. */
@@ -304,8 +307,9 @@ export const FLOWS: Flow[] = [
         detail: 'The complaint is a master value, so every count downstream matches on the same words.',
         records: ['field_calls'], reqs: ['URS-003', 'URS-045', 'FRS-053'] },
       { id: 'dccr', label: 'Daily Complaint Review (R/SER/35)', route: '/daily-review', area: 'quality',
-        detail: 'Each call is reviewed; the reviewer is stamped by the database at completion. Where a person holding review.auto has switched auto review on, a blank Review 2 on a call outside its first year is answered No in that person\u2019s name and marked as automatic. Old reviews loaded in bulk keep their own reviewers and raise nothing.',
-        records: ['call_reviews'], reqs: ['URS-058', 'FRS-069', 'URS-080', 'FRS-097', 'URS-082', 'FRS-100'] },
+        detail: 'Each call is reviewed; the reviewer is stamped by the database at completion. Where a person holding review.auto has switched auto review on, a blank Review 2 on a call outside its first year is answered No in that person\u2019s name and marked as automatic (non-auditable, NAR-013). Old reviews loaded in bulk keep their own reviewers and raise nothing.',
+        auditDetail: 'Each call is reviewed; the reviewer is stamped by the database at completion. Old reviews loaded in bulk keep their own reviewers and raise nothing.',
+        records: ['call_reviews'], reqs: ['URS-058', 'FRS-069', 'URS-082', 'FRS-100'] },
       { id: 'ff', label: 'Frequent failure judged', area: 'quality', automatic: true,
         detail: 'The database applies the procedure’s two rules: Rule 1, earlier calls on the same machine within the window — always where the same part was fitted, otherwise on the same complaint (or on any complaint, if that setting is switched off); Rule 2, the same complaint on different machines across the fleet. Each is counted against its threshold, and the verdict says which fired.',
         records: ['frequent_failure()'], reqs: ['URS-046', 'FRS-054', 'URS-158', 'FRS-104', 'FRS-205'] },

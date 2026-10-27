@@ -34,3 +34,25 @@ export const TRAINING_RATINGS: { label: string; meaning: string }[] = [
 
 /** The form's tick box: ☑ for the one chosen, ⬜ for the rest. */
 export const tick = (on: boolean) => (on ? '☑' : '⬜');
+
+/** The attached Record sheet starts at page 3: the HR form is pages 1 and 2
+ *  (the user, 2026-10-27: "Page No should start from 3 and continue"). */
+export const RECORD_SHEET_FIRST_PAGE = 3;
+
+/** Splits the Record sheet's rows into A4 pages by their measured heights.
+ *  `first` is the room for rows on the first page (below the training
+ *  details), `rest` the room on each later page. A row taller than a whole
+ *  page gets a page to itself. There is always at least one page. Pure, so
+ *  check:ui can pin it. */
+export function paginateRows(heights: number[], first: number, rest: number): number[][] {
+  const pages: number[][] = [];
+  let cur: number[] = [];
+  let room = first;
+  heights.forEach((h, i) => {
+    if (h > room && (cur.length > 0 || room < rest)) { pages.push(cur); cur = []; room = rest; }
+    cur.push(i);
+    room -= h;
+  });
+  pages.push(cur);
+  return pages;
+}

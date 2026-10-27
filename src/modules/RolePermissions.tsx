@@ -2,11 +2,12 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
-import { ACTIONS, ROLES, PERM_TREE, permsForRole, moduleAction, masterAction, masterListActions, dynamicActionLabel, PERM_PARENTS,
+import { ACTIONS, ROLES, PERM_TREE, AUDIT_HIDDEN_ACTIONS, permsForRole, moduleAction, masterAction, masterListActions, dynamicActionLabel, PERM_PARENTS,
   roleKeyFrom, roleProblem, type RoleDef,
   type PermHeader, type PermPage } from '../lib/rbac';
 import { setRolePerms, listMasterLists, listRoleRows, createRole, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
+import { useAuditMode } from '../lib/auditMode';
 import { xlsxDownload } from '../lib/xlsx';
 import './fieldcalls.css';
 import { COMPLETE } from '../lib/exportscope';
@@ -27,6 +28,10 @@ const label = (key: string) => ACTIONS.find((a) => a.key === key)?.label ?? dyna
 
 export function RolePermissions() {
   const { can, user, rolePerms, reloadRoles } = useAuth();
+  // A non-auditable key (AUDIT_HIDDEN_ACTIONS) is not shown, nor exported,
+  // while Audit Mode is on; it stays as stored, so a save keeps it.
+  const auditOn = useAuditMode().on;
+  const shownActions = (page: PermPage) => (auditOn ? page.actions.filter((a) => !AUDIT_HIDDEN_ACTIONS.has(a)) : page.actions);
   // THE ROLES ARE THE DATABASE'S, not the code's. ROLES in rbac.ts is the
   // starting set that ships with the app; once a role can be added here, a
   // matrix drawn from the code alone would simply not show it, with no error --
@@ -246,7 +251,7 @@ export function RolePermissions() {
         // from acting on it — which is the distinction the whole tree exists to
         // make, so it is a row of its own rather than a column.
         if (view) row('Open the page', view);
-        page.actions.forEach((a) => row(label(a), a));
+        shownActions(page).forEach((a) => row(label(a), a));
       });
     });
 
@@ -499,7 +504,7 @@ export function RolePermissions() {
                       const pk = `${head.title}|${page.path}`;
                       const pageOpen = openPages.has(pk);
                       const view = page.path ? moduleAction(page.path) : '';
-                      const childKeys = [...page.actions];
+                      const childKeys = [...shownActions(page)];
                       const hasChildren = childKeys.length > 0;
                       return (
                         <Fragment key={pk}>
@@ -512,7 +517,7 @@ export function RolePermissions() {
                               </button>
                               {hasChildren && (
                                 <span className="muted rbac-count">
-                                  {page.actions.length} action{page.actions.length === 1 ? '' : 's'}
+                                  {childKeys.length} action{childKeys.length === 1 ? '' : 's'}
                                 </span>
                               )}
                             </td>
@@ -521,7 +526,7 @@ export function RolePermissions() {
                               : roles.map((r) => <td key={r.key} className="rbac-cell muted">—</td>)}
                           </tr>
 
-                          {pageOpen && page.actions.map((a) => (
+                          {pageOpen && childKeys.map((a) => (
                             <tr key={a} className="rbac-child">
                               <td className="rbac-action rbac-indent">
                                 <span>{label(a)}</span><code className="muted">{a}</code>

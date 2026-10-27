@@ -4,7 +4,8 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SignaturePad } from '../components/ui/SignaturePad';
 import { sbMySignature, sbSaveMySignature, sbClearMySignature, supabaseConfigured } from '../lib/supabase';
 import { useAuth, roleLabel } from '../lib/auth';
-import { permsForRole, DEFAULT_PERMS, FUNCTIONAL_ACTIONS, MODULES, moduleAction, legacyToRbac } from '../lib/rbac';
+import { permsForRole, DEFAULT_PERMS, FUNCTIONAL_ACTIONS, MODULES, moduleAction, legacyToRbac, AUDIT_HIDDEN_ACTIONS } from '../lib/rbac';
+import { useAuditMode } from '../lib/auditMode';
 import { useTheme } from '../theme/ThemeProvider';
 import { ChangePassword } from './ChangePassword';
 import { MyOwn, MyTeam, useMyPeople } from '../components/people/MyPeople';
@@ -329,6 +330,8 @@ function PermissionsPanel({ user, rolePerms, previewing, realName }: {
   previewing: boolean;
   realName?: string;
 }) {
+  // A non-auditable key is not listed while Audit Mode is on (NAR-013).
+  const auditOn = useAuditMode().on;
   if (!user) return null;
   const roleKey = user.rbacRole || legacyToRbac(user.role);
   const stored = rolePerms[roleKey];
@@ -336,8 +339,9 @@ function PermissionsPanel({ user, rolePerms, previewing, realName }: {
   // back to the defaults silently — which is exactly how a role can look
   // configured on Roles & Permissions and behave like something else.
   const fromStored = !!(stored && stored.length);
-  const granted = permsForRole(roleKey, rolePerms);
-  const extras = user.extraPermissions ?? [];
+  const visible = (k: string) => !(auditOn && AUDIT_HIDDEN_ACTIONS.has(k));
+  const granted = permsForRole(roleKey, rolePerms).filter(visible);
+  const extras = (user.extraPermissions ?? []).filter(visible);
   const label = (k: string) =>
     FUNCTIONAL_ACTIONS.find((a) => a.key === k)?.label
     ?? MODULES.find((m) => moduleAction(m.path) === k)?.label

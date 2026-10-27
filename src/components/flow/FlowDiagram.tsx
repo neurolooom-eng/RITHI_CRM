@@ -204,7 +204,9 @@ export function FlowDiagram({ flow, printAll = false }: { flow: Flow; printAll?:
 export function FlowGallery({ printAll = false, pick }: { printAll?: boolean; pick?: string }) {
   // A non-auditable flow (auditHidden) is left out while Audit Mode is on.
   const auditOn = useAuditMode().on;
-  const FLOWS = ALL_FLOWS.filter((f) => !(f.auditHidden && auditOn));
+  // A step's auditDetail replaces its detail then (NAR-013).
+  const FLOWS = ALL_FLOWS.filter((f) => !(f.auditHidden && auditOn))
+    .map((f) => (auditOn ? { ...f, steps: f.steps.map((s) => (s.auditDetail ? { ...s, detail: s.auditDetail } : s)) } : f));
   const [id, setId] = useState<string>(pick && FLOWS.some((f) => f.id === pick) ? pick : (FLOWS[0]?.id ?? ''));
   // Opened from elsewhere on a named flow (the module guide's "Part of" chips).
   useEffect(() => { if (pick && FLOWS.some((f) => f.id === pick)) setId(pick); }, [pick]);

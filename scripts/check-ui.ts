@@ -57,7 +57,7 @@ import { currentItemStatus, coverEndingIn, endOfNextMonth, monthBounds } from '.
 import { isMissedPm } from '../src/lib/missedPm';
 import { pmBatchTimes, pmCallNumber, shapePmDueRows } from '../src/lib/pmImport';
 import { parseRef as parseRefForCheck } from '../src/lib/reportMapping';
-import { TRAINING_METHODOLOGY as TRAINING_METHODOLOGY_FOR_CHECK, TRAINING_FORM as TRAINING_FORM_FOR_CHECK } from '../src/lib/trainingForm';
+import { TRAINING_METHODOLOGY as TRAINING_METHODOLOGY_FOR_CHECK, TRAINING_FORM as TRAINING_FORM_FOR_CHECK, RECORD_SHEET_FIRST_PAGE as RECORD_SHEET_FIRST_PAGE_FOR_CHECK, paginateRows as paginateRowsForCheck } from '../src/lib/trainingForm';
 import { parseTrainingDoc as parseTrainingDocForCheck } from '../src/lib/trainingDoc';
 import { unassignedScreens as unassignedScreensForCheck, coverage as coverageForCheck } from '../src/lib/validationDoc';
 import { RISKS as RISKS_FOR_DOC_CHECK } from '../src/lib/validation';
@@ -2639,9 +2639,23 @@ console.log('\n-- a Training Form from HR: Record only; the device copy notices 
     /if old\.employee_request_id is null then[\s\S]*new\.topic\s*:= old\.topic;[\s\S]*new\.evaluation_plan\s*:= old\.evaluation_plan;/.test(g)
       && !/new\.record_lines\s*:= old\.record_lines/.test(g) && !/new\.from_date\s*:= old\.from_date/.test(g), true);
   const pr = readFileSync('src/modules/TrainingFormPrint.tsx', 'utf8');
-  eq('...the header reads TRAINING FORM [number], and more than seven go on an attached Record sheet',
-    pr.includes("`${TRAINING_FORM.title}${reqNo.trim() ? ` [${reqNo.trim()}]` : ''}`")
-      && /RECORD_ROWS_ON_FORM = 7/.test(pr) && /See attached Record sheet/.test(pr) && /break-before: page/.test(pr), true);
+  eq('...more than seven go on an attached Record sheet, which also prints alone (?part=record)',
+    /RECORD_ROWS_ON_FORM = 7/.test(pr) && /See attached Record sheet/.test(pr) && pr.includes("get('part') === 'record'"), true);
+  // The user, 2026-10-27: "Dont add Training No in Header ... Expected output is a A4
+  // Format. Page No should start from 3 and continue. Footer and Header should be
+  // present in all pages".
+  eq('...the header is the logo and its table, never the Request No.',
+    /<tr><td className="ip-mid">\{TRAINING_FORM\.title\}<\/td><\/tr>/.test(pr) && !/trainingFormTitle/.test(pr), true);
+  eq('...every page an A4 block with the header and the footer; the form is pages 1 and 2, the Record sheet from 3',
+    /@page trf-a4 \{ size: A4 portrait; margin: 0; \}/.test(pr) && /\.trf-a4 \{ width: 210mm; height: 296\.5mm;/.test(pr)
+      && (pr.match(/<div className="trf-a4[^"]*"[^>]*>\s*<TrfHead page=\{[^}]+\} \/>/g) ?? []).length === 3
+      && (pr.match(/<TrfFoot \/>\s*<\/div>/g) ?? []).length === 3
+      && pr.includes('<TrfHead page={1} />') && pr.includes('<TrfHead page={2} />') && pr.includes('page(RECORD_SHEET_FIRST_PAGE + k, idx, k === 0, k)')
+      && RECORD_SHEET_FIRST_PAGE_FOR_CHECK === 3, true);
+  const pg = (h: number[], f: number, r: number) => JSON.stringify(paginateRowsForCheck(h, f, r));
+  eq('...rows split by height: what fits on the first page, the rest page by page, none dropped, an empty Record one page',
+    [pg([10, 10, 10, 10, 10], 25, 30), pg([], 25, 30), pg([40, 5], 25, 30), pg([5], 2, 30)].join(' '),
+    '[[0,1],[2,3,4]] [[]] [[],[0],[1]] [[],[0]]');
   const ms = readFileSync('src/lib/machinestore.ts', 'utf8');
   eq('a young device copy is kept only while the server says nothing changed after it',
     ms.includes('if (fresh && !opts.force && !(await changedSince(memory!))) return;') && ms.includes(".gt('sys_updated_on', after).limit(1)"), true);
@@ -10720,7 +10734,16 @@ console.log('\n-- the Daily Complaint Review: auto review is a role’s switch (
   const dccr = r('src/modules/DailyCallReview.tsx');
   eq('the register shows whether auto review is on, and in whose name',
     /Auto review: <b>\{auto\.enabled \? 'On' : 'Off'\}<\/b>/.test(dccr), true);
-  eq('...and only review.auto may switch it', /auto && can\('review\.auto'\) && \(/.test(dccr), true);
+  eq('...and only review.auto may switch it', /auto && !auditOn && can\('review\.auto'\) && \(/.test(dccr), true);
+  // NAR-013 (the user, 2026-10-27: "URS-080 is a Non Auditable REquirement";
+  // asked: "Hide on screen only").
+  eq('...the switch, its state and its message are not shown in Audit Mode; the sweep is left alone',
+    /\{auto && !auditOn && \(\s*<span className="conn-dot conn-off"/.test(dccr) && dccr.includes('if (auditOnRef.current) { void load(filter); return; }'), true);
+  eq('...review.auto is not shown in Audit Mode on Roles & Permissions, User Master -> Access or My Profile',
+    /AUDIT_HIDDEN_ACTIONS: ReadonlySet<string> = new Set\(\['review\.auto'\]\)/.test(r('src/lib/rbac.ts'))
+      && r('src/modules/RolePermissions.tsx').includes('const childKeys = [...shownActions(page)];')
+      && r('src/modules/UserMasterView.tsx').includes('!(auditOn && AUDIT_HIDDEN_ACTIONS.has(a.key))')
+      && r('src/modules/Profile.tsx').includes('!(auditOn && AUDIT_HIDDEN_ACTIONS.has(k))'), true);
   eq('review.auto is on Roles & Permissions, on the Daily Review row',
     /key: 'review\.auto'/.test(r('src/lib/rbac.ts')) && /'\/daily-review'[^\n]*actions: \['review\.edit', 'review\.auto'/.test(r('src/lib/rbac.ts')), true);
   const up = r('src/lib/uploads.ts');

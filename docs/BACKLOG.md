@@ -160,6 +160,28 @@ up)_
 
 ---
 
+## 2026-10-27 — Training Record sheet on A4 from page 3; the Auto Review is non-auditable (FRS-283.4, NAR-013, v0.10.228)
+
+- **Training Record sheet.** The user: "Record - Attached Sheet - Training No is
+  ok. Leave the Training Plan. Dont add Training No in Header ... Expected
+  output is a A4 Format. Page No should start from 3 and continue. Footer and
+  Header should be present in all pages." Read as: the Record sheet prints on
+  its own (📄 Record sheet, `?part=record`) to go with HR's two pages. Every
+  printed page is now a fixed A4 block laid out by the screen (rows measured,
+  `paginateRows()`), so the header (PAGE NO) and footer are on each; the whole
+  form is pages 1 (plan + record) and 2 (evaluation). No SQL.
+- **URS-080 → NAR-013.** The user: "URS-080 is a Non Auditable REquirement.
+  Make the complete Downstream activities as Non Auditable"; asked: "Hide on
+  screen only", and FRS-268 / OQ-266 "Keep auditable, re-link" (to URS-058).
+  URS-080, FRS-096, FRS-097, OQ-84, OQ-85, R-44, FM-33 and D-028 are retired
+  into NAR-013. In Audit Mode: the register's switch, state and message,
+  `review.auto` on Roles & Permissions / User Master → Access / My Profile,
+  the flow step's sentence, the module guide's line and the Version History
+  lines about it are not shown. The 9:15 sweep is NOT stopped (the user's
+  choice) and nothing in the database changed.
+
+---
+
 ## 2026-10-27 — Training Form Record for big lists; device copy notices server changes; admin uploads a signature (FRS-283, FRS-284, NAR-012, D-173, 0458–0460, v0.10.224–225)
 
 - **Training (0458).** The user, with "101_2026 Service": fill the Record

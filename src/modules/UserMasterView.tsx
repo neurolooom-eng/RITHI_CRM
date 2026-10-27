@@ -3,7 +3,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer, Modal } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
-import { ROLES, ACTIONS, permsForRole, rolesWith, roleLabelFor } from '../lib/rbac';
+import { ROLES, ACTIONS, AUDIT_HIDDEN_ACTIONS, permsForRole, rolesWith, roleLabelFor } from '../lib/rbac';
 import { csvExport, fmtLongDate, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
@@ -964,11 +964,14 @@ function AccessDrawer({ user, dirId, onClose, onSaved, onError }: {
   const [extra, setExtra] = useState<Set<string>>(new Set(user.extraPermissions ?? []));
   const [busy, setBusy] = useState(false);
   const roleGrants = useMemo(() => new Set(permsForRole(role, rolePerms)), [role, rolePerms]);
+  // A non-auditable key is not offered while Audit Mode is on (NAR-013); one
+  // already granted stays in `extra`, so a save keeps it.
+  const auditOn = useAuditMode().on;
   const groups = useMemo(() => {
     const g: Record<string, typeof ACTIONS> = {};
-    ACTIONS.forEach((a) => { (g[a.group] ??= []).push(a); });
+    ACTIONS.filter((a) => !(auditOn && AUDIT_HIDDEN_ACTIONS.has(a.key))).forEach((a) => { (g[a.group] ??= []).push(a); });
     return Object.entries(g);
-  }, []);
+  }, [auditOn]);
   const toggle = (k: string) => setExtra((cur) => { const n = new Set(cur); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   const save = async () => {
