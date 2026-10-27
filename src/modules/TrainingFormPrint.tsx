@@ -148,7 +148,9 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
               <tr>
                 <td><span className="ip-label">Training From (Date) : </span>{formatDay(t.from_date)}
                   <span style={{ marginLeft: 28 }} className="ip-label">To (Date) : </span>{formatDay(t.to_date)}</td>
-                <td><span className="ip-label">Trainer Signature:</span></td>
+                {/* THE TRAINER'S OWN SIGNATURE, placed when they signed (0454); otherwise left for ink. */}
+                <td><span className="ip-label">Trainer Signature:</span>
+                  {t.trainer_signed?.signature && <img className="ip-sign-ink" style={{ maxHeight: '10mm' }} src={t.trainer_signed.signature} alt="Trainer signature" />}</td>
               </tr>
             </tbody>
           </table>
@@ -162,7 +164,8 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
             <tbody>
               {lines.map((l, i) => (
                 <tr key={i} className="trf-ink">
-                  <td className="ip-c">{l.name ? i + 1 : ''}</td><td>{l.name}</td><td>{l.content}</td><td>{l.status}</td><td />
+                  <td className="ip-c">{l.name ? i + 1 : ''}</td><td>{l.name}</td><td>{l.content}</td><td>{l.status}</td>
+                  <td>{l.signature && <img className="ip-sign-ink" style={{ maxHeight: '8mm', maxWidth: '30mm' }} src={l.signature} alt={`${l.name} signature`} />}</td>
                 </tr>
               ))}
             </tbody>
@@ -195,7 +198,9 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
                   {TRAINING_RATINGS.map((r) => <div key={r.label}><b>{r.label}:</b> {r.meaning}</div>)}
                 </td>
               </tr>
-              <tr className="trf-keep"><td colSpan={3} /><td colSpan={3} style={{ height: '11mm', verticalAlign: 'bottom', textAlign: 'center' }}><span className="ip-label">Signature of Evaluator</span></td></tr>
+              <tr className="trf-keep"><td colSpan={3} /><td colSpan={3} style={{ height: '11mm', verticalAlign: 'bottom', textAlign: 'center' }}>
+                {t.evaluator_signed?.signature && <img className="ip-sign-ink" style={{ maxHeight: '10mm', margin: '0 auto' }} src={t.evaluator_signed.signature} alt="Evaluator signature" />}
+                <span className="ip-label">Signature of Evaluator</span>{t.evaluator_name ? <> — {t.evaluator_name}</> : null}</td></tr>
             </tbody>
           </table>
 

@@ -1001,7 +1001,11 @@ const MODULES = {
             '0449_new_employee_requests.sql',
             // The Training Request (Training Form R/HR/11) a new employee
             // request raises (0453): its plan, record and evaluation.
-            '0453_training_requests.sql'],
+            '0453_training_requests.sql',
+            // Training forms added from the HR document, signed in RITHI by the
+            // people they name, and the signature tracker (0454). Restates
+            // 0453's guard, so after it.
+            '0454_training_signing_and_upload.sql'],
   },
   masters: {
     title: 'Master Value Lists',

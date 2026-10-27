@@ -107,6 +107,32 @@ up)_
 
 ---
 
+## 2026-10-27 — Training Forms from the HR document, signed in RITHI; signature reminder and tracker (FRS-281, 0454, v0.10.220)
+
+- **Shipped.** The user: "No approval Workflow required. I shall upload the
+  Training Doc - Generated from HR department ... mainly ... used for Getting
+  Signatures, updating the Topics, Basically All Actuals updation will happen
+  here"; a popup reminding anybody with no signature, linking to the Signature
+  tab, never once saved; a tracker of how many have saved one. Asked: reminder
+  once per session with Later; each person signs their own line or box; RITHI
+  reads the doc and fills the form, keeping it attached; tracker on User Master
+  for users.manage.details.
+  0454: `source_doc_url/_name`, `evaluator_name`, `trainer_signed`,
+  `evaluator_signed`; `sign_training_request()` (the part must name the caller
+  via `my_person_names()`); the guard on INSERT too, stripping any signature it
+  did not place; `trq_read` adds whoever the form names; `trq_insert` for
+  training.manage; `signature_tracker()`. Parser `src/lib/trainingDoc.ts` +
+  `docxRead.ts`, proved on the template in `scripts/fixtures/` by check:ui.
+  `_status.sql` row 366; `training_signing_test`.
+- **A name on the form must match the person's login name or a User Master
+  name under their address**, case and spaces aside — the `signatureBelongsTo`
+  rule. A line HR typed differently (initials, a spelling) offers no Sign button;
+  correct the name on the form.
+- **Requests raised by New Employee Requests** keep their decision as the
+  approval; only uploaded ones take the approval from the document.
+
+---
+
 ## 2026-10-23 — Training Request (Training Form R/HR/11) with New Employee Requests (FRS-280, 0453, v0.10.219)
 
 - **Shipped.** The user shared the template ("102_2026 Service", R/HR/11) for the

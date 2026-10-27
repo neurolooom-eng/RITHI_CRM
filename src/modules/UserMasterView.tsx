@@ -16,6 +16,7 @@ import './fieldcalls.css';
 import { COMPLETE, cappedAt } from '../lib/exportscope';
 import { useMaster } from '../lib/masters';
 import { PersonProfile } from '../components/people/PersonProfile';
+import { SignatureTracker } from '../components/people/SignatureTracker';
 import { MultiPick } from '../components/ui/MultiPick';
 import { TagInput, TagChips, tidyTags, hasTag } from '../components/ui/TagInput';
 
@@ -652,6 +653,9 @@ export function UserMasterView() {
           )}
         </div>
       )}
+
+      {/* WHO HAS SAVED A SIGNATURE (0454) -- for whoever edits these details. */}
+      {editable && !editing && <SignatureTracker />}
 
       {live ? (
         <DataTable<DirectoryRow & Record<string, unknown>>

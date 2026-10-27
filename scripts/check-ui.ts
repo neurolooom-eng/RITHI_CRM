@@ -58,6 +58,7 @@ import { isMissedPm } from '../src/lib/missedPm';
 import { pmBatchTimes, pmCallNumber, shapePmDueRows } from '../src/lib/pmImport';
 import { parseRef as parseRefForCheck } from '../src/lib/reportMapping';
 import { TRAINING_METHODOLOGY as TRAINING_METHODOLOGY_FOR_CHECK, TRAINING_FORM as TRAINING_FORM_FOR_CHECK } from '../src/lib/trainingForm';
+import { parseTrainingDoc as parseTrainingDocForCheck } from '../src/lib/trainingDoc';
 
 let fail = 0;
 // CODE ONLY, COMMENTS STRIPPED.
@@ -2514,6 +2515,21 @@ console.log('\n-- call aging, and where the clock stops --');
     /out\.agingDays = age\.days;/.test(sb), true);
 }
 
+// READING THE HR TRAINING DOCUMENT (the user, 2026-10-27) -- the user's own
+// template, "102_2026 Service", read the way an upload reads it.
+console.log('\n-- the HR training document is read into the form --');
+{
+  const d = parseTrainingDocForCheck(readFileSync('scripts/fixtures/training-form-r-hr-11.document.xml', 'utf8'));
+  eq('the number, date, trainee, designation, topic and trainer',
+    [d.req_no, d.req_date, d.trainee_name, d.designation, d.topic, d.trainer_name, d.trainer_designation].join(' | '),
+    '102/2026 | 2026-10-21 | Service Team | Service Engineers | Product training in Chennai | P.M. Bagyaraj | National Service Manager');
+  eq('...the ticked risk, the training dates and the evaluation',
+    [d.risk, d.from_date, d.to_date, String(d.evaluation_required), d.evaluation_justification, d.evaluation_method].join(' | '),
+    'Low | 2026-11-02 | 2026-11-04 | false | Being refresh training | ');
+  eq('...and what the template leaves blank comes back blank, never guessed',
+    [d.manager_name, d.approved_by_name, d.not_approved_reason, d.reassessment, String(d.record_lines.length)].join('|'), '||||0');
+}
+
 // TRAINING FORM R/HR/11 (0453; the user, 2026-10-23).
 console.log('\n-- the Training Form R/HR/11 --');
 {
@@ -2529,6 +2545,26 @@ console.log('\n-- the Training Form R/HR/11 --');
   const app = readFileSync('src/App.tsx', 'utf8');
   eq('...and only to a reader of Training or New Employee Requests',
     /startsWith\('\/training-form\/'\) && !can\(actionForPath\('\/training'\)\) && !can\(actionForPath\('\/new-employee-requests'\)\)/.test(app), true);
+}
+
+// SIGNING A TRAINING FORM, AND THE SIGNATURE REMINDER (the user, 2026-10-27).
+console.log('\n-- a Training Form is signed by the people it names; the signature reminder --');
+{
+  const sql = readFileSync('supabase/migrations/0454_training_signing_and_upload.sql', 'utf8');
+  eq('a part is signed only by the person it names, with their saved signature',
+    /if not \(lower\(btrim\(coalesce\(line->>'name', ''\)\)\) = any\(me\)\)/.test(sql)
+      && /Save your signature first/.test(sql) && /before insert or update on public\.training_requests/.test(sql), true);
+  eq('...and the tracker says whether and when, never the image',
+    /returns table \(user_id uuid, full_name text, email text, designation text, active boolean, has_signature boolean, signed_at timestamptz\)/.test(sql), true);
+  const rem = readFileSync('src/components/layout/SignatureReminder.tsx', 'utf8');
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  eq('the reminder links to My Profile -> Signature, once a session, only on a definite "not saved"',
+    /SIGNATURE_LINK = '#\/profile\?tab=signature'/.test(rem) && /sessionStorage/.test(rem) && /has === false/.test(rem)
+      && /<SignatureReminder \/>/.test(lay), true);
+  const prof = readFileSync('src/modules/Profile.tsx', 'utf8');
+  eq('...and My Profile opens the tab a link names', /params\.get\('tab'\)/.test(prof) && /<TrainingToSign \/>/.test(prof), true);
+  const um = readFileSync('src/modules/UserMasterView.tsx', 'utf8');
+  eq('the tracker is on User Master for whoever edits its details', /\{editable && !editing && <SignatureTracker \/>\}/.test(um), true);
 }
 
 // THE CONTRACT ENTRY VIEW'S FORMAT (the user, 2026-10-23).

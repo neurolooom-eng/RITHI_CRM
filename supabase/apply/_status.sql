@@ -2297,7 +2297,13 @@ with checks(sort_order, bundle, provides, present) as (
          and to_regprocedure('public.training_methodology(text)') is not null
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.employee_requests') and tgname = 'zz_employee_request_raise_training')
          and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.employee_requests') and tgname = 'zz_employee_request_training_decision')
-         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.training_requests') and tgname = 'training_request_guard')))
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.training_requests') and tgname = 'training_request_guard'))),
+    (366, 'Training Forms added from the HR document and signed by the people they name; the signature tracker', 'training_requests.source_doc_url / evaluator_name / trainer_signed / evaluator_signed + sign_training_request() + signature_tracker() + the guard firing on INSERT too (0454). NO means Add from HR document, Sign or the User Master signature tracker answers an error. Restore: training.sql (0454)',
+        (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'training_requests' and column_name = 'evaluator_signed')
+         and to_regprocedure('public.sign_training_request(bigint,text,integer)') is not null
+         and to_regprocedure('public.signature_tracker()') is not null
+         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.training_requests') and tgname = 'training_request_guard'
+                       and (tgtype & 4) <> 0)))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

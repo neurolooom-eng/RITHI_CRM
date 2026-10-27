@@ -8,6 +8,8 @@ import { permsForRole, DEFAULT_PERMS, FUNCTIONAL_ACTIONS, MODULES, moduleAction,
 import { useTheme } from '../theme/ThemeProvider';
 import { ChangePassword } from './ChangePassword';
 import { MyOwn, MyTeam, useMyPeople } from '../components/people/MyPeople';
+import { TrainingToSign } from '../components/people/TrainingToSign';
+import { useSearchParams } from 'react-router-dom';
 import './dccr.css';
 
 // ===========================================================================
@@ -39,9 +41,15 @@ export function Profile() {
     { key: 'password', icon: '🔒', label: 'Password' },
     { key: 'appearance', icon: '🎨', label: 'Appearance' },
   ];
+  // A LINK MAY NAME THE TAB (2026-10-27): the signature reminder sends people
+  // to #/profile?tab=signature. A named tab wins over the one last opened.
+  const [params] = useSearchParams();
   const [picked, setPicked] = useState<TabKey>(() => {
+    const asked = params.get('tab') as TabKey | null;
+    if (asked) return asked;
     try { return (localStorage.getItem(TAB_STORE) as TabKey) || 'account'; } catch { return 'account'; }
   });
+  useEffect(() => { const asked = params.get('tab') as TabKey | null; if (asked) setPicked(asked); }, [params]);
   const tab: TabKey = tabs.some((t) => t.key === picked) ? picked : 'account';
   const choose = (k: TabKey) => { setPicked(k); try { localStorage.setItem(TAB_STORE, k); } catch { /* storage refused */ } };
 
@@ -109,7 +117,7 @@ export function Profile() {
 
       {/* PROFILE DETAILS, R&R AND TRAINING -- yours, and your team's (0264). */}
       {tab === 'details' && <MyOwn data={people} part="details" title="My details and Roles & Responsibilities" />}
-      {tab === 'training' && <MyOwn data={people} part="training" title="My training" />}
+      {tab === 'training' && <><TrainingToSign /><MyOwn data={people} part="training" title="My training" /></>}
       {tab === 'team' && <MyTeam data={people} />}
 
       {/* ---------------------------------------------------------------

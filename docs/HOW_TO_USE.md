@@ -1282,6 +1282,10 @@ typed into a form that reads it.
   > and use **＋ Add tag** / **− Remove tag** in the bar. A person tagged
   > **CAPA Responsibility** (and Active) is offered as the CAPA (if reqd)
   > Responsibility on the Field Failure Register.
+  > **Signatures saved: X of Y** (above the list, for whoever may edit these
+  > details): how many active logins have saved a signature, **Show who** for
+  > those still to do and when each one saved theirs, and **⬇ CSV**. Whether
+  > and when only — nobody can see another person's signature.
   > **Open a person (the row, or ⋯ → view) for their profile:** Employee Code,
   > Joining Date, Department, Designation, both managers, Mail ID, their
   > **Roles & Responsibilities** and their **training**. Employee Code and
@@ -1447,14 +1451,25 @@ typed into a form that reads it.
   > the people — by role, designation, department, region or name, or **All
   > active users on the User Master** in one go (the count says how many).
   > The same tick is on a session's attendees and on a QMS upload's trainees.
-  > **Training Requests** (the third tab) are the Training Forms R/HR/11 that
-  > New Employee Requests raise: the plan as the manager gave it, Approved /
-  > Not approved as the request was decided. Here you type the **Training
+  > **Training Requests** (the third tab) are the Training Forms R/HR/11.
+  > **＋ Add from HR document** takes the .docx HR generated: RITHI reads the
+  > number, plan, approval, dates, employees and evaluation into the form for
+  > you to check, saves it and keeps the document (**📎 HR document**). No
+  > approval happens in RITHI — the approval is what HR's document says, and
+  > you can correct it. The ones New Employee Requests raise carry the plan as
+  > the manager gave it, Approved / Not approved as the request was decided.
+  > **Signing:** each person signs their own part with the signature saved on
+  > My Profile — a trainee their line, the trainer the Trainer Signature, the
+  > Evaluator (a named field) the Signature of Evaluator — by pressing **✍️
+  > Sign**, here or under **My Profile → Training → Training forms to sign**.
+  > RITHI refuses anybody the part does not name, and changing the name on a
+  > signed line or box removes its signature. The printed form shows each
+  > signature in its box. Here you type the **Training
   > Request No.** (it is raised elsewhere), fill the **RECORD** (training from
   > / to, each employee's content and status) and the **EVALUATION** (required
   > or not and why, the method, the plan with evaluator, dates and rating,
   > re-assessment, remarks), and print **📄 Training Form** — A4, the R/HR/11
-  > header on every page, Rev NOV 2021, signatures left for ink.
+  > header on every page, Rev NOV 2021, a signature not yet given left for ink.
   > **Record session** is bulk training: topic or document, date,
   > trainer, method, the attendance sheet / certificates, and each attendee's
   > Attended, **Pass / Fail**, score and remarks.
@@ -2086,7 +2101,11 @@ typed into a form that reads it.
   **Active / Current** and **Ex Employees** by the User Master's *Active*
   column; a leaver's profile and training stay one click away), What I can do,
   Signature, Password and Appearance. The tab you last opened is remembered on
-  that device. **My Signature** lives here, not in Settings:
+  that device (a link may name one: `#/profile?tab=signature`). **Training**
+  lists the **Training forms to sign** — the parts of a form that name you.
+  **No signature saved yet?** RITHI reminds you once each time you open it,
+  with a link straight to this tab; **Later** quiets it until next time, and
+  once one is saved it never comes back. **My Signature** lives here, not in Settings:
   only you can see or set it, and it prints only in the block that names you. An
   administrator can ask who has saved one and remove a leaver's, never read one.
 - **Version History** `/version-history` — what changed in each release.

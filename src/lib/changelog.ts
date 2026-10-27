@@ -14,6 +14,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.220',
+    date: '2026-10-27',
+    title: 'Training Forms from HR, signed in RITHI; a reminder to save your signature',
+    changes: [
+      'Training → Training Requests → ＋ Add from HR document: choose the Training Form .docx that HR made. RITHI reads it and fills in the number, plan, approval, dates, employees and evaluation for you to check, then keeps the document attached (📎 HR document). There is no approval step in RITHI; the approval is what HR\'s document says.',
+      'Topics, dates, the record and the evaluation (all the actuals) are updated here. The Evaluator is now a named field.',
+      'Each person signs their own part with the signature they saved: a trainee signs their line, the trainer the Trainer Signature, the evaluator the Signature of Evaluator. Find them under My Profile → Training → Training forms to sign, or press ✍️ Sign on the form. Nobody can sign for somebody else, and the printed form shows each signature in its box.',
+      'If you have not saved a signature, RITHI reminds you once each time you open it, with a link straight to My Profile → Signature. Once it is saved, the reminder never comes back.',
+      'User Master shows how many active users have saved their signature and who has not, with a CSV. This is for anyone who may edit User Master details.',
+    ],
+  },
+  {
     version: '0.10.219',
     date: '2026-10-23',
     title: 'Training Request (Training Form R/HR/11) with every New Employee Request',
