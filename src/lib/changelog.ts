@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.227',
+    date: '2026-10-27',
+    title: 'Software Validation document in the old template, and the Security Scan report',
+    changes: [
+      'Software Validation → Security Scan & Documents: download the Software Validation of RITHI, R/QMS/SV/13 Rev 02, as a Word file.',
+      'It is on the old AppSheet document\'s own template, with the same sections: Description, Process Definition, Validation Planning, Risk Analysis and Control Measures, Validation Tasks and Conclusion. Each row is one process, with the requirements, risks and tests behind it.',
+      'The sign-off (functions, names, dates) and the Rev 02 date are left blank for the people who sign it.',
+      'The Security Scan report is there too as a Word file, and the tab shows its findings: what was fixed, and what is still your decision.',
+    ],
+  },
+  {
     version: '0.10.226',
     date: '2026-10-27',
     title: 'Security fixes from the security scan',

@@ -2126,6 +2126,12 @@ typed into a form that reads it.
   intended use, regulatory basis, requirements and the tests that answer them.
   > Not the servicing process requirements. Software validation does not discharge
   > a process requirement, which is why they are two documents.
+  > **Security Scan & Documents** has the two Word files: **Software Validation of
+  > RITHI, R/QMS/SV/13 Rev 02** — the old AppSheet document's template and
+  > sections, filled from this package, one row per process, the sign-off left
+  > blank for the people who sign it — and the **Security Scan** report (its
+  > annex), with the scan's findings shown on the tab too. Both are regenerated
+  > from the package with `npm run docs:validation`, so they say what it says.
   > **Data Flows** draws how a record moves from screen to screen — fourteen
   > workflows, from a call's life to bulk loading and reports. Select a box to
   > see what that step does, where, and the requirements and tests behind it, or

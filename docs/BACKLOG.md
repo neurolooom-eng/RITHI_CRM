@@ -107,6 +107,28 @@ up)_
 
 ---
 
+## 2026-10-27 — Software Validation document R/QMS/SV/13 Rev 02 in the old template; Security Scan report (FRS-286, v0.10.227)
+
+- **Asked:** "This is Validation Document of the Old Setup in AppSheet. Now we
+  need to update this - ... it should match with the Template, Sections as per
+  this one"; answers: template sections, summarised; sign-off blank ("Leave
+  those Blank"); "Word + in-app page".
+- **Shipped.** `npm run docs:validation` (`scripts/validation-docx.ts`) writes
+  `public/docs/RITHI_Software_Validation_R-QMS-SV-13_Rev02.docx` on the user's
+  own template (`docs/validation/template/`) and
+  `public/docs/RITHI_Security_Scan_2026-10-27.docx`; processes and their
+  screens in `src/lib/validationDoc.ts` (refuses to build if a screen is in no
+  process); findings in `src/lib/securityScan.ts`. Software Validation →
+  Security Scan & Documents shows the scan and links both files.
+- **Re-run `npm run docs:validation` after a validation run or a requirement
+  change**: the document carries the last run's counts. Word refreshes the
+  Table of Contents on opening.
+- **Note:** both files are published with the site, and the repository is
+  public — they hold no personal data beyond the template's own revision
+  history.
+
+---
+
 ## 2026-10-27 — Security scan: penetration test, live read-only check, fixes (FRS-285, D-174–D-176, 0461–0464, v0.10.226)
 
 - **Asked:** "Do a Security Scan - Both Penetration Testing and Vulnerabilities

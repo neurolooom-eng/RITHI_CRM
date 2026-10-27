@@ -21,6 +21,7 @@ import {
 import './softwarevalidation.css';
 import { FlowGallery } from '../components/flow/FlowDiagram';
 import { formatDayTime } from '../lib/dates';
+import { SECURITY_SCAN } from '../lib/securityScan';
 
 // ===========================================================================
 // SOFTWARE VALIDATION — Admin-only. Renders the CSV/CSA + ISO/TR 80002-2
@@ -32,7 +33,7 @@ import { formatDayTime } from '../lib/dates';
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
 type TabKey = 'overview' | 'approach' | 'checklist' | 'bymodule' | 'trace' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
-  | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'defects' | 'tracesum' | 'capa' | 'vsr' | 'flows';
+  | 'security' | 'secscan' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'defects' | 'tracesum' | 'capa' | 'vsr' | 'flows';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'approach', label: 'Validation Plan' },
@@ -60,6 +61,9 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'risk', label: 'Risk Assessment' },
   { key: 'fmea', label: 'FMEA' },
   { key: 'security', label: 'Security Assessment' },
+  // THE SECURITY SCAN OF 27-OCT-2026 (the user: "Do a Security Scan - Both
+  // Penetration Testing and Vulnerabilities Scan"), with both Word documents.
+  { key: 'secscan', label: 'Security Scan & Documents' },
   { key: 'alcoa', label: 'Data Integrity' },
   { key: 'datamig', label: 'Data Migration' },
   { key: 'backup', label: 'Backup & Recovery' },
@@ -574,6 +578,34 @@ export function SoftwareValidation() {
           </table>
           <div className="sv-h3" style={{ fontSize: 14, marginTop: 14 }}>Recommended actions</div>
           <ul className="sv-list">{SECURITY.actions.map((a, i) => <li key={i}>{a}</li>)}</ul>
+        </Section>
+      )}
+
+      {/* SECURITY SCAN, AND THE TWO WORD DOCUMENTS (npm run docs:validation) */}
+      {show('secscan') && (
+        <Section title={`Security Scan — ${formatDay(SECURITY_SCAN.date)} (v${SECURITY_SCAN.version})`}>
+          <div className="sv-h3" style={{ fontSize: 14 }}>Documents</div>
+          <ul className="sv-list">
+            <li><a href={`${import.meta.env.BASE_URL}docs/RITHI_Software_Validation_R-QMS-SV-13_Rev02.docx`} download>⭳ Software Validation of RITHI — R/QMS/SV/13 Rev 02 (Word)</a> — the old AppSheet template's sections, filled from this package; sign-off blank.</li>
+            <li><a href={`${import.meta.env.BASE_URL}docs/RITHI_Security_Scan_2026-10-27.docx`} download>⭳ Security Scan of RITHI — annex to R/QMS/SV/13 (Word)</a></li>
+          </ul>
+          <div className="sv-h3" style={{ fontSize: 14, marginTop: 12 }}>Scope</div>
+          <ul className="sv-list">{SECURITY_SCAN.scope.map((t, i) => <li key={i}>{t}</li>)}</ul>
+          <div className="sv-h3" style={{ fontSize: 14, marginTop: 12 }}>Method</div>
+          <table className="sv-table"><thead><tr><th style={{ width: 220 }}>Activity</th><th>How it was done</th></tr></thead>
+            <tbody>{SECURITY_SCAN.method.map((m) => <tr key={m.name}><td><b>{m.name}</b></td><td>{m.how}</td></tr>)}</tbody>
+          </table>
+          <div className="sv-h3" style={{ fontSize: 14, marginTop: 12 }}>Findings</div>
+          <table className="sv-table"><thead><tr><th style={{ width: 50 }}>ID</th><th>Finding</th><th style={{ width: 80 }}>Severity</th><th style={{ width: 130 }}>Status</th><th>Fix / action</th></tr></thead>
+            <tbody>{SECURITY_SCAN.findings.map((f) => (
+              <tr key={f.id}><td>{f.id}</td><td><b>{f.title}</b><div className="muted" style={{ fontSize: 12 }}>{f.what}</div></td>
+                <td>{f.severity}</td><td>{f.status}</td>
+                <td>{f.fix}{f.refs.length ? <div className="muted" style={{ fontSize: 12 }}>{f.refs.join(' · ')}</div> : null}</td></tr>
+            ))}</tbody>
+          </table>
+          <div className="sv-h3" style={{ fontSize: 14, marginTop: 12 }}>Found sound</div>
+          <ul className="sv-list">{SECURITY_SCAN.clean.map((t, i) => <li key={i}>{t}</li>)}</ul>
+          <p className="sv-p muted">The penetration test runs again with every validation run (security_pentest_test); the live, read-only checks from GitHub → Actions → "Security scan (live, read-only)".</p>
         </Section>
       )}
 
