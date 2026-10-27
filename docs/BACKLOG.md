@@ -115,8 +115,11 @@ up)_
   `has_perm()` (live: 25 relations returned rows) → 0461; F-02 open self
   sign-up + `ensure_my_profile()` made anybody an Engineer, and
   `auth.role() = 'authenticated'` reads gave a profile-less login the masters
-  → 0463 + 0464 (`zz_needs_a_profile`, restrictive, every RLS table, in
-  `lockdown`); F-03 `spare_request_rollup()` callable by the API → 0462;
+  → 0463 + 0464 (`zz_needs_a_profile`, restrictive, on the 24 tables read by
+  "any signed-in user", `app_roles` excepted, in `lockdown`; the first version
+  on every table timed out on a live lock and rolled back whole — the manual
+  re-run was refused by the permission system, so it ships again through the
+  normal merge); F-03 `spare_request_rollup()` callable by the API → 0462;
   F-04 30 stored links rendered raw (`javascript:` would run) → `safeUrl()`;
   the rich editor loaded unsanitised HTML; npm audit fix (non-breaking).
 - **OPEN, the user's decisions:** (1) "Confirm email" OFF in the Supabase

@@ -2327,11 +2327,13 @@ with checks(sort_order, bundle, provides, present) as (
         to_regprocedure('public.spare_request_rollup(text)') is null
         or (not has_function_privilege('anon', 'public.spare_request_rollup(text)', 'execute')
             and not has_function_privilege('authenticated', 'public.spare_request_rollup(text)', 'execute'))),
-    (374, 'Security: a login on no User Master row gets no profile, and no profile reads no row', 'ensure_my_profile() only for an active User Master address (0463) + zz_needs_a_profile on every table with row-level security (0464, F-02). NO names how many tables lack the rule: re-run lockdown.sql. Restore: rbac.sql (0463), lockdown.sql (0464)',
+    (374, 'Security: a login on no User Master row gets no profile, and no profile reads no row', 'ensure_my_profile() only for an active User Master address (0463) + zz_needs_a_profile on every table whose read policy is only "any signed-in user" (0464, F-02). NO means one lacks it: re-run lockdown.sql. Restore: rbac.sql (0463), lockdown.sql (0464)',
         position('coalesce(validity, true)' in coalesce(pg_get_functiondef(to_regprocedure('public.ensure_my_profile()')), '')) > 0
-        and not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
-                         where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relrowsecurity
-                           and not exists (select 1 from pg_policies pp where pp.schemaname = 'public' and pp.tablename = c.relname and pp.policyname = 'zz_needs_a_profile')))
+        and not exists (select 1 from pg_policies b
+                         where b.schemaname = 'public' and b.permissive = 'PERMISSIVE' and b.cmd in ('SELECT', 'ALL')
+                           and b.tablename <> 'app_roles'
+                           and regexp_replace(coalesce(b.qual, ''), '[()\s]|SELECT|AS role|::text', '', 'g') in ('true', 'auth.role=''authenticated''')
+                           and not exists (select 1 from pg_policies pp where pp.schemaname = 'public' and pp.tablename = b.tablename and pp.policyname = 'zz_needs_a_profile')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

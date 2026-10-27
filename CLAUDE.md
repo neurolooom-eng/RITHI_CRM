@@ -978,10 +978,13 @@ on testing the old shape. **When a migration replaces a definition, move the
   `has_perm()` used to fall back to the Engineer set when `auth.uid()` was
   NULL, so the public key in the website read 25 live relations; it answers
   no to `auth.role() = 'anon'` now. `ensure_my_profile()` makes a profile ONLY
-  for an address on an active User Master row. Every table with row-level
-  security carries the RESTRICTIVE `zz_needs_a_profile` — **a new table gets
-  it by re-running `lockdown.sql`**, as `sys_columns.sql`; `_status.sql` row
-  374 counts the tables without it. A `_status.sql` row asserting a table has
+  for an address on an active User Master row. Every table whose read policy
+  is only "any signed-in user" (`auth.role() = 'authenticated'` or `true`),
+  except `app_roles`, carries the RESTRICTIVE `zz_needs_a_profile` — **re-run
+  `lockdown.sql` after giving a table such a policy**; `_status.sql` row 374
+  names any without it. Not on every table: the first version was, and the
+  live apply timed out waiting for `app_roles`, which the app reads on nearly
+  every request — a policy change takes an exclusive lock per table. A `_status.sql` row asserting a table has
   NO write policy must filter `permissive = 'PERMISSIVE'` (or `polpermissive`)
   — a restrictive policy grants nothing. **A link rendered from stored data
   goes through `safeUrl()`**; `check:ui` refuses a raw `href={x.url}`.
