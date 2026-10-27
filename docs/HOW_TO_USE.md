@@ -619,7 +619,9 @@ against the call it was fitted to.
     auto-save and the bulk answer. A later edit does not reassign it.
   - Answering in bulk refuses a first-year failure or an unknown age — those are
     reviewed one at a time.
-  - **Auto review is a switch, and a person's.** It can be turned on or off by
+  - **Auto review is a switch, and a person's** — *non-auditable (NAR-013): while
+    Audit Mode is on the switch, its state and its message are not shown, and
+    the morning answers go on as switched.* It can be turned on or off by
     **Admin, NSM and Technical Support** — by role, not by name — and by anybody
     an administrator gives *Switch auto review on or off* on User Master →
     Access. It is the one thing Technical Support can change. The switch is at
@@ -1488,10 +1490,13 @@ typed into a form that reads it.
   > adds everyone at once; choose a **Department** and **＋ Add everyone in it**
   > for one department. Nobody is added twice. Each person gets the **Content
   > of training by designation** typed for their User Master designation (the
-  > card above the list — type each designation's topics once). The printed
-  > form reads **TRAINING FORM [its number]** on every page, and a Record of
-  > more than seven people prints *See attached Record sheet* with the Record
-  > sheet following on a new page, as many pages as it needs.
+  > card above the list — type each designation's topics once). Every printed
+  > page is **A4** with the form's header (the logo and its table) and footer;
+  > the form is pages 1 and 2, and a Record of more than seven people prints
+  > *See attached Record sheet* with the Record sheet following as **page 3
+  > onwards**, as many pages as it needs. **📄 Record sheet** prints that sheet
+  > alone — from page 3, with the Request No. in square brackets — to go with
+  > HR's own two pages.
   > **Signing:** each person signs their own part with the signature saved on
   > My Profile — a trainee their line, the trainer the Trainer Signature, the
   > Evaluator (a named field) the Signature of Evaluator — by pressing **✍️

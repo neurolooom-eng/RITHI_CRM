@@ -2429,7 +2429,7 @@ Every GAP and partial above, and the requirement that now states it, as filed wi
 - Daily Complaint Review Register — paging, load-in-full worklists, "+" -> FRS-107.5, FRS-107.6, FRS-107.7
 - Daily Complaint Review Register — exact counts, failed count shows no figure -> FRS-107.8
 - Daily Complaint Review Register — stale-database banner -> FRS-107.10
-- Daily Complaint Review Register — automatic Review 2 = NO each morning -> URS-080, FRS-096, FRS-097, AMEND URS-058/FRS-069, D-028
+- Daily Complaint Review Register — automatic Review 2 = NO each morning -> NAR-013 (non-auditable since 2026-10-27; was URS-080, FRS-096, FRS-097, D-028), AMEND URS-058/FRS-069
 - Daily Complaint Review Register — three-pane desk with remembered widths -> FRS-108.1
 - Daily Complaint Review Register — desk grouping and first-year marking -> FRS-108.2
 - Daily Complaint Review Register — bulk Review 2 = NO -> URS-083, FRS-101

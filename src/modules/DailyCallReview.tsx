@@ -17,6 +17,7 @@ import {
   ffrsForCall,
 } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
+import { useAuditMode } from '../lib/auditMode';
 import { formatDayTime } from '../lib/dates';
 import {
   CALL_STATE_TONES, curatedProduct, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
@@ -459,6 +460,13 @@ export function DailyCallReview() {
   // THE SWITCH ITSELF, and who set it. Shown to everybody — a reader of the
   // register needs to know whether a NO in somebody's name was theirs to give
   // or the auto review's — and changeable only with review.auto.
+  // NON-AUDITABLE (NAR-013; the user, 2026-10-27: "URS-080 is a Non Auditable
+  // REquirement"; asked: "Hide on screen only"): while Audit Mode is on the
+  // switch, its state and the message of what it answered are not shown. The
+  // morning sweep goes on as switched -- only the screen changes.
+  const auditOn = useAuditMode().on;
+  const auditOnRef = useRef(auditOn);
+  auditOnRef.current = auditOn;
   const [auto, setAuto] = useState<AutoReviewState | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
   useEffect(() => {
@@ -487,6 +495,7 @@ export function DailyCallReview() {
     void autoAnswerReview2()
       .then((res) => {
         if (!res.ran || res.marked === 0) return;
+        if (auditOnRef.current) { void load(filter); return; }
         const held = res.heldFirstYear + res.heldUnknownAge;
         setMsg({ tone: 'info', text:
           `Review 2 answered No automatically for ${res.marked} call${res.marked === 1 ? '' : 's'} logged before today`
@@ -669,13 +678,13 @@ export function DailyCallReview() {
         ) : undefined}
         actions={
           <>
-            {auto && (
+            {auto && !auditOn && (
               <span className="conn-dot conn-off" title={auto.at ? `Changed ${formatDayTime(auto.at)}` : undefined}>
                 Auto review: <b>{auto.enabled ? 'On' : 'Off'}</b>
                 {auto.byName ? ` — ${auto.enabled ? 'answers in the name of' : 'switched off by'} ${auto.byName}` : ''}
               </span>
             )}
-            {auto && can('review.auto') && (
+            {auto && !auditOn && can('review.auto') && (
               <button className="btn btn-sm" disabled={autoBusy} onClick={() => void flipAuto()}>
                 {auto.enabled ? 'Switch auto review off' : 'Switch auto review on'}
               </button>

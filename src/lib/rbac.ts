@@ -681,6 +681,14 @@ export interface PermPage { path: string; label: string; actions: string[] }
 export interface PermHeaderOpts { lists?: boolean }
 export interface PermHeader extends PermHeaderOpts { title: string; pages: PermPage[] }
 
+/** KEYS NOT SHOWN WHILE AUDIT MODE IS ON -- a non-auditable track's own key
+ *  (NAR-013, the Auto Review; the user, 2026-10-27: "URS-080 is a Non
+ *  Auditable REquirement. Make the complete Downstream activities as Non
+ *  Auditable"; asked: "Hide on screen only"). Hidden on Roles & Permissions,
+ *  User Master -> Access and My Profile; who holds it is unchanged, and a save
+ *  made while it is hidden keeps it as it was. */
+export const AUDIT_HIDDEN_ACTIONS: ReadonlySet<string> = new Set(['review.auto']);
+
 export const PERM_TREE: PermHeader[] = [
   // THE HEADERS AND THEIR ORDER FOLLOW THE MENU (2026-09-12). The matrix is
   // read next to the menu — "what can this role open?" is asked with the menu

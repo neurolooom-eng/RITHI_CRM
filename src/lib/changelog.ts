@@ -10,9 +10,28 @@ export interface ChangeEntry {
   changes: string[];
   /** Left out of Version History while Audit Mode is on (a non-auditable track). */
   auditHidden?: boolean;
+  /** AN ENTRY THAT MIXES A NON-AUDITABLE TRACK WITH AUDITABLE WORK keeps the
+   *  auditable part in Audit Mode: these `changes` (by position) are left out
+   *  and `auditTitle` replaces the title (NAR-013, the Auto Review; the user,
+   *  2026-10-27: "Make the complete Downstream activities as Non Auditable"). */
+  auditHiddenChanges?: number[];
+  auditTitle?: string;
 }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '0.10.228',
+    date: '2026-10-27',
+    title: 'The Training Record sheet prints on A4 from page 3',
+    changes: [
+      'Training Requests → 📄 Record sheet prints the Record alone, to go with HR\'s two pages: A4, numbered from page 3 and continuing, every employee over as many pages as needed.',
+      'Every printed page — the form and the Record sheet — has the header (the logo and its table) and the footer. The header reads TRAINING FORM, without the Request No.; the Record sheet still shows the number in square brackets.',
+      'The whole form prints as pages 1 and 2, as HR\'s template does: the plan and record on page 1, the evaluation on page 2.',
+      'The Daily Complaint Review\'s Auto Review is now non-auditable (NAR-013). While Audit Mode is on its switch and status, its message on opening the register and its permission are not shown; it goes on answering as switched.',
+    ],
+    auditHiddenChanges: [3], // NAR-013
+    auditTitle: 'The Training Record sheet prints on A4 from page 3',
+  },
   {
     version: '0.10.227',
     date: '2026-10-27',
@@ -2201,6 +2220,7 @@ export const CHANGELOG: ChangeEntry[] = [
     version: '0.10.10',
     date: '2026-09-30',
     title: 'Auto review: who may switch it is a role — Admin, NSM, Technical Support',
+    auditHidden: true, // NAR-013
     changes: [
       'DAILY COMPLAINT REVIEW — AUTO REVIEW IS SWITCHED BY ROLE, NOT BY NAME. Everybody who is an Admin, an NSM or Technical Support can now turn auto review on or off. It was given to two people by name in 0.10.7; that grant has been taken back, so somebody who was given it by name and holds none of those three roles no longer has it.',
       'Anybody else can still be given "Switch auto review on or off" on User Master → Access, and a role can be given it or have it taken away on Roles & Permissions.',
@@ -2232,6 +2252,8 @@ export const CHANGELOG: ChangeEntry[] = [
     version: '0.10.7',
     date: '2026-09-30',
     title: 'Auto review is a named person\'s switch; old reviews load without raising reports; CAPA starts blank; data flow diagrams; "Cleared for Stores Processing" counts as approved',
+    auditTitle: 'Old reviews load without raising reports; CAPA starts blank; data flow diagrams; "Cleared for Stores Processing" counts as approved',
+    auditHiddenChanges: [3, 4], // NAR-013, the two Auto Review lines
     changes: [
       'A SPARE WHOSE APPROVAL READS "CLEARED FOR STORES PROCESSING" NOW MOVES ON, the same as "Approved" or "Auto-Approved". Since 0.10.2 these were held at the approver. Spares held for that reason move on by themselves when this version reaches the database, to the next approver who still has to decide, or to Stores.',
       'Only the phrase itself counts, in any capitals. A longer sentence containing it, such as "Not cleared for stores processing", still waits for the approver.',
@@ -3842,6 +3864,7 @@ export const CHANGELOG: ChangeEntry[] = [
     version: '0.9.277',
     date: '2026-09-15',
     title: 'Daily Call Review Insights — what the reviews are saying',
+    auditHiddenChanges: [4], // NAR-013, the Auto Review line
     changes: [
       'A new analytics page under Overview, built like FFR Insights: Pareto of root cause, complaint grouping, which products fail, cover, the month-by-month trend with its numbers beside it, and more.',
       'CLICK ANY BAR TO NARROW EVERYTHING BELOW IT. “What is the root cause on ORION-G, under contract?” is two clicks rather than a query nobody can write.',
@@ -5730,6 +5753,7 @@ export const CHANGELOG: ChangeEntry[] = [
     version: '0.9.121',
     date: '2026-09-06',
     title: 'Review 2 answers itself the morning after',
+    auditHidden: true, // NAR-013
     changes: [
       'A call logged today stays PENDING all day — today is when somebody is meant to look at it. From 9:15 the next morning its Review 2 is answered No on its own, and the register clears down to what actually needs a person.',
       'It never answers a call that failed INSIDE ITS FIRST YEAR. That is your own rule from bulk Review 2, and it matters more here, not less: Review 2 asks whether this was a warranty failure, so a machine that failed in its first year is exactly the case the question exists for. A clock must not answer it.',

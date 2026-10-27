@@ -16,11 +16,11 @@
 // Requests; the row is read under row-level security, so one the reader may
 // not see is simply not found.
 // ===========================================================================
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { supabaseConfigured } from '../lib/supabase';
 import { getTrainingRequest, type TrainingRequest } from '../lib/training';
-import { TRAINING_FORM, TRAINING_METHODOLOGY, TRAINING_RATINGS, TRAINING_RISKS, tick } from '../lib/trainingForm';
+import { RECORD_SHEET_FIRST_PAGE, TRAINING_FORM, TRAINING_METHODOLOGY, TRAINING_RATINGS, TRAINING_RISKS, paginateRows, tick } from '../lib/trainingForm';
 import { formatDay } from '../lib/dates';
 import { logAudit } from '../lib/audit';
 import { COMPANY_LOGO } from '../lib/brand';
@@ -35,6 +35,9 @@ export const RECORD_ROWS_ON_FORM = 7;
 export function TrainingFormPrint() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  /** ?part=record prints the Record sheet alone, pages 3 onwards, to go with
+   *  HR's own two pages (the user, 2026-10-27: "Leave the Training Plan"). */
+  const recordOnly = useSearchParams()[0].get('part') === 'record';
   const [t, setT] = useState<TrainingRequest | null>(null);
   const [err, setErr] = useState('');
 
@@ -56,35 +59,75 @@ export function TrainingFormPrint() {
       <div className="ip-toolbar">
         <button className="btn btn-sm" onClick={back}>← Back</button>
         <button className="btn btn-sm btn-primary"
-          onClick={() => { logAudit({ action: 'training.form_print', target: t.req_no || `#${t.id}`, status: 'ok', meta: { trainee: t.trainee_name } }); window.print(); }}>
+          onClick={() => { logAudit({ action: 'training.form_print', target: t.req_no || `#${t.id}`, status: 'ok', meta: { trainee: t.trainee_name, part: recordOnly ? 'record sheet' : 'form' } }); window.print(); }}>
           🖨 Print / Save as PDF
         </button>
-        <span className="muted">Training Form R/HR/11 · {t.trainee_name}{t.req_no ? ` · ${t.req_no}` : ' · no Request No. yet'} · A4</span>
+        {recordOnly
+          ? <Link className="btn btn-sm" to={`/training-form/${t.id}`} replace>Whole form</Link>
+          : <Link className="btn btn-sm" to={`/training-form/${t.id}?part=record`} replace>Record sheet only</Link>}
+        <span className="muted">Training Form R/HR/11 · {recordOnly ? `Record sheet, from page ${RECORD_SHEET_FIRST_PAGE}` : 'whole form'} · {t.trainee_name}{t.req_no ? ` · ${t.req_no}` : ' · no Request No. yet'} · A4</span>
       </div>
 
-      <TrainingFormSheet t={t} />
+      {recordOnly ? <RecordSheet t={t} /> : <TrainingFormSheet t={t} />}
     </div>
   );
 }
 
-/** The header on every page: the company, HR, and "TRAINING FORM [101/2026]"
- *  (the user, 2026-10-27: "Add the Training Number along with the Training
- *  Form in Square Brackets"). */
-function TrfHead({ t }: { t: TrainingRequest }) {
+/** Every printed page of the form and of the Record sheet: one A4 block,
+ *  header at the top, footer at the bottom. `@page` margin 0, so the page's
+ *  own padding is the margin and the browser adds no header or footer. */
+const A4_STYLE = `@page trf-a4 { size: A4 portrait; margin: 0; }
+.trf-a4 { width: 210mm; height: 296.5mm; box-sizing: border-box; padding: 10mm 12mm 8mm; margin: 0 auto 16px; background: #fff; color: #000;
+  display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.35);
+  font-family: Cambria, Georgia, 'Times New Roman', serif; font-size: 10pt; }
+.trf-a4-grow { height: auto; min-height: 296.5mm; overflow: visible; }
+.trf-a4 .ip-grid td, .trf-a4 .ip-grid th { padding: 2px 5px; }
+.trf-a4-body { flex: 1 1 0; min-height: 0; overflow: hidden; display: flow-root; padding-top: 1mm; }
+.trf-a4-grow .trf-a4-body { flex: 1 0 auto; overflow: visible; }
+.trf-a4 .trf-rs-intro { display: flow-root; }
+.trf-a4 .trf-sec { font-weight: 700; text-decoration: underline; font-size: 11.5pt; margin: 7px 0 3px; }
+.trf-a4 .trf-rs-intro .ip-grid { margin-top: 0; }
+.trf-a4 .trf-rec { margin-top: 6px; }
+.trf-a4 .trf-tick { font-size: 11pt; margin-right: 2px; }
+.trf-a4 .trf-ink td { height: 6.5mm; }
+.trf-a4 .trf-scale { font-size: 8pt; line-height: 1.3; }
+.trf-a4 .ip-foot { flex: none; margin-top: 3mm; }
+.trf-a4-probe { position: absolute; left: -10000px; top: 0; visibility: hidden; }
+@media print {
+  .trf-a4 { page: trf-a4; margin: 0; box-shadow: none; break-after: page; page-break-after: always; }
+  .trf-sheet + .trf-record-sheet .trf-a4:first-of-type { break-before: page; }
+  .trf-record-sheet .trf-a4:last-child, .trf-sheet:last-child .trf-a4:last-child { break-after: auto; page-break-after: auto; }
+  .trf-a4-probe { display: none !important; }
+  .trf-keep { page-break-inside: avoid; }
+}`;
+
+/** The header on every page -- the logo and the table beside it, as the
+ *  template's: the company, HR, TRAINING FORM and PAGE NO. Never the Request
+ *  No. (the user, 2026-10-27: "Dont add Training No in Header"). `page` fills
+ *  PAGE NO where the page is known -- on the Record sheet's own A4 pages. */
+function TrfHead({ page }: { page?: number }) {
   return (
     <table className="ip-head">
       <tbody>
         <tr>
           <td className="ip-logo" rowSpan={2}><img src={COMPANY_LOGO} alt="Air Liquide Medical Systems" /></td>
           <td className="ip-mid">{TRAINING_FORM.org}<br />{TRAINING_FORM.dept}</td>
-          <td className="ip-pg" rowSpan={2}>PAGE NO:</td>
+          <td className="ip-pg" rowSpan={2}>PAGE NO: {page ?? ''}</td>
         </tr>
-        <tr><td className="ip-mid">{trainingFormTitle(t.req_no)}</td></tr>
+        <tr><td className="ip-mid">{TRAINING_FORM.title}</td></tr>
       </tbody>
     </table>
   );
 }
-export const trainingFormTitle = (reqNo: string) => `${TRAINING_FORM.title}${reqNo.trim() ? ` [${reqNo.trim()}]` : ''}`;
+
+function TrfFoot() {
+  return (
+    <div className="ip-foot">
+      <div className="ip-foot-notice">{TRAINING_FORM.notice}</div>
+      <div className="ip-foot-tmpl">{TRAINING_FORM.tmpl}</div>
+    </div>
+  );
+}
 
 /** THE SHEET ITSELF, pure: the print page and a sample render draw the same one. */
 export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
@@ -97,24 +140,18 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
 
   return (
     <>
-      <section className="ip-sheet ip-portrait trf-sheet">
+      <section className="trf-sheet">
       {/* THE FORM'S OWN STYLE, WITH THE SHEET, so wherever the sheet is drawn it
-          looks the same. A NAMED PAGE, so another form's "@page { size: ... }"
-          in the same bundle cannot win. */}
-      <style>{`@page training-form { size: A4 portrait; margin: 10mm 12mm 14mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt Cambria, Georgia, serif; } }
-@media print { .trf-sheet { page: training-form; } .trf-frame > thead { display: table-header-group; } .trf-keep { page-break-inside: avoid; } }
-.trf-sheet { font-family: Cambria, Georgia, 'Times New Roman', serif; font-size: 10pt; }
-.trf-sheet .ip-grid td, .trf-sheet .ip-grid th { padding: 2px 5px; }
-.trf-frame { width: 100%; border-collapse: collapse; }
-.trf-frame > thead > tr > td, .trf-frame > tfoot > tr > td, .trf-frame > tbody > tr > td { padding: 0; border: none; }
-.trf-sec { font-weight: 700; text-decoration: underline; font-size: 11.5pt; margin: 7px 0 3px; }
-.trf-tick { font-size: 11pt; margin-right: 2px; }
-.trf-ink td { height: 6.5mm; }
-.trf-scale { font-size: 8pt; line-height: 1.3; }`}</style>
-      <table className="trf-frame">
-        {/* THE HEADER ON EVERY PAGE: a table's head repeats in print. */}
-        <thead><tr><td><TrfHead t={t} /></td></tr></thead>
-        <tbody><tr><td>
+          looks the same; a NAMED page, so another form's "@page" cannot win. */}
+      <style>{A4_STYLE}</style>
+      {/* TWO A4 PAGES, AS THE TEMPLATE: page 1 the PLAN and the RECORD, page 2
+          the EVALUATION -- each with the header (PAGE NO 1, 2) and the footer,
+          so the attached Record sheet's page 3 is the third page printed (the
+          user, 2026-10-27: "Footer and Header should be present in all
+          pages"). A page grows rather than clips if its content is longer. */}
+      <div className="trf-a4 trf-a4-grow">
+        <TrfHead page={1} />
+        <div className="trf-a4-body">
 
           <div className="trf-sec">PLAN</div>
           <table className="ip-grid trf-keep">
@@ -185,6 +222,13 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
             </tbody>
           </table>
 
+        </div>
+        <TrfFoot />
+      </div>
+
+      <div className="trf-a4 trf-a4-grow">
+        <TrfHead page={2} />
+        <div className="trf-a4-body">
           <div className="trf-sec">EVALUATION</div>
           <table className="ip-grid">
             <colgroup><col style={{ width: '8%' }} /><col style={{ width: '28%' }} /><col style={{ width: '16%' }} /><col style={{ width: '14%' }} /><col style={{ width: '16%' }} /><col style={{ width: '18%' }} /></colgroup>
@@ -218,14 +262,8 @@ export function TrainingFormSheet({ t }: { t: TrainingRequest }) {
             </tbody>
           </table>
 
-        </td></tr></tbody>
-      </table>
-      {/* THE FOOTER AFTER THE FORM: a repeated table foot is placed unreliably
-          in print (Chrome pushed it alone onto a second page). The HEADER
-          still repeats on a second page through the table head. */}
-      <div className="ip-foot">
-        <div className="ip-foot-notice">{TRAINING_FORM.notice}</div>
-        <div className="ip-foot-tmpl">{TRAINING_FORM.tmpl}</div>
+        </div>
+        <TrfFoot />
       </div>
     </section>
     {attached && <RecordSheet t={t} />}
@@ -243,43 +281,87 @@ function RecordRow({ l, i }: { l: { name: string; content: string; status: strin
 }
 
 /** THE ATTACHED RECORD SHEET (the user, 2026-10-27: "Simple Create a Sheet in
- *  the Same format for Record as Page 3 and Onwards"): a new page after the
- *  form, the same header, the training dates and trainer, then every employee
- *  over as many pages as it takes -- the column headings repeated on each. */
-function RecordSheet({ t }: { t: TrainingRequest }) {
-  return (
-    <section className="ip-sheet ip-portrait trf-sheet trf-record-sheet">
-      <style>{`@media print { .trf-record-sheet { break-before: page; page-break-before: always; } .trf-record-sheet .trf-rec > thead { display: table-header-group; } .trf-record-sheet .trf-rec tr { page-break-inside: avoid; } }`}</style>
-      <table className="trf-frame">
-        <thead><tr><td><TrfHead t={t} /></td></tr></thead>
-        <tbody><tr><td>
-          <div className="trf-sec">RECORD — attached sheet{t.req_no ? ` [${t.req_no}]` : ''}</div>
-          <table className="ip-grid trf-keep">
-            <colgroup><col style={{ width: '62%' }} /><col style={{ width: '38%' }} /></colgroup>
-            <tbody>
-              <tr>
-                <td><span className="ip-label">Training Topic: </span>{t.topic}<br />
-                  <span className="ip-label">Training From (Date) : </span>{formatDay(t.from_date)}
-                  <span style={{ marginLeft: 28 }} className="ip-label">To (Date) : </span>{formatDay(t.to_date)}</td>
-                <td><span className="ip-label">Trainer: </span>{t.trainer_name}<br /><span className="ip-label">Trainer Signature:</span>
-                  {t.trainer_signed?.signature && <img className="ip-sign-ink" style={{ maxHeight: '10mm' }} src={t.trainer_signed.signature} alt="Trainer signature" />}</td>
-              </tr>
-            </tbody>
-          </table>
-          <table className="ip-grid trf-rec">
-            <colgroup><col style={{ width: '8%' }} /><col style={{ width: '26%' }} /><col style={{ width: '34%' }} /><col style={{ width: '14%' }} /><col style={{ width: '18%' }} /></colgroup>
-            <thead><tr>
-              <th className="ip-c">S. No</th><th>Name of the Employee</th>
-              <th>Content of the training</th><th>Status</th><th>Signature</th>
-            </tr></thead>
-            <tbody>{(t.record_lines ?? []).map((l, i) => <RecordRow key={i} l={l} i={i} />)}</tbody>
-          </table>
-        </td></tr></tbody>
+ *  the Same format for Record as Page 3 and Onwards"; then: "Expected output
+ *  is a A4 Format. Page No should start from 3 and continue. Footer and Header
+ *  should be present in all pages").
+ *
+ *  LAID OUT INTO A4 PAGES HERE, NOT BY THE BROWSER: each page is a 210 x 297 mm
+ *  block with the header (PAGE NO 3, 4, ...), its rows and the footer, so
+ *  every printed page carries both and its number whatever the browser does
+ *  with a repeated table head or foot (Chrome placed the foot unreliably). The
+ *  rows are measured once, hidden, at the page's own width -- a long Content
+ *  of training or a signature makes a row taller -- and paginateRows() splits
+ *  them. The first page also carries the Request No., topic, dates and
+ *  trainer; the column headings repeat on every page. */
+export function RecordSheet({ t }: { t: TrainingRequest }) {
+  const rows = t.record_lines ?? [];
+  const probe = useRef<HTMLDivElement>(null);
+  const [pages, setPages] = useState<number[][] | null>(null);
+
+  useLayoutEffect(() => {
+    let live = true;
+    setPages(null);
+    void (async () => {
+      const el = probe.current;
+      if (!el) return;
+      // Images change a row's height: wait for the logo and the signatures.
+      await Promise.all([...el.querySelectorAll('img')].map((img) => (img.complete ? undefined
+        : new Promise((done) => { img.addEventListener('load', done); img.addEventListener('error', done); }))));
+      if (document.fonts) await document.fonts.ready;
+      const p = probe.current;
+      if (!live || !p) return;
+      const box = (sel: string) => (p.querySelector(sel) as HTMLElement).getBoundingClientRect();
+      const body = box('.trf-a4-body');
+      const table = box('.trf-rec');
+      const head = box('.trf-rec thead');
+      const heights = [...p.querySelectorAll('.trf-rec tbody tr')].map((r) => r.getBoundingClientRect().height);
+      const SLACK = 4; // rounding between screen and print
+      setPages(paginateRows(heights, body.bottom - head.bottom - SLACK, body.height - (head.bottom - table.top) - SLACK));
+    })();
+    return () => { live = false; };
+  }, [t]);
+
+  const intro = (
+    <div className="trf-rs-intro">
+      <div className="trf-sec">RECORD — attached sheet{t.req_no ? ` [${t.req_no}]` : ''}</div>
+      <table className="ip-grid">
+        <colgroup><col style={{ width: '62%' }} /><col style={{ width: '38%' }} /></colgroup>
+        <tbody>
+          <tr>
+            <td><span className="ip-label">Training Topic: </span>{t.topic}<br />
+              <span className="ip-label">Training From (Date) : </span>{formatDay(t.from_date)}
+              <span style={{ marginLeft: 28 }} className="ip-label">To (Date) : </span>{formatDay(t.to_date)}</td>
+            <td><span className="ip-label">Trainer: </span>{t.trainer_name}<br /><span className="ip-label">Trainer Signature:</span>
+              {t.trainer_signed?.signature && <img className="ip-sign-ink" style={{ maxHeight: '10mm' }} src={t.trainer_signed.signature} alt="Trainer signature" />}</td>
+          </tr>
+        </tbody>
       </table>
-      <div className="ip-foot">
-        <div className="ip-foot-notice">{TRAINING_FORM.notice}</div>
-        <div className="ip-foot-tmpl">{TRAINING_FORM.tmpl}</div>
-      </div>
+    </div>
+  );
+  const table = (idx: number[]) => (
+    <table className="ip-grid trf-rec">
+      <colgroup><col style={{ width: '8%' }} /><col style={{ width: '26%' }} /><col style={{ width: '34%' }} /><col style={{ width: '14%' }} /><col style={{ width: '18%' }} /></colgroup>
+      <thead><tr>
+        <th className="ip-c">S. No</th><th>Name of the Employee</th>
+        <th>Content of the training</th><th>Status</th><th>Signature</th>
+      </tr></thead>
+      <tbody>{idx.map((i) => <RecordRow key={i} l={rows[i]} i={i} />)}</tbody>
+    </table>
+  );
+  const page = (n: number, idx: number[], first: boolean, key?: number) => (
+    <div className="trf-a4" key={key}>
+      <TrfHead page={n} />
+      <div className="trf-a4-body">{first && intro}{table(idx)}</div>
+      <TrfFoot />
+    </div>
+  );
+
+  return (
+    <section className="trf-record-sheet">
+      <style>{A4_STYLE}</style>
+      {pages === null
+        ? <div className="trf-a4-probe" ref={probe} aria-hidden="true">{page(RECORD_SHEET_FIRST_PAGE, rows.map((_, i) => i), true)}</div>
+        : pages.map((idx, k) => page(RECORD_SHEET_FIRST_PAGE + k, idx, k === 0, k))}
     </section>
   );
 }
