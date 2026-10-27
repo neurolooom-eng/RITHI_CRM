@@ -98,5 +98,10 @@ end $$;
 revoke execute on function public.set_user_signature(uuid, text) from public, anon;
 grant execute on function public.set_user_signature(uuid, text) to authenticated;
 
-update public.notifications set link = '/profile?tab=signature'
- where kind = 'signature' and link = '#/profile?tab=signature';
+-- Guarded: on a fresh rebuild this module runs before notifications exists.
+do $$ begin
+  if to_regclass('public.notifications') is not null then
+    update public.notifications set link = '/profile?tab=signature'
+     where kind = 'signature' and link = '#/profile?tab=signature';
+  end if;
+end $$;

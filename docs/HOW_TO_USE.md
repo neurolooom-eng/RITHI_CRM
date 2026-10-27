@@ -2048,8 +2048,11 @@ typed into a form that reads it.
   > **A login that is not set up gets nothing.** If somebody can sign in but has no
   > profile and no User Master entry, they see one page asking them to get an
   > administrator to add them to the User Master, and a Sign out button — nothing
-  > else, and the database refuses them too. Add their User Master row and they
-  > arrive with its role the next time they sign in.
+  > else, and the database refuses them too — it gives them no row of any
+  > register. Add their User Master row (and keep it **Active**) and they
+  > arrive with its role the next time they sign in. **Only an active User
+  > Master row makes a profile**: a login on no row stays at that one page,
+  > however it was made.
   > **"Not connected to the RITHI database"** on the sign-in screen means this
   > browser was pointed at another database in Settings; press **Reconnect to the
   > RITHI database**.

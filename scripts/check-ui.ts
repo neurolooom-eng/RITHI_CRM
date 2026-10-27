@@ -2580,6 +2580,38 @@ console.log('\n-- a Training Form is signed by the people it names; the signatur
     /can\('users\.signature\.view'\) && !auditOn && sigFor\(r\)\?\.has_signature && <SignatureLook /.test(um), true);
 }
 
+// THE SECURITY SCAN'S CONTROLS (2026-10-27, docs/SECURITY_SCAN.md).
+console.log('\n-- security scan: links from data, and who holds nothing --');
+{
+  const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(`${d}/${e.name}`) : /\.tsx?$/.test(e.name) ? [`${d}/${e.name}`] : []);
+  // A link built from a record goes through safeUrl(); a constant, an in-app
+  // anchor, a blob made here or a Drive search the app builds itself does not
+  // need it. Anything else is a javascript: link waiting to be saved (D-176).
+  const OK = /^(safeUrl\(|DOC$|blobUrl$|driveSearchLink\(|SIGNATURE_LINK$|['`]#|`mailto:|`tel:)/;
+  const raw: string[] = [];
+  for (const f of walk('src')) {
+    const t = readFileSync(f, 'utf8');
+    for (const m of t.matchAll(/href=\{([^{}]+)\}/g)) if (!OK.test(m[1].trim())) raw.push(`${f}: href={${m[1].trim()}}`);
+    for (const m of t.matchAll(/window\.open\(([^,)]+)/g)) {
+      const e = m[1].trim();
+      if (!/^(safeUrl\(|''|u$|link$|safeRaw$|requestGmailUrl\()/.test(e)) raw.push(`${f}: window.open(${e}`);
+    }
+  }
+  eq('every link built from stored data passes safeUrl()', raw, []);
+  const re = readFileSync('src/components/ui/RichEditor.tsx', 'utf8');
+  eq('...and the rich editor sanitises what it loads', re.includes("el.innerHTML = sanitizeHtml(value || '');"), true);
+  const m61 = readFileSync('supabase/migrations/0461_anonymous_caller_holds_nothing.sql', 'utf8');
+  const m63 = readFileSync('supabase/migrations/0463_profile_only_for_the_user_master.sql', 'utf8');
+  const m64 = readFileSync('supabase/migrations/0464_no_profile_no_rows.sql', 'utf8');
+  eq('has_perm() holds nothing for anon; a profile only from an active User Master row; no profile reads no row',
+    m61.includes("when auth.uid() is null and coalesce(auth.role(), '') = 'anon' then false")
+      && /and coalesce\(validity, true\)\s+limit 1;\s+if not found then return null; end if;/.test(m63)
+      && m64.includes('as restrictive for all to anon, authenticated using ((select public.has_a_profile()))'), true);
+  const live = readFileSync('scripts/security-live-check.mjs', 'utf8');
+  eq('...and the live check only reads, and prints no row', !/method:\s*['"](POST|PATCH|PUT|DELETE)/i.test(live) && !/rpc\//.test(live) && !/console\.log\([^)]*body\b/.test(live), true);
+}
+
 // THE TRAINING FORM RECORD, THE DEVICE COPY'S CHANGE CHECK, AND AN ADMIN'S
 // SIGNATURE UPLOAD (the user, 2026-10-27).
 console.log('\n-- a Training Form from HR: Record only; the device copy notices changes; admin signature upload --');
@@ -6481,7 +6513,7 @@ console.log('\n-- KYC: the status and its evidence, both on the row --');
   eq('the records are on the row too', /key: 'kyc_docs', header: 'KYC Records'/.test(pm), true);
   // A LINK PER RECORD, not a count: the point is to open the certificate, and a
   // number tells somebody there is one without letting them see it.
-  eq('...as links rather than a count', /href=\{d\.url\} target="_blank"/.test(pm), true);
+  eq('...as links rather than a count', /href=\{safeUrl\(d\.url\)\} target="_blank"/.test(pm), true);
   // ONE WORDING, so the register and the drawer cannot describe one customer
   // two ways to the person deciding whether to sell to them.
   eq('"KYC Verified" is said in one place', /const KycChip = /.test(pm), true);

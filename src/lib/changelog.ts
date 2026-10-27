@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.226',
+    date: '2026-10-27',
+    title: 'Security fixes from the security scan',
+    changes: [
+      'Someone who is not signed in can no longer read or add anything. Before this, the public key built into the website could read call, visit, sale, contract and feedback records, and could add call requests, spare requests and feedback.',
+      'A sign-in that is not on the User Master gets nothing: no profile, no permissions, no rows. Before, anyone who made an account was given the Engineer role.',
+      'Links saved in records (documents, attachments, KYC files, Drive links) open only if they are real web, email or phone links, so a harmful link cannot run inside RITHI.',
+      'The full findings, what was fixed and what is still open are in the Security Scan report.',
+    ],
+  },
+  {
     version: '0.10.225',
     date: '2026-10-27',
     title: 'Administrators can upload a person\'s signature',

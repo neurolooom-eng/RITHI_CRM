@@ -973,6 +973,23 @@ on testing the old shape. **When a migration replaces a definition, move the
   such a line shows BLANK visit dates — it does not, since 0215**: both show the
   booking time (the last fallback) and only `Visit UID` is blank. Measured, not
   read. `_status.sql` row 186 checks the exemption AND the rule.
+- **NOBODY SIGNED IN, OR SIGNED IN WITH NO PROFILE, HOLDS AND READS NOTHING
+  (0461, 0463, 0464 — security scan 2026-10-27, `docs/SECURITY_SCAN.md`).**
+  `has_perm()` used to fall back to the Engineer set when `auth.uid()` was
+  NULL, so the public key in the website read 25 live relations; it answers
+  no to `auth.role() = 'anon'` now. `ensure_my_profile()` makes a profile ONLY
+  for an address on an active User Master row. Every table with row-level
+  security carries the RESTRICTIVE `zz_needs_a_profile` — **a new table gets
+  it by re-running `lockdown.sql`**, as `sys_columns.sql`; `_status.sql` row
+  374 counts the tables without it. A `_status.sql` row asserting a table has
+  NO write policy must filter `permissive = 'PERMISSIVE'` (or `polpermissive`)
+  — a restrictive policy grants nothing. **A link rendered from stored data
+  goes through `safeUrl()`**; `check:ui` refuses a raw `href={x.url}`.
+  **The repository and its Actions logs are PUBLIC**: a probe run through the
+  workflow prints counts, never a name; one that names people is for the SQL
+  editor only. `supabase/tests/_stub.sql`'s `auth.role()` reads
+  `request.jwt.claim.role` (default `authenticated`), so a suite can act as
+  `anon` the way Supabase does.
 - **A SECURITY DEFINER FUNCTION IS CALLABLE BY THE PUBLIC KEY UNLESS SOMEBODY
   SAYS OTHERWISE** (table review, 2026-09-26, findings 49-52). Postgres grants
   EXECUTE to PUBLIC by default and Supabase grants it to `anon`, so a definer

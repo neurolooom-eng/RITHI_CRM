@@ -86,12 +86,19 @@ select (select count(*) from public.field_failure_reports where ffr_no = 'RET-00
 -- be scoped by one.
 insert into public.field_failure_reports (ffr_no, ffr_date, ucn, product_name, product_serial)
 values ('RET-002', current_date, '', 'ORION-G', '2411');
+-- AS SOMEBODY WITH A PROFILE (0464): a login with none reads no row at all,
+-- so it would never reach the trigger this section exists to prove.
+insert into auth.users (id, email) values ('7e700000-0000-0000-0000-000000000001', 'ret.user@example.com') on conflict (id) do nothing;
+insert into public.profiles (id, email, full_name, role) values ('7e700000-0000-0000-0000-000000000001', 'ret.user@example.com', 'RET USER', 'engineer')
+on conflict (id) do nothing;
+update public.harness set uid = '7e700000-0000-0000-0000-000000000001', email = 'ret.user@example.com';
 begin;
 create policy ret_tmp_delete on public.field_failure_reports for delete to authenticated using (true);
 set local role authenticated;
 \echo 'expect ERROR: RECORD RETENTION ... field_failure_reports'
 delete from public.field_failure_reports where ffr_no = 'RET-002';
 rollback;
+update public.harness set uid = null, email = null;
 
 
 \echo ''

@@ -308,6 +308,9 @@ const MODULES = {
             // Security scan (0461): an anonymous caller holds no permission --
             // restates 0300's has_perm() -- and 0459's notification link.
             '0461_anonymous_caller_holds_nothing.sql',
+            // A profile only for an address on an active User Master row
+            // (0463, security scan F-02); restates 0033's ensure_my_profile.
+            '0463_profile_only_for_the_user_master.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -1660,7 +1663,10 @@ const MODULES = {
             '0338_helpers_not_public.sql',
             // The security scan's lockdown (0462): spare_request_rollup off
             // every API role, the dispatch and receipt actions off anon.
-            '0462_security_scan_lockdown.sql'],
+            '0462_security_scan_lockdown.sql',
+            // No profile, no rows (0464, F-02): a restrictive policy on every
+            // table with row-level security. LAST, to reach every table.
+            '0464_no_profile_no_rows.sql'],
   },
 };
 
