@@ -114,8 +114,11 @@ different totals. An empty register usually means access, not emptiness.
   > carries — not worked out again while it downloads. It is refreshed every six
   > hours and when the signal returns; the **Party Master** copy (and the
   > Standard Complaints) only once in ten days, since they change rarely — an
-  > edit on this device refreshes them at once. The line under the title says how
-  > many machines it holds and when it was downloaded. A machine added in the last few hours: press
+  > edit on this device refreshes them at once. **And whenever the server has
+  > changed anything** — an edit or upload on another device, a correction — the
+  > copy notices within about 15 minutes (and when you come back to the tab) and
+  > downloads again by itself. The line under the title says how
+  > many machines it holds and when it was downloaded. To have it at once: press
   > **Download again** there (or ↻ Refresh on the Product Database screen).
   > **🧹 Clear Cache and Update does not re-download it**, and neither does
   > **⟳ Update now** on the new-version banner — updating the app and refreshing
@@ -1302,6 +1305,11 @@ typed into a form that reads it.
   > signature** to see the image itself; each look is recorded in the audit
   > log (`signature.view`), the button is hidden while Audit Mode is on, and
   > seeing it does not let you place it — only its owner can sign with it.
+  > **Have someone's signature as a picture?** Administrators open the person
+  > and press **⬆ Upload signature** (or *Replace signature*) — upload only,
+  > for someone who has signed in at least once. It is recorded in the audit log
+  > (`signature.upload`), the person is notified and My Profile tells them who
+  > uploaded it, so they can replace it. Hidden in Audit Mode.
   > **Open a person (the row, or ⋯ → view) for their profile:** Employee Code,
   > Joining Date, Department, Designation, both managers, Mail ID, their
   > **Roles & Responsibilities** and their **training**. Employee Code and
@@ -1474,6 +1482,16 @@ typed into a form that reads it.
   > approval happens in RITHI — the approval is what HR's document says, and
   > you can correct it. The ones New Employee Requests raise carry the plan as
   > the manager gave it, Approved / Not approved as the request was decided.
+  > **On a form from HR's document, only the RECORD is filled in** once it is
+  > saved — training dates, names, content of training and status; the plan
+  > and the evaluation stay as the document gave them. **＋ All active users**
+  > adds everyone at once; choose a **Department** and **＋ Add everyone in it**
+  > for one department. Nobody is added twice. Each person gets the **Content
+  > of training by designation** typed for their User Master designation (the
+  > card above the list — type each designation's topics once). The printed
+  > form reads **TRAINING FORM [its number]** on every page, and a Record of
+  > more than seven people prints *See attached Record sheet* with the Record
+  > sheet following on a new page, as many pages as it needs.
   > **Signing:** each person signs their own part with the signature saved on
   > My Profile — a trainee their line, the trainer the Trainer Signature, the
   > Evaluator (a named field) the Signature of Evaluator — by pressing **✍️
@@ -2125,5 +2143,7 @@ typed into a form that reads it.
   only you can set or use it, and it goes only in the block that names you.
   An administrator can see it on your User Master entry — every look is
   recorded in the audit log, and never while Audit Mode is on — and remove a
-  leaver's; nobody but you can place it on anything.
+  leaver's; nobody but you can place it on anything. If an administrator
+  **uploaded** it for you, the page says who; draw or upload your own and Save
+  to replace it.
 - **Version History** `/version-history` — what changed in each release.

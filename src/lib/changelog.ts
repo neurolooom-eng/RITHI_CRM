@@ -14,6 +14,29 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.225',
+    date: '2026-10-27',
+    title: 'Administrators can upload a person\'s signature',
+    auditHidden: true,
+    changes: [
+      'On User Master, open a person and press ⬆ Upload signature (or Replace signature) to upload the picture of their signature you were given. This is for administrators only, and only for someone who has signed in at least once.',
+      'Every upload is recorded in the audit log. The person gets a notification, and My Profile → Signature tells them who uploaded it, so they can replace it with their own.',
+      'An uploaded signature goes on a form only when that person presses Sign. Hidden, and refused, while Audit Mode is on.',
+    ],
+  },
+  {
+    version: '0.10.224',
+    date: '2026-10-27',
+    title: 'Training Form Record for big lists; machine copies notice changes',
+    changes: [
+      'On a Training Form added from HR\'s document, only the Record is filled in now: training dates, names, content of training and status. The plan and the evaluation stay as HR\'s document gave them.',
+      'Content of training by designation: type, once, what each User Master designation is trained on. People added to a form get their designation\'s content.',
+      'In the Record: ＋ All active users adds everyone in one go, and choosing a Department then ＋ Add everyone in it adds that department. Nobody is added twice.',
+      'The printed form reads TRAINING FORM [101/2026] on every page. A Record of more than seven people prints "See attached Record sheet", and the Record sheet follows on a new page, in the same format, over as many pages as needed.',
+      'The copy of the machine register and Party Master kept on your device now notices when something changed on the server, within about 15 minutes, and downloads again by itself. Before, it could show an old customer for up to six hours, which is why VEGA | 31 still looked wrong after it was corrected.',
+    ],
+  },
+  {
     version: '0.10.223',
     date: '2026-10-27',
     title: 'Product Database: the party is always the latest sale entry or ownership transfer',

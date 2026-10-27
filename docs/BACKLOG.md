@@ -107,6 +107,28 @@ up)_
 
 ---
 
+## 2026-10-27 — Training Form Record for big lists; device copy notices server changes; admin uploads a signature (FRS-283, FRS-284, NAR-012, D-173, 0458–0460, v0.10.224–225)
+
+- **Training (0458).** The user, with "101_2026 Service": fill the Record
+  (names, content), nothing else editable; everyone in one go and by
+  department; content mapped per role; a Record sheet from page 3; the number
+  in square brackets. Asked: the Record section editable (dates, names,
+  content, status), plan + evaluation locked — in the guard; per User Master
+  DESIGNATION, from a list kept on screen (`training_content_by_designation`);
+  attached Record sheet past seven rows. **The plan is locked once saved**: a
+  parse mistake is corrected before the first Save, or not at all.
+- **VEGA | 31 "still wrong" (D-173, 0460).** The database read LOTUS (re-traced
+  live); the device copy refreshed on age only. Now each check asks the server
+  for any row written after the copy's latest `sys_updated_on`. Deletions are
+  still only seen at the six-hour refresh.
+- **Admin uploads a signature (0459, NAR-012).** "Admin uploads for them";
+  `set_user_signature()` with `users.signature.upload` (granted by no
+  migration), refused in Audit Mode, audit row + notification, `set_by_name`
+  shown on My Profile and cleared by the owner's own save. The 0172 stamp is
+  restated in `rbac` before its tail.
+
+---
+
 ## 2026-10-27 — Product Database party follows the latest sale entry or transfer; one-time re-mapping (FRS-282, D-172, 0457, v0.10.223)
 
 - **Reported.** VEGA | 31 read RAM MULTISPECIALITY HOSPITA,AHMEDABAD (with a

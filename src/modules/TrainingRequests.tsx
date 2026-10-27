@@ -18,8 +18,11 @@ import { formatDay } from '../lib/dates';
 import { logAudit } from '../lib/audit';
 import {
   listTrainingRequests, saveTrainingRequest, addTrainingRequest, signTrainingRequest, myPersonNames, approvalFromDoc,
-  type TrainingRequest, type TrainingRecordLine, type TrainingEvalLine, type TrainingSigned,
+  listTrainingContent, saveTrainingContent, linesToAdd,
+  type TrainingRequest, type TrainingRecordLine, type TrainingEvalLine, type TrainingSigned, type TrainingContentRow,
 } from '../lib/training';
+import { listDirectory, type DirectoryRow } from '../lib/supabase';
+import { useMaster } from '../lib/masters';
 import { readDocxDocumentXml } from '../lib/docxRead';
 import { parseTrainingDoc } from '../lib/trainingDoc';
 import { uploadToDrive } from '../lib/sheets';
@@ -54,6 +57,19 @@ export function TrainingRequests() {
   // Who the signed-in person is on a form, for the Sign buttons.
   const [myNames, setMyNames] = useState<string[]>([]);
   useEffect(() => { void myPersonNames().then(setMyNames); }, []);
+  // FOR FILLING THE RECORD (0458): the User Master's active people, the
+  // departments, and the content of training each designation gets.
+  const [dir, setDir] = useState<DirectoryRow[]>([]);
+  const [content, setContent] = useState<TrainingContentRow[]>([]);
+  const [dept, setDept] = useState('');
+  const departments = useMaster('department', [], mayEdit).values;
+  const loadContent = async () => { try { setContent(await listTrainingContent()); } catch { setContent([]); } };
+  useEffect(() => {
+    if (!mayEdit) return;
+    void listDirectory().then(setDir).catch(() => setDir([]));
+    void loadContent();
+  }, [mayEdit]);
+  const active = useMemo(() => dir.filter((d) => d.validity), [dir]);
   const isMe = (n: string) => myNames.includes(String(n ?? '').trim().toLowerCase());
 
   const load = async () => {
@@ -146,6 +162,16 @@ export function TrainingRequests() {
   const setLine = (i: number, p: Partial<TrainingRecordLine>) => edit && set({ record_lines: edit.record_lines.map((l, j) => (j === i ? { ...l, ...p } : l)) });
   const setEval = (i: number, p: Partial<TrainingEvalLine>) => edit && set({ evaluation_plan: edit.evaluation_plan.map((l, j) => (j === i ? { ...l, ...p } : l)) });
   const ro = !mayEdit;
+  // A FORM FROM THE HR DOCUMENT, once saved (0458): only the RECORD is filled
+  // in here; the plan and the evaluation are the document's and the database
+  // keeps them as saved. Before the first save they can still be checked.
+  const planRo = ro || (!!edit && edit.id !== 0 && !edit.employee_request_id);
+  const addPeople = (people: DirectoryRow[], what: string) => {
+    if (!edit) return;
+    const add = linesToAdd(people.map((d) => ({ name: d.name, designation: d.designation })), edit.record_lines, content);
+    set({ record_lines: [...edit.record_lines, ...add] });
+    setMsg({ tone: 'ok', text: add.length ? `Added ${add.length} ${what}${people.length - add.length ? ` (${people.length - add.length} already on the form)` : ''}. Content of training is filled from each person's designation where a list is kept.` : `Everyone ${what} is already on the form.` });
+  };
 
   return (
     <div>
@@ -156,6 +182,7 @@ export function TrainingRequests() {
         </div>
       )}
       {err && <div className="sheet-banner sheet-banner-error"><span>Could not read the training requests: {err}</span></div>}
+      {mayEdit && <TrainingContentCard rows={content} designations={active.map((d) => d.designation)} onSaved={() => void loadContent()} />}
       <DataTable<TrainingRequest> columns={columns} rows={shown} getRowId={(r) => String(r.id)} storageKey="trainingRequests"
         onRowClick={(r) => setEdit({ ...r, record_lines: [...(r.record_lines ?? [])], evaluation_plan: [...(r.evaluation_plan ?? [])] })}
         emptyText={rows === null && !err ? 'Loading…' : 'No training request yet — one is raised with each New Employee Request.'}
@@ -180,26 +207,27 @@ export function TrainingRequests() {
               {edit.id !== 0 && <a className="btn btn-sm" href={`#/training-form/${edit.id}`} target="_blank" rel="noopener noreferrer">📄 Training Form</a>}
             </div>
 
+            {planRo && !ro && <div className="sheet-banner sheet-banner-info"><span>From HR's document: only the <b>RECORD</b> is filled in here — training dates, names, content and status. The plan and the evaluation are as the document gave them.</span></div>}
             <div className="rep-sec-title">PLAN</div>
             <div className="rep-grid">
               <label className="rep-field"><span className="field-label">Training Request No.</span>
-                <input className="input" value={edit.req_no} disabled={ro} placeholder="e.g. 102/2026 — raised elsewhere" onChange={(e) => set({ req_no: e.target.value })} /></label>
+                <input className="input" value={edit.req_no} disabled={planRo} placeholder="e.g. 102/2026 — raised elsewhere" onChange={(e) => set({ req_no: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Date</span>
-                <input className="input" type="date" value={edit.req_date ?? ''} disabled={ro} onChange={(e) => set({ req_date: e.target.value })} /></label>
+                <input className="input" type="date" value={edit.req_date ?? ''} disabled={planRo} onChange={(e) => set({ req_date: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Trainee Name</span>
-                <input className="input" value={edit.trainee_name} disabled={ro} onChange={(e) => set({ trainee_name: e.target.value })} /></label>
+                <input className="input" value={edit.trainee_name} disabled={planRo} onChange={(e) => set({ trainee_name: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Designation</span>
-                <input className="input" value={edit.designation} disabled={ro} onChange={(e) => set({ designation: e.target.value })} /></label>
+                <input className="input" value={edit.designation} disabled={planRo} onChange={(e) => set({ designation: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Manager Name</span>
-                <input className="input" value={edit.manager_name} disabled={ro} onChange={(e) => set({ manager_name: e.target.value })} /></label>
+                <input className="input" value={edit.manager_name} disabled={planRo} onChange={(e) => set({ manager_name: e.target.value })} /></label>
               <label className="rep-field rep-span2"><span className="field-label">Training Topic</span>
-                <input className="input" value={edit.topic} disabled={ro} onChange={(e) => set({ topic: e.target.value })} /></label>
+                <input className="input" value={edit.topic} disabled={planRo} onChange={(e) => set({ topic: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Trainer name</span>
-                <input className="input" value={edit.trainer_name} disabled={ro} onChange={(e) => set({ trainer_name: e.target.value })} /></label>
+                <input className="input" value={edit.trainer_name} disabled={planRo} onChange={(e) => set({ trainer_name: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Trainer Designation</span>
-                <input className="input" value={edit.trainer_designation} disabled={ro} onChange={(e) => set({ trainer_designation: e.target.value })} /></label>
+                <input className="input" value={edit.trainer_designation} disabled={planRo} onChange={(e) => set({ trainer_designation: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Risk</span>
-                <SelectPicker value={edit.risk} disabled={ro} onChange={(v) => set({ risk: (v || 'Low') as TrainingRequest['risk'] })}
+                <SelectPicker value={edit.risk} disabled={planRo} onChange={(v) => set({ risk: (v || 'Low') as TrainingRequest['risk'] })}
                   options={TRAINING_RISKS.map((r) => ({ value: r, label: `${r.toUpperCase()} RISK — ${TRAINING_METHODOLOGY[r]}` }))} /></label>
               {edit.employee_request_id ? (
                 <div className="rep-field"><span className="field-label">Training Approved by</span>
@@ -211,9 +239,9 @@ export function TrainingRequests() {
                 // FROM THE HR DOCUMENT: no approval step in RITHI -- what the document says.
                 <>
                   <label className="rep-field"><span className="field-label">Training Approved by</span>
-                    <input className="input" value={edit.approved_by_name} disabled={ro} onChange={(e) => set({ approved_by_name: e.target.value })} /></label>
+                    <input className="input" value={edit.approved_by_name} disabled={planRo} onChange={(e) => set({ approved_by_name: e.target.value })} /></label>
                   <label className="rep-field"><span className="field-label">If No Reason</span>
-                    <input className="input" value={edit.not_approved_reason} disabled={ro} onChange={(e) => set({ not_approved_reason: e.target.value })} /></label>
+                    <input className="input" value={edit.not_approved_reason} disabled={planRo} onChange={(e) => set({ not_approved_reason: e.target.value })} /></label>
                 </>
               )}
             </div>
@@ -247,52 +275,66 @@ export function TrainingRequests() {
                 ))}
               </tbody>
             </table>
-            {!ro && <button className="btn btn-sm" style={{ marginTop: 6 }} onClick={() => set({ record_lines: [...edit.record_lines, { ...BLANK_LINE }] })}>＋ Add an employee</button>}
+            {!ro && (
+              <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button className="btn btn-sm" onClick={() => set({ record_lines: [...edit.record_lines, { ...BLANK_LINE }] })}>＋ Add an employee</button>
+                {/* EVERYONE AT ONCE (the user, 2026-10-27): all active users, or a department's. */}
+                <button className="btn btn-sm" disabled={!active.length} onClick={() => addPeople(active, 'active users')}>＋ All active users ({active.length.toLocaleString()})</button>
+                <div style={{ minWidth: 190 }}>
+                  <SelectPicker value={dept} onChange={setDept} placeholder="— department —"
+                    options={[...new Set([...departments, ...active.map((d) => d.department).filter(Boolean)])].sort()} />
+                </div>
+                <button className="btn btn-sm" disabled={!dept}
+                  onClick={() => addPeople(active.filter((d) => d.department.trim().toLowerCase() === dept.trim().toLowerCase()), `from ${dept}`)}>
+                  ＋ Add everyone in it ({active.filter((d) => d.department.trim().toLowerCase() === dept.trim().toLowerCase()).length})
+                </button>
+              </div>
+            )}
 
             <div className="rep-sec-title" style={{ marginTop: 14 }}>EVALUATION</div>
             <div className="rep-grid">
               <label className="rep-field"><span className="field-label">Training Evaluation Required</span>
-                <SelectPicker value={edit.evaluation_required == null ? '' : edit.evaluation_required ? 'YES' : 'NO'} disabled={ro}
+                <SelectPicker value={edit.evaluation_required == null ? '' : edit.evaluation_required ? 'YES' : 'NO'} disabled={planRo}
                   onChange={(v) => set({ evaluation_required: v === '' ? null : v === 'YES' })} placeholder="— choose —"
                   options={[{ value: 'YES', label: 'YES' }, { value: 'NO', label: 'NO' }]} /></label>
               {edit.evaluation_required === false && (
                 <label className="rep-field rep-span2"><span className="field-label">If ‘No’, Justification</span>
-                  <input className="input" value={edit.evaluation_justification} disabled={ro} placeholder="e.g. Being refresh training"
+                  <input className="input" value={edit.evaluation_justification} disabled={planRo} placeholder="e.g. Being refresh training"
                     onChange={(e) => set({ evaluation_justification: e.target.value })} /></label>
               )}
               <label className="rep-field rep-span2"><span className="field-label">Evaluation Method</span>
-                <input className="input" value={edit.evaluation_method} disabled={ro} onChange={(e) => set({ evaluation_method: e.target.value })} /></label>
+                <input className="input" value={edit.evaluation_method} disabled={planRo} onChange={(e) => set({ evaluation_method: e.target.value })} /></label>
               <label className="rep-field"><span className="field-label">Evaluator (signs the form)</span>
-                <input className="input" value={edit.evaluator_name} disabled={ro} placeholder="Name as on the User Master" onChange={(e) => set({ evaluator_name: e.target.value })} /></label>
+                <input className="input" value={edit.evaluator_name} disabled={planRo} placeholder="Name as on the User Master" onChange={(e) => set({ evaluator_name: e.target.value })} /></label>
               <div className="rep-field"><span className="field-label">Signature of Evaluator</span>
                 <div>{signedText(edit.evaluator_signed) || <span className="muted">Not signed</span>}
                   {edit.id !== 0 && !edit.evaluator_signed && isMe(edit.evaluator_name) && <button className="btn btn-sm btn-primary" style={{ marginLeft: 6 }} disabled={busy} onClick={() => void sign('evaluator')}>✍️ Sign</button>}</div>
               </div>
             </div>
             <table className="table" style={{ width: '100%', marginTop: 6 }}>
-              <thead><tr><th style={{ width: 40 }}>Sl. No</th><th>Training Evaluation Plan</th><th>Evaluator</th><th style={{ width: 140 }}>Planned Date</th><th>Status / Actual Date</th><th style={{ width: 190 }}>Rating</th>{!ro && <th style={{ width: 40 }} />}</tr></thead>
+              <thead><tr><th style={{ width: 40 }}>Sl. No</th><th>Training Evaluation Plan</th><th>Evaluator</th><th style={{ width: 140 }}>Planned Date</th><th>Status / Actual Date</th><th style={{ width: 190 }}>Rating</th>{!planRo && <th style={{ width: 40 }} />}</tr></thead>
               <tbody>
                 {edit.evaluation_plan.map((l, i) => (
                   <tr key={i}>
                     <td>{i + 1}</td>
-                    <td><input className="input" value={l.plan} disabled={ro} onChange={(e) => setEval(i, { plan: e.target.value })} /></td>
-                    <td><input className="input" value={l.evaluator} disabled={ro} onChange={(e) => setEval(i, { evaluator: e.target.value })} /></td>
-                    <td><input className="input" type="date" value={l.planned_date} disabled={ro} onChange={(e) => setEval(i, { planned_date: e.target.value })} /></td>
-                    <td><input className="input" value={l.actual} disabled={ro} onChange={(e) => setEval(i, { actual: e.target.value })} /></td>
-                    <td><SelectPicker value={l.rating} disabled={ro} onChange={(v) => setEval(i, { rating: v })} placeholder="— rating —"
+                    <td><input className="input" value={l.plan} disabled={planRo} onChange={(e) => setEval(i, { plan: e.target.value })} /></td>
+                    <td><input className="input" value={l.evaluator} disabled={planRo} onChange={(e) => setEval(i, { evaluator: e.target.value })} /></td>
+                    <td><input className="input" type="date" value={l.planned_date} disabled={planRo} onChange={(e) => setEval(i, { planned_date: e.target.value })} /></td>
+                    <td><input className="input" value={l.actual} disabled={planRo} onChange={(e) => setEval(i, { actual: e.target.value })} /></td>
+                    <td><SelectPicker value={l.rating} disabled={planRo} onChange={(v) => setEval(i, { rating: v })} placeholder="— rating —"
                       options={TRAINING_RATINGS.map((r) => r.label)} /></td>
-                    {!ro && <td><button className="btn btn-ghost btn-sm" title="Remove this line" onClick={() => set({ evaluation_plan: edit.evaluation_plan.filter((_, j) => j !== i) })}>✕</button></td>}
+                    {!planRo && <td><button className="btn btn-ghost btn-sm" title="Remove this line" onClick={() => set({ evaluation_plan: edit.evaluation_plan.filter((_, j) => j !== i) })}>✕</button></td>}
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!ro && <button className="btn btn-sm" style={{ marginTop: 6 }} onClick={() => set({ evaluation_plan: [...edit.evaluation_plan, { ...BLANK_EVAL }] })}>＋ Add an evaluation line</button>}
+            {!planRo && <button className="btn btn-sm" style={{ marginTop: 6 }} onClick={() => set({ evaluation_plan: [...edit.evaluation_plan, { ...BLANK_EVAL }] })}>＋ Add an evaluation line</button>}
             <div className="rep-grid" style={{ marginTop: 8 }}>
               <label className="rep-field"><span className="field-label">Performance Re-assessment (if required)?</span>
-                <SelectPicker value={edit.reassessment} disabled={ro} onChange={(v) => set({ reassessment: (v || '') as TrainingRequest['reassessment'] })}
+                <SelectPicker value={edit.reassessment} disabled={planRo} onChange={(v) => set({ reassessment: (v || '') as TrainingRequest['reassessment'] })}
                   placeholder="— choose —" options={[{ value: 'Yes', label: 'YES' }, { value: 'No', label: 'NO' }]} /></label>
               <label className="rep-field rep-span2"><span className="field-label">Remarks</span>
-                <input className="input" value={edit.remarks} disabled={ro} onChange={(e) => set({ remarks: e.target.value })} /></label>
+                <input className="input" value={edit.remarks} disabled={planRo} onChange={(e) => set({ remarks: e.target.value })} /></label>
             </div>
 
             <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
@@ -303,6 +345,68 @@ export function TrainingRequests() {
           </div>
         )}
       </Drawer>
+    </div>
+  );
+}
+
+// ===========================================================================
+// CONTENT OF TRAINING BY DESIGNATION (0458; the user, 2026-10-27: "it has to
+// be Mapped per Role. Like Reporting Manager gets few additional things,
+// Engineer get few things, Hotline engineer gets few things"; asked: per User
+// Master designation, "a list I fill on screen"). Every designation an active
+// person holds is listed, with what has been typed for it; nothing is filled
+// in for one that has no list.
+// ===========================================================================
+function TrainingContentCard({ rows, designations, onSaved }: { rows: TrainingContentRow[]; designations: string[]; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState('');
+  const [note, setNote] = useState('');
+  const list = useMemo(() => {
+    const m = new Map<string, { designation: string; row?: TrainingContentRow }>();
+    rows.forEach((r) => m.set(r.designation.trim().toLowerCase(), { designation: r.designation, row: r }));
+    designations.map((d) => d.trim()).filter(Boolean).forEach((d) => { if (!m.has(d.toLowerCase())) m.set(d.toLowerCase(), { designation: d }); });
+    return [...m.values()].sort((a, b) => a.designation.localeCompare(b.designation));
+  }, [rows, designations]);
+  const kept = rows.filter((r) => r.content.trim()).length;
+  const save = async (d: { designation: string; row?: TrainingContentRow }) => {
+    const k = d.designation.toLowerCase();
+    setBusy(k); setNote('');
+    const res = await saveTrainingContent(d.designation, draft[k] ?? d.row?.content ?? '', d.row?.id);
+    logAudit({ action: 'training.content.save', target: d.designation, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
+    setBusy('');
+    if (!res.ok) { setNote(res.error ?? 'Could not save.'); return; }
+    setDraft((x) => { const y = { ...x }; delete y[k]; return y; });
+    onSaved();
+  };
+  return (
+    <div className="sheet-banner sheet-banner-info" style={{ display: 'block' }}>
+      <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span>📋 <b>Content of training by designation</b> — {kept} of {list.length} designations have a list. Added people get theirs.</span>
+        <button className="btn btn-ghost btn-sm" onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Show / edit'}</button>
+      </div>
+      {open && (
+        <div style={{ marginTop: 8, maxHeight: 360, overflow: 'auto' }}>
+          {note && <div className="muted" style={{ color: 'var(--danger)' }}>{note}</div>}
+          <table className="table" style={{ width: '100%' }}>
+            <thead><tr><th style={{ width: 220 }}>Designation</th><th>Content of the training</th><th style={{ width: 90 }} /></tr></thead>
+            <tbody>
+              {list.map((d) => {
+                const k = d.designation.toLowerCase();
+                const v = draft[k] ?? d.row?.content ?? '';
+                return (
+                  <tr key={k}>
+                    <td>{d.designation}</td>
+                    <td><textarea className="input" rows={2} value={v} placeholder="Type what this designation is trained on"
+                      onChange={(e) => setDraft((x) => ({ ...x, [k]: e.target.value }))} /></td>
+                    <td><button className="btn btn-sm btn-primary" disabled={busy === k || draft[k] === undefined} onClick={() => void save(d)}>{busy === k ? 'Saving…' : 'Save'}</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -62,9 +62,12 @@ export function trimToInk(src: HTMLCanvasElement, pad = 6): string {
   return out.toDataURL('image/png');
 }
 
-export function SignaturePad({ value, onChange }: {
+export function SignaturePad({ value, onChange, uploadOnly = false }: {
   value: string;
   onChange: (dataUrl: string) => void;
+  /** An administrator saving somebody's signature (0459) may only UPLOAD the
+   *  picture of it they were given -- never draw one on that person's behalf. */
+  uploadOnly?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
@@ -100,6 +103,7 @@ export function SignaturePad({ value, onChange }: {
 
   const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    if (uploadOnly) return;
     ref.current?.setPointerCapture(e.pointerId);
     drawing.current = true;
     last.current = at(e);
@@ -184,7 +188,7 @@ export function SignaturePad({ value, onChange }: {
             onChange={(e) => { upload(e.target.files?.[0] ?? null); e.target.value = ''; }}
           />
         </label>
-        <span className="muted">Sign with a finger, a stylus or the mouse — or upload a photograph of your signature on paper.</span>
+        <span className="muted">{uploadOnly ? 'Upload the picture of their signature you were given.' : 'Sign with a finger, a stylus or the mouse — or upload a photograph of your signature on paper.'}</span>
       </div>
       {err && <div className="muted" style={{ color: 'var(--danger)', marginTop: 6 }}>{err}</div>}
     </div>

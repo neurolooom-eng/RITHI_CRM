@@ -5151,14 +5151,16 @@ export async function sbCurrentProfile(): Promise<Profile | null> {
 // no "read somebody else's": a signature a second person can obtain is one they
 // can put on anything.
 // ---------------------------------------------------------------------------
-export interface MySignature { signature: string; name_line: string; title_line: string; updated_at?: string }
+export interface MySignature { signature: string; name_line: string; title_line: string; updated_at?: string;
+  /** Who uploaded it, where an administrator did (0459); cleared when the owner saves their own. */
+  set_by_name?: string }
 
 export async function sbMySignature(): Promise<MySignature | null> {
   const c = getSupabase(); if (!c) return null;
   const { data: { user } } = await c.auth.getUser();
   if (!user) return null;
   const { data, error } = await c.from('user_signatures')
-    .select('signature, name_line, title_line, updated_at').eq('user_id', user.id).maybeSingle();
+    .select('*').eq('user_id', user.id).maybeSingle();
   // A table that is not there yet is "no signature", not a broken Profile page:
   // the migration is the user's step and the rest of the page must still work.
   if (error) return null;
@@ -5194,6 +5196,14 @@ export async function sbSignatureOf(userId: string): Promise<MySignature | null>
   if (error) throw new Error(errMsg(error));
   const row = (data as MySignature[] | null)?.[0];
   return row?.signature ? row : null;
+}
+
+/** AN ADMINISTRATOR SAVES SOMEBODY'S SIGNATURE (0459, NAR-012). The database
+ *  checks the key, refuses in Audit Mode, records it in the audit log and tells
+ *  the person. */
+export async function sbSetUserSignature(userId: string, dataUrl: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('set_user_signature', { p_user: userId, p_signature: dataUrl });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 export async function sbSaveMySignature(sig: MySignature): Promise<{ ok: boolean; error?: string }> {
