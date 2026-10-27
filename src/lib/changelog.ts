@@ -14,6 +14,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.221',
+    date: '2026-10-27',
+    title: 'User Master shows each person\'s signature',
+    changes: [
+      'User Master has a Signature column: Saved with the date, Not yet, or No login (never signed in). Filter on it beside the tag box; it is in the CSV too.',
+      'Open a person and press ✍️ Show signature to see their signature itself. Every look is recorded in the audit log: who looked, at whose, and when.',
+      'Seeing a signature does not let anybody use it. Only its owner can put it on a form, by pressing Sign on the part that names them.',
+      'For anyone who may edit User Master details. My Profile → Signature now says who can see it.',
+    ],
+  },
+  {
     version: '0.10.220',
     date: '2026-10-27',
     title: 'Training Forms from HR, signed in RITHI; a reminder to save your signature',

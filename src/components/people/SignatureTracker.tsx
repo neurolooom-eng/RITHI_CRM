@@ -7,23 +7,17 @@
 // was saved. WHETHER and WHEN only, never the image (0172: nobody reads
 // anybody else's signature).
 // ===========================================================================
-import { useEffect, useMemo, useState } from 'react';
-import { sbSignatureTracker, type SignatureTrackerRow } from '../../lib/supabase';
+import { useMemo, useState } from 'react';
+import { type SignatureTrackerRow } from '../../lib/supabase';
 import { formatDayTime } from '../../lib/dates';
 import { csvExport } from '../../lib/format';
 import { COMPLETE } from '../../lib/exportscope';
 
-export function SignatureTracker() {
-  const [rows, setRows] = useState<SignatureTrackerRow[] | null>(null);
-  const [err, setErr] = useState('');
+// The rows are loaded once by User Master, which also uses them for its
+// Signature column -- one read, two views of it.
+export function SignatureTracker({ rows, err }: { rows: SignatureTrackerRow[] | null; err: string }) {
   const [open, setOpen] = useState(false);
   const [show, setShow] = useState<'pending' | 'done'>('pending');
-
-  useEffect(() => {
-    let live = true;
-    sbSignatureTracker().then((r) => { if (live) setRows(r); }).catch((e) => { if (live) setErr(String((e as Error)?.message ?? e)); });
-    return () => { live = false; };
-  }, []);
 
   const active = useMemo(() => (rows ?? []).filter((r) => r.active), [rows]);
   const done = active.filter((r) => r.has_signature);

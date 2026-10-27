@@ -1005,7 +1005,10 @@ const MODULES = {
             // Training forms added from the HR document, signed in RITHI by the
             // people they name, and the signature tracker (0454). Restates
             // 0453's guard, so after it.
-            '0454_training_signing_and_upload.sql'],
+            '0454_training_signing_and_upload.sql',
+            // The signature on User Master: one person's image, to whoever
+            // edits User Master details, every look audited (0455).
+            '0455_signature_on_user_master.sql'],
   },
   masters: {
     title: 'Master Value Lists',
