@@ -2564,7 +2564,12 @@ console.log('\n-- a Training Form is signed by the people it names; the signatur
   const prof = readFileSync('src/modules/Profile.tsx', 'utf8');
   eq('...and My Profile opens the tab a link names', /params\.get\('tab'\)/.test(prof) && /<TrainingToSign \/>/.test(prof), true);
   const um = readFileSync('src/modules/UserMasterView.tsx', 'utf8');
-  eq('the tracker is on User Master for whoever edits its details', /\{editable && !editing && <SignatureTracker \/>\}/.test(um), true);
+  eq('the tracker is on User Master for whoever edits its details', /\{editable && !editing && <SignatureTracker rows=\{sigRows\} err=\{sigErr\} \/>\}/.test(um), true);
+  const s455 = readFileSync('supabase/migrations/0455_signature_on_user_master.sql', 'utf8');
+  eq('...the signature itself is shown one person at a time, every look audited in the same call (0455)',
+    /has_perm\('users\.manage\.details'\)/.test(s455) && /'signature\.view'/.test(s455)
+      && /\{editable && sigFor\(r\)\?\.has_signature && <SignatureLook /.test(um) && /sbSignatureOf\(userId\)/.test(um), true);
+  eq('...and My Profile tells its owner who can see it', /can <i>see<\/i> it on your User Master entry/.test(prof), true);
 }
 
 // THE CONTRACT ENTRY VIEW'S FORMAT (the user, 2026-10-23).

@@ -119,3 +119,22 @@ set role authenticated;
 \echo '    expect ERROR below -- an engineer may not see the tracker'
 select * from public.signature_tracker();
 reset role;
+
+\echo
+\echo '--- 5. the signature on User Master (0455): one person''s image, every look audited ---'
+call public.be('tsg.hr@example.com');
+set role authenticated;
+select (select signature from public.user_signature_of('ee000454-0000-0000-0000-000000000002')) = 'data:image/png;base64,ARUN'
+       as "a User Master manager sees Arun's signature";
+select count(*) = 0 as "...and nobody's row is readable from the table itself"
+  from public.user_signatures where user_id = 'ee000454-0000-0000-0000-000000000002';
+reset role;
+select exists (select 1 from public.audit_log where action = 'signature.view' and user_id = 'ee000454-0000-0000-0000-000000000005'
+                 and meta->>'user_id' = 'ee000454-0000-0000-0000-000000000002')
+       as "the look is recorded: who, whose, when";
+call public.be('tsg.arun@example.com');
+set role authenticated;
+\echo '    expect ERROR below -- an engineer may not see anybody''s signature'
+select * from public.user_signature_of('ee000454-0000-0000-0000-000000000001');
+reset role;
+select not has_function_privilege('anon', 'public.user_signature_of(uuid)', 'execute') as "the public key cannot call it";

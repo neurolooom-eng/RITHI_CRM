@@ -8,8 +8,9 @@ import { csvExport, fmtLongDate, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
   listDirectory, saveDirectoryRow, deleteDirectoryRow, updateProfile, sbAdminCreateUser, sbAdminResetPassword, userActivity,
-  supabaseConfigured, type DirectoryRow, type UserActivity,
+  supabaseConfigured, sbSignatureTracker, sbSignatureOf, type DirectoryRow, type UserActivity, type SignatureTrackerRow, type MySignature,
 } from '../lib/supabase';
+import { formatDay, formatDayTime } from '../lib/dates';
 import { logAudit } from '../lib/audit';
 import { generatePassword } from '../lib/password';
 import './fieldcalls.css';
@@ -190,6 +191,34 @@ export function UserMasterView() {
   };
 
   useEffect(() => { void load(''); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // WHO HAS SAVED A SIGNATURE (0454/0455; the user, 2026-10-27: "Show
+  // signature in User Master" -- asked: "Both", a column for everyone and the
+  // image in the opened person). One read feeds the tracker card, the
+  // Signature column, its filter and the CSV. Only for whoever edits these
+  // details; the database refuses anybody else.
+  const [sigRows, setSigRows] = useState<SignatureTrackerRow[] | null>(null);
+  const [sigErr, setSigErr] = useState('');
+  const [sigFilter, setSigFilter] = useState<'' | 'saved' | 'not'>('');
+  useEffect(() => {
+    if (!editable) return;
+    let on = true;
+    sbSignatureTracker().then((r) => { if (on) setSigRows(r); }).catch((e) => { if (on) setSigErr(e instanceof Error ? e.message : String(e)); });
+    return () => { on = false; };
+  }, [editable]);
+  const sigByEmail = useMemo(() => {
+    const m = new Map<string, SignatureTrackerRow>();
+    (sigRows ?? []).forEach((t) => { if (t.email) m.set(t.email.toLowerCase(), t); });
+    return m;
+  }, [sigRows]);
+  /** The login's signature row behind a User Master row; undefined = no login. */
+  const sigFor = (r: DirectoryRow): SignatureTrackerRow | undefined =>
+    sigByEmail.get((r.email || '').toLowerCase()) ?? sigByEmail.get((r.gmail || '').toLowerCase());
+  const sigText = (r: DirectoryRow): string => {
+    const t = sigFor(r);
+    if (!t) return 'No login';
+    return t.has_signature ? `Saved${t.signed_at ? ` ${formatDay(t.signed_at)}` : ''}` : 'Not yet';
+  };
 
   // A RENAME, SAID BEFORE IT IS SAVED (finding 23). The reporting tree and
   // every register match people by NAME, so the save moves (0257) everybody
@@ -491,6 +520,16 @@ export function UserMasterView() {
         ? <span className="badge badge-success">Yes</span>
         : <span className="badge badge-neutral">Not yet</span>),
     },
+    ...(sigRows ? [{
+      key: 'signature', header: 'Signature', width: 120, wrap: false, sortable: false,
+      render: (r: DirectoryRow) => {
+        const t = sigFor(r);
+        if (!t) return <span className="muted">No login</span>;
+        return t.has_signature
+          ? <span className="badge badge-success" title={t.signed_at ? `Saved ${formatDayTime(t.signed_at)}` : undefined}>Saved{t.signed_at ? ` ${formatDay(t.signed_at)}` : ''}</span>
+          : <span className="badge badge-neutral">Not yet</span>;
+      },
+    } as Column<DirectoryRow & Record<string, unknown>>] : []),
     { key: 'email', header: 'Air Liquide ID', width: 200, wrap: false, render: cell('email', 'name@airliquide.com') },
     { key: 'gmail', header: 'Gmail', width: 180, wrap: false, render: cell('gmail', 'name@gmail.com') },
     { key: 'region', header: 'Region', width: 90, wrap: false, render: cell('region') },
@@ -555,10 +594,17 @@ export function UserMasterView() {
   // (case-blind). Nothing chosen means every person.
   const visibleDir = useMemo(() => {
     const s = q.trim().toLowerCase();
-    const byTag = tagFilter.length ? dir.filter((r) => tagFilter.some((t) => hasTag(r.tags, t))) : dir;
+    const byTag0 = tagFilter.length ? dir.filter((r) => tagFilter.some((t) => hasTag(r.tags, t))) : dir;
+    // Signature filter: "Not yet" means a login with none saved -- somebody
+    // who has never signed in has nothing to save one to.
+    const byTag = !sigFilter || !sigRows ? byTag0 : byTag0.filter((r) => {
+      const t = sigFor(r);
+      return sigFilter === 'saved' ? !!t?.has_signature : !!t && !t.has_signature;
+    });
     if (!s) return byTag;
     return byTag.filter((r) => `${r.name} ${r.email} ${r.gmail} ${r.designation} ${r.region} ${roleLabel(r.role)} ${(r.tags ?? []).join(' ')}`.toLowerCase().includes(s));
-  }, [dir, q, tagFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dir, q, tagFilter, sigFilter, sigRows, sigByEmail]);
 
   // ---------------------------------------------------------------------
   // WHERE THE LIST AND THE SIGN-IN DISAGREE ABOUT SOMEBODY'S ROLE.
@@ -655,7 +701,7 @@ export function UserMasterView() {
       )}
 
       {/* WHO HAS SAVED A SIGNATURE (0454) -- for whoever edits these details. */}
-      {editable && !editing && <SignatureTracker />}
+      {editable && !editing && <SignatureTracker rows={sigRows} err={sigErr} />}
 
       {live ? (
         <DataTable<DirectoryRow & Record<string, unknown>>
@@ -696,6 +742,12 @@ export function UserMasterView() {
               <div style={{ minWidth: 180 }}>
                 <MultiPick values={tagFilter} options={dirTags} onChange={setTagFilter} allLabel="Any tag" noun="tags" />
               </div>
+              {sigRows && (
+                <div style={{ minWidth: 170 }}>
+                  <SelectPicker value={sigFilter} onChange={(v) => setSigFilter(v as '' | 'saved' | 'not')} placeholder="Any signature"
+                    options={[{ value: '', label: 'Any signature' }, { value: 'saved', label: 'Signature saved' }, { value: 'not', label: 'Signature not yet' }]} />
+                </div>
+              )}
               {editable && (
                 <span className="muted">
                   {editing
@@ -708,7 +760,7 @@ export function UserMasterView() {
                 <button className="btn btn-sm" onClick={() => csvExport('user-master.csv',
                   liveColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })),
                   // Tags as one cell, "A; B" -- an array would print as a bare comma list.
-                  visibleDir.map((r) => ({ ...r, tags: (r.tags ?? []).join('; ') })) as unknown as Record<string, unknown>[], COMPLETE)}>⭳ Export CSV</button>
+                  visibleDir.map((r) => ({ ...r, tags: (r.tags ?? []).join('; '), signature: sigRows ? sigText(r) : '' })) as unknown as Record<string, unknown>[], COMPLETE)}>⭳ Export CSV</button>
               )}
             </Toolbar>
           }
@@ -832,6 +884,7 @@ export function UserMasterView() {
           ['Tags', (r.tags ?? []).join(', ') || '—'],
           ['Role', roleLabel(prof?.rbacRole || r.role)],
           ['Signed in', prof ? 'Yes' : 'Not yet'],
+          ...(sigRows ? [['Signature', sigText(r)] as [string, string]] : []),
           ['Air Liquide ID', r.email || '—'],
           ['Gmail', r.gmail || '—'],
           ['Region', r.region || '—'],
@@ -876,6 +929,8 @@ export function UserMasterView() {
                   </tbody>
                 </table>
               </div>
+              {/* THE SIGNATURE ITSELF (0455), on request, every look audited. */}
+              {editable && sigFor(r)?.has_signature && <SignatureLook userId={sigFor(r)!.user_id} name={r.name} />}
               {/* PROFILE, ROLES & RESPONSIBILITIES AND TRAINING (0264). */}
               {live && r.id > 0 && <PersonProfile person={r} />}
             </div>
@@ -1136,6 +1191,44 @@ function UserForm({ row, busy, signedInRole, names, regions, departments, tags, 
           {busy ? 'Saving…' : row.id ? 'Save' : 'Add user'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// ONE PERSON'S SIGNATURE, SHOWN ON REQUEST (0455). Not loaded with the drawer:
+// every look is written to the audit log by the database, so it is fetched
+// only when somebody presses Show -- opening a person to fix their region is
+// not looking at their signature, and the log should not say it was.
+// ===========================================================================
+function SignatureLook({ userId, name }: { userId: string; name: string }) {
+  const [sig, setSig] = useState<MySignature | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const show = async () => {
+    setBusy(true); setErr('');
+    try { const s = await sbSignatureOf(userId); setSig(s); if (!s) setErr('No signature saved.'); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="rep-form" style={{ marginTop: 8 }}>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        <b>Signature</b>
+        {!sig && <button className="btn btn-sm" disabled={busy} onClick={() => void show()}>{busy ? 'Loading…' : '✍️ Show signature'}</button>}
+        <span className="muted" style={{ fontSize: 12 }}>Each look is recorded in the audit log. Seeing it does not let anybody place it: only {name || 'its owner'} can sign with it.</span>
+      </div>
+      {err && <div className="muted">{err}</div>}
+      {sig && (
+        <div style={{ marginTop: 6 }}>
+          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 6, padding: 8, display: 'inline-block' }}>
+            <img src={sig.signature} alt={`Signature of ${name}`} draggable={false} onContextMenu={(e) => e.preventDefault()}
+              style={{ maxWidth: 320, maxHeight: 110, display: 'block' }} />
+          </div>
+          {(sig.name_line || sig.title_line) && <div style={{ fontSize: 13, marginTop: 4 }}>{sig.name_line}{sig.title_line ? ` · ${sig.title_line}` : ''}</div>}
+          {sig.updated_at && <div className="muted" style={{ fontSize: 12 }}>Saved {formatDayTime(sig.updated_at)}</div>}
+        </div>
+      )}
     </div>
   );
 }

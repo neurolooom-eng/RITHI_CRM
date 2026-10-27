@@ -5186,6 +5186,16 @@ export async function sbSignatureTracker(): Promise<SignatureTrackerRow[]> {
   return (data ?? []) as SignatureTrackerRow[];
 }
 
+/** ONE person's saved signature, for whoever may edit User Master details
+ *  (0455). The database records every call in audit_log -- who looked at
+ *  whose -- so a look that is not logged does not happen. Null: none saved. */
+export async function sbSignatureOf(userId: string): Promise<MySignature | null> {
+  const { data, error } = await must().rpc('user_signature_of', { p_user: userId });
+  if (error) throw new Error(errMsg(error));
+  const row = (data as MySignature[] | null)?.[0];
+  return row?.signature ? row : null;
+}
+
 export async function sbSaveMySignature(sig: MySignature): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   const { data: { user } } = await c.auth.getUser();

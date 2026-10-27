@@ -107,6 +107,23 @@ up)_
 
 ---
 
+## 2026-10-27 — The signature on User Master (FRS-281.7, 0455, v0.10.221)
+
+- **Shipped.** The user: "Show signature in User Master". Asked, and shown that
+  it changes 0172's rule that nobody reads anybody else's signature: "Both" — a
+  Saved / Not yet column for everyone, and the image in the opened person.
+  `user_signature_of(uuid)` (users.manage.details) returns one person's image
+  and writes `signature.view` to `audit_log` in the same call; fetched only on
+  **Show signature**, so opening a person is not logged as a look.
+  `user_signatures`' policies are unchanged. Column, filter and CSV from the
+  0454 tracker read. My Profile → Signature, `signature.ts` and HOW_TO_USE say
+  who can see it now. `_status.sql` row 367; `training_signing_test` part 5.
+- **Seeing is not placing**: nothing that places a signature reads any but
+  the signed-in person's own. A screenshot is still possible, and nothing in a
+  browser can stop one; that is what the audit row is for.
+
+---
+
 ## 2026-10-27 — Training Forms from the HR document, signed in RITHI; signature reminder and tracker (FRS-281, 0454, v0.10.220)
 
 - **Shipped.** The user: "No approval Workflow required. I shall upload the

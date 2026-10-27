@@ -11,9 +11,11 @@
 // for — is a system that signs documents on people's behalf, and a mark applied
 // by software to a record somebody else is accountable for is not a signature.
 //
-// This is also why the storage (0172) lets nobody read anybody else's: the rule
-// here is not a policy decision that could be relaxed later on a screen, it is
-// the only thing the data permits.
+// The storage (0172) lets nobody read anybody else's row. Since 0455 (the user,
+// 2026-10-27) user_signature_of() SHOWS one person's signature to whoever may
+// edit User Master details, each look audited -- seeing, never placing: nothing
+// here or in sign_training_request() ever reaches for anybody's signature but
+// the signed-in person's own.
 // ===========================================================================
 import { useEffect, useState } from 'react';
 import { sbMySignature, supabaseConfigured, type MySignature } from './supabase';
