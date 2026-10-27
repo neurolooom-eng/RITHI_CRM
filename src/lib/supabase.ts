@@ -5165,6 +5165,27 @@ export async function sbMySignature(): Promise<MySignature | null> {
   return (data as MySignature) ?? null;
 }
 
+/** Has the signed-in login saved a signature? true / false, or NULL when the
+ *  database could not be asked -- which the reminder must not read as "no",
+ *  or a dropped connection nags somebody who signed months ago. */
+export async function sbHasSignature(): Promise<boolean | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { data: { user } } = await c.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await c.from('user_signatures').select('signature').eq('user_id', user.id).maybeSingle();
+  if (error) return null;
+  return !!String((data as { signature?: string } | null)?.signature ?? '').trim();
+}
+
+/** THE SIGNATURE TRACKER (0454): per login, whether and when a signature was
+ *  saved -- never the image. For whoever may edit User Master details. */
+export interface SignatureTrackerRow { user_id: string; full_name: string; email: string; designation: string; active: boolean; has_signature: boolean; signed_at: string | null }
+export async function sbSignatureTracker(): Promise<SignatureTrackerRow[]> {
+  const { data, error } = await must().rpc('signature_tracker');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as SignatureTrackerRow[];
+}
+
 export async function sbSaveMySignature(sig: MySignature): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   const { data: { user } } = await c.auth.getUser();

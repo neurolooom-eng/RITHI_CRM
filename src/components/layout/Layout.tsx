@@ -8,6 +8,7 @@ import { ViewAsControl, ViewAsBanner } from './ViewAs';
 import { MASTER_LISTS, masterListPath } from '../../modules/masterLists';
 import { useModuleCounts, countLabel } from '../../lib/counts';
 import { NotificationBell } from './NotificationBell';
+import { SignatureReminder } from './SignatureReminder';
 import './layout.css';
 import { RITHI_LOGO } from '../../lib/brand';
 import { watchMachineRegister } from '../../lib/machinestore';
@@ -815,6 +816,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </header>
 
         <ViewAsBanner />
+        <SignatureReminder />
         <main className="app-content">{children}</main>
 
         <footer className="app-footer" title={`Built ${__BUILD_TIME__}`}>

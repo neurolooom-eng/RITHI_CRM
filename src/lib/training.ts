@@ -157,7 +157,9 @@ export async function saveSession(
 // Raised with a New Employee Request (its plan the requester's), approved by
 // that request's decision, numbered by hand, and filled in -- record and
 // evaluation -- by whoever may manage training.
-export interface TrainingRecordLine { name: string; content: string; status: string }
+/** A signature placed by sign_training_request() (0454) -- only by the person the part names. */
+export interface TrainingSigned { signature: string; signed_by?: string; signed_name?: string; signed_at?: string }
+export interface TrainingRecordLine extends Partial<TrainingSigned> { name: string; content: string; status: string }
 export interface TrainingEvalLine { plan: string; evaluator: string; planned_date: string; actual: string; rating: string }
 export interface TrainingRequest {
   id: number; employee_request_id: number | null;
@@ -168,11 +170,22 @@ export interface TrainingRequest {
   evaluation_required: boolean | null; evaluation_justification: string; evaluation_method: string;
   evaluation_plan: TrainingEvalLine[]; reassessment: '' | 'Yes' | 'No'; remarks: string;
   created_at: string;
+  /** The HR document it was added from (0454), kept in Drive. */
+  source_doc_url: string; source_doc_name: string;
+  evaluator_name: string; trainer_signed: TrainingSigned | null; evaluator_signed: TrainingSigned | null;
 }
 /** What an edit may write. The approval is the employee request's decision's alone. */
 export const TRAINING_REQUEST_EDITABLE = ['req_no', 'req_date', 'trainee_name', 'designation', 'manager_name', 'topic',
   'trainer_name', 'trainer_designation', 'risk', 'from_date', 'to_date', 'record_lines', 'evaluation_required',
-  'evaluation_justification', 'evaluation_method', 'evaluation_plan', 'reassessment', 'remarks'] as const;
+  'evaluation_justification', 'evaluation_method', 'evaluation_plan', 'reassessment', 'remarks',
+  // 0454: the evaluator who signs; and, on a form ADDED FROM THE HR DOCUMENT,
+  // the approval that document gives (a form raised by an employee request
+  // keeps its decision whatever is sent -- the database guards it).
+  'evaluator_name', 'approved_by_name', 'not_approved_reason', 'approval'] as const;
+
+/** On a form added from the HR document, the approval is what the document says. */
+export const approvalFromDoc = (approvedBy: string, reason: string): TrainingRequest['approval'] =>
+  reason.trim() ? 'Not approved' : approvedBy.trim() ? 'Approved' : 'Pending';
 
 export async function listTrainingRequests(): Promise<TrainingRequest[]> {
   return allRows<TrainingRequest>((a, b) => db().from('training_requests').select('*')
@@ -196,4 +209,40 @@ export async function saveTrainingRequest(t: TrainingRequest): Promise<Res> {
   const { data, error } = await db().from('training_requests').update(patch).eq('id', t.id).select('id');
   if (error) return { ok: false, error: msg(error) };
   return (data ?? []).length ? { ok: true } : { ok: false, error: 'Not saved — this needs the Manage training permission.' };
+}
+
+/** A form added from the HR document (0454). No approval step: it carries the document's. */
+export async function addTrainingRequest(t: Omit<TrainingRequest, 'id' | 'employee_request_id' | 'created_at' | 'trainer_signed' | 'evaluator_signed'>): Promise<Res & { id?: number }> {
+  const row: Record<string, unknown> = {};
+  TRAINING_REQUEST_EDITABLE.forEach((k) => { row[k] = (t as unknown as Record<string, unknown>)[k]; });
+  row.from_date = t.from_date || null; row.to_date = t.to_date || null; row.req_date = t.req_date || null;
+  row.approval = approvalFromDoc(t.approved_by_name, t.not_approved_reason);
+  row.source_doc_url = t.source_doc_url; row.source_doc_name = t.source_doc_name;
+  const { data, error } = await db().from('training_requests').insert(row).select('id');
+  if (error) return { ok: false, error: msg(error) };
+  return { ok: true, id: Number((data ?? [])[0]?.id) };
+}
+/** Sign a part that names you: a line ('line', its 0-based index), the trainer or the evaluator box. */
+export async function signTrainingRequest(id: number, part: 'line' | 'trainer' | 'evaluator', index?: number): Promise<Res> {
+  const { error } = await db().rpc('sign_training_request', { p_id: id, p_part: part, p_index: index ?? null });
+  return error ? { ok: false, error: msg(error) } : { ok: true };
+}
+/** The names a form may call the signed-in person by: their login's, and the User Master's. Lower-cased. */
+export async function myPersonNames(): Promise<string[]> {
+  const { data, error } = await db().rpc('my_person_names');
+  if (error) return [];
+  return ((data as string[] | null) ?? []).map((n) => n.toLowerCase());
+}
+/** What on a form still waits for this person's signature. */
+export interface ToSign { request: TrainingRequest; part: 'line' | 'trainer' | 'evaluator'; index?: number; label: string }
+export function partsToSign(rows: TrainingRequest[], names: string[]): ToSign[] {
+  const me = new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  const is = (n: string) => me.has(String(n ?? '').trim().toLowerCase());
+  const out: ToSign[] = [];
+  for (const r of rows) {
+    (r.record_lines ?? []).forEach((l, i) => { if (is(l.name) && !l.signature) out.push({ request: r, part: 'line', index: i, label: `Trainee — ${l.content || r.topic}` }); });
+    if (is(r.trainer_name) && !r.trainer_signed) out.push({ request: r, part: 'trainer', label: 'Trainer Signature' });
+    if (is(r.evaluator_name) && !r.evaluator_signed) out.push({ request: r, part: 'evaluator', label: 'Signature of Evaluator' });
+  }
+  return out;
 }

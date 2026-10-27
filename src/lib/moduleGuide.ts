@@ -228,8 +228,10 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Record a session: date, trainer, method, attendance sheet, and each attendee’s Attended, Pass / Fail, score and remarks',
       'Click a name for that person’s full training record',
       'Cancel a wrong assignment with a reason',
+      'Add a Training Form from the HR document (.docx): it is read into the form and kept attached',
+      'Sign your own part of a Training Form — your line, the trainer box or the evaluator box',
     ],
-    records: ['training_assignments', 'training_status', 'training_sessions', 'training_attendance', 'documents', 'user_directory'],
+    records: ['training_assignments', 'training_status', 'training_sessions', 'training_attendance', 'documents', 'user_directory', 'training_requests'],
     rules: [
       'Complete means attended a session or confirmed Read & understood; a Fail keeps it open as Failed - retrain',
       'Nothing is deleted; past the due date it reads Overdue',
@@ -944,8 +946,9 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Set a person’s Access: the role plus extra permissions for them alone',
       'Open a person for their profile, Roles & Responsibilities and training',
       'Reset a password (shown once)',
+      'See how many active users have saved their signature, and who has not',
     ],
-    records: ['user_directory', 'profiles', 'rpc:admin_reset_password', 'audit_log'],
+    records: ['user_directory', 'profiles', 'rpc:admin_reset_password', 'audit_log', 'rpc:signature_tracker'],
     rules: [
       'Designation is the job; the role (Permission) is what the app lets them do — they often differ',
       'You cannot change your own role; a role not on Roles & Permissions grants nothing',
