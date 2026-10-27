@@ -3,6 +3,7 @@ import { uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import type { DriveFolder } from '../lib/drivefolders';
 import { addStockRecordFiles, listStockRecordFiles, type StockFileKind, type StockRecordFile } from '../lib/supabase';
 import { formatDayTime } from '../lib/dates';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // FILES KEPT WITH A STOCK TRANSFER OR A MATERIAL RETURN (0426, the user,
@@ -64,7 +65,7 @@ export function PendingFiles({ kind, label, files, onChange, disabled, hint }: {
       <div className="rep-sec-title">Files <span className="muted">(optional)</span></div>
       {files.map((f) => (
         <div key={f.url} className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
-          <a href={f.url} target="_blank" rel="noreferrer">📄 {f.name}</a>
+          <a href={safeUrl(f.url)} target="_blank" rel="noreferrer">📄 {f.name}</a>
           <button type="button" className="btn btn-sm" disabled={disabled} onClick={() => onChange(files.filter((x) => x.url !== f.url))}>Remove</button>
         </div>
       ))}

@@ -26,6 +26,7 @@ import { useCallStates, callStateFor } from '../lib/callstates';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
 import { MachineRegisterNote } from '../components/machine/MachineRegisterNote';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // REQUEST CALL REGISTRATION — the register of every request raised, whatever
@@ -76,7 +77,7 @@ function LinkCell({ value }: { value: unknown }) {
   return (
     <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap' }}>
       {urls.map((u, i) => (
-        <a key={u + i} href={u} target="_blank" rel="noreferrer" title={u}
+        <a key={u + i} href={safeUrl(u)} target="_blank" rel="noreferrer" title={u}
           onClick={(e) => e.stopPropagation()}>📎 Open{urls.length > 1 ? ` ${i + 1}` : ''}</a>
       ))}
     </span>
@@ -1166,7 +1167,7 @@ function DriveFileField({
       <span className="field-label">{label}</span>
       {doc ? (
         <div className="req-doc">
-          <a className="req-doc-link" href={doc.url} target="_blank" rel="noreferrer">📎 {doc.name}</a>
+          <a className="req-doc-link" href={safeUrl(doc.url)} target="_blank" rel="noreferrer">📎 {doc.name}</a>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(null)}>Remove</button>
         </div>
       ) : (

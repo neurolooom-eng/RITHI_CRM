@@ -10,6 +10,7 @@ import { fmtLongDate } from '../lib/format';
 import { DocPreview } from '../components/doc/DocPreview';
 import { ReportDetail } from './ReportDetail';
 import './fieldcalls.css';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // CALL ASSOCIATIONS — every record tied to one call (by UCN), shown as small
@@ -195,7 +196,7 @@ export function SupportingDocs({ product, complaint, reported }: { product: stri
             {manuals.map((m) => (
               <tr key={`m${m.id}`}>
                 <td>{m.kind === 'service_note' ? '📝 Technical note' : '📘 Service manual'}</td>
-                <td><a href={m.url} target="_blank" rel="noreferrer">{m.title}</a></td>
+                <td><a href={safeUrl(m.url)} target="_blank" rel="noreferrer">{m.title}</a></td>
                 <td>{m.product || 'Every product'}{m.revision ? ` · Rev ${m.revision}` : ''}</td>
                 <td>{m.tags}</td>
               </tr>

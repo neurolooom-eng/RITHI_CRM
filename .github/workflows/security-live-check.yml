@@ -1,0 +1,24 @@
+# The live, read-only half of the security scan (scripts/security-live-check.mjs).
+# GET requests with the public key only; prints counts and statuses, never data.
+name: Security scan (live, read-only)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/security-live-check.mjs'
+      - '.github/workflows/security-live-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Read-only checks against the live site and project
+        run: node scripts/security-live-check.mjs

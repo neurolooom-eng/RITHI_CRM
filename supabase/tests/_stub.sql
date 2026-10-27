@@ -11,7 +11,10 @@ insert into public.harness values (null, null, false);
 -- otherwise a trigger that stamps auth.uid() fails under `set role authenticated`.
 create or replace function auth.uid() returns uuid language sql stable security definer as $$ select uid from public.harness limit 1 $$;
 create or replace function auth.email() returns text language sql stable security definer as $$ select email from public.harness limit 1 $$;
-create or replace function auth.role() returns text language sql stable as $$ select 'authenticated'::text $$;
+-- AS SUPABASE DOES IT: the role is the request's JWT claim -- 'anon' for a
+-- request with no login. Unset, it reads 'authenticated', as every suite
+-- before the security scan assumed; security_pentest_test sets 'anon'.
+create or replace function auth.role() returns text language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'authenticated') $$;
 do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
 do $$ begin create role anon; exception when duplicate_object then null; end $$;
 

@@ -3,6 +3,7 @@ import { Drawer } from '../components/ui/ui';
 import { fmtLongSmart, formatSmartDate } from '../lib/format';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // REPORT DETAIL — every field of one visit/report, shown in a drawer. Used by
@@ -97,7 +98,7 @@ export function ReportDetail({ report, onClose }: { report: Record<string, unkno
                           <button type="button" className="svc-report-link" onClick={() => setShowDoc(true)}>
                             📄 Show the report
                           </button>
-                          <a className="muted" style={{ fontSize: 12 }} href={reportUrl}
+                          <a className="muted" style={{ fontSize: 12 }} href={safeUrl(reportUrl)}
                              target="_blank" rel="noreferrer">Open in Drive ↗</a>
                         </span>
                       ) : showValue(k, v)}

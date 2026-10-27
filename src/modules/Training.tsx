@@ -19,6 +19,7 @@ import { audienceIds, audienceIsEmpty, EMPTY_AUDIENCE, type Audience } from '../
 import { AudiencePicker } from '../components/people/AudiencePicker';
 import { TrainingRequests } from './TrainingRequests';
 import { PersonProfile } from '../components/people/PersonProfile';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // TRAINING (0264). The user, 2026-09-30: "Add a Training Module; it should
@@ -194,7 +195,7 @@ export function Training() {
     { key: 'trainer', header: 'Trainer', width: 150 },
     { key: 'method', header: 'Method', width: 130 },
     { key: 'attachments', header: 'Evidence', width: 160, sortable: false,
-      render: (r) => (r.attachments ?? []).map((a) => <div key={a.url}><a href={a.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{a.name || 'file'}</a></div>) },
+      render: (r) => (r.attachments ?? []).map((a) => <div key={a.url}><a href={safeUrl(a.url)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{a.name || 'file'}</a></div>) },
   ];
 
   const docOptions = docs.map((d) => ({ value: String(d.id), label: docLabel(d) }));
@@ -286,7 +287,7 @@ export function Training() {
               <div className="rep-sec-title">Attendance sheet / certificates</div>
               <input ref={fileRef} type="file" multiple style={{ display: 'none' }} onChange={(e) => void uploadEvidence(e.target.files)} />
               <button className="btn btn-sm" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? 'Uploading…' : '⭱ Attach files'}</button>
-              {sess.attachments.map((a) => <div key={a.url}><a href={a.url} target="_blank" rel="noreferrer">{a.name}</a></div>)}
+              {sess.attachments.map((a) => <div key={a.url}><a href={safeUrl(a.url)} target="_blank" rel="noreferrer">{a.name}</a></div>)}
             </section>
 
             <section className="rep-sec">

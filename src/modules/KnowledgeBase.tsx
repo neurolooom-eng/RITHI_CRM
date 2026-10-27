@@ -16,6 +16,7 @@ import {
   kbArticleById,
 } from '../lib/supabase';
 import './knowledgebase.css';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // FIELD SOLUTIONS — team-written articles (rich text with images & tables) that
@@ -240,7 +241,7 @@ export function KnowledgeBase() {
               <div className="kb-att">
                 <div className="kb-att-h">📎 Attachments</div>
                 {view.attachments.map((a, i) => (
-                  <a key={i} className="kb-att-link" href={a.url} target="_blank" rel="noopener noreferrer">{a.name || a.url}</a>
+                  <a key={i} className="kb-att-link" href={safeUrl(a.url)} target="_blank" rel="noopener noreferrer">{a.name || a.url}</a>
                 ))}
               </div>
             )}

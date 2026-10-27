@@ -16,6 +16,7 @@ import {
   supabaseConfigured, type DocRow, type DocKind,
   listDirectory, type DirectoryRow,
 } from '../lib/supabase';
+import { safeUrl } from '../lib/safeUrl';
 
 // ===========================================================================
 // DOCUMENT LIBRARY — the service-manual shelf and the QMS shelf, the same
@@ -358,7 +359,7 @@ function Library({ cfg }: { cfg: Cfg }) {
       {
         key: 'title', header: 'Title', width: 260,
         render: (r) => (
-          <a href={r.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Open in Drive">{r.title}</a>
+          <a href={safeUrl(r.url)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Open in Drive">{r.title}</a>
         ),
       },
     ];
@@ -410,7 +411,7 @@ function Library({ cfg }: { cfg: Cfg }) {
           ? <span title="A copy stored in Drive — fixed at the revision it was uploaded as">📄 {r.file_name}</span>
           : r.url
             ? (
-              <a href={r.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+              <a href={safeUrl(r.url)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                  className="muted" title={`Linked, not stored: ${r.url}\nThis opens whatever that document says today, which may not be the revision recorded here.`}>
                 🔗 Link · {hostOf(r.url)}
               </a>
@@ -650,7 +651,7 @@ function Library({ cfg }: { cfg: Cfg }) {
               <span className="field-label">File *</span>
               {draft.url ? (
                 <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-                  <a href={draft.url} target="_blank" rel="noreferrer">{draft.file_name || 'Open the stored file'}</a>
+                  <a href={safeUrl(draft.url)} target="_blank" rel="noreferrer">{draft.file_name || 'Open the stored file'}</a>
                   <button className="btn btn-ghost btn-sm" onClick={() => setDraft({ ...draft, url: '', file_name: '' })}>✕ Replace</button>
                 </div>
               ) : (

@@ -305,6 +305,9 @@ const MODULES = {
             // An administrator may upload a person's signature (0459, NAR-012):
             // restates 0172's stamp above, so in this module, before the tail.
             '0459_admin_uploads_a_signature.sql',
+            // Security scan (0461): an anonymous caller holds no permission --
+            // restates 0300's has_perm() -- and 0459's notification link.
+            '0461_anonymous_caller_holds_nothing.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -1654,7 +1657,10 @@ const MODULES = {
     needs: [],
     files: ['0248_lock_down_internal_functions.sql',
             // D-134: three more helpers the public key could run.
-            '0338_helpers_not_public.sql'],
+            '0338_helpers_not_public.sql',
+            // The security scan's lockdown (0462): spare_request_rollup off
+            // every API role, the dispatch and receipt actions off anon.
+            '0462_security_scan_lockdown.sql'],
   },
 };
 

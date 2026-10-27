@@ -23,7 +23,11 @@ export function RichEditor({ value, onChange, placeholder }: {
     const el = ref.current;
     if (!el) return;
     if (document.activeElement !== el && el.innerHTML !== value) {
-      el.innerHTML = value || '';
+      // SANITISED ON THE WAY IN TOO (security scan, 2026-10-27): the stored
+      // article is shown through sanitizeHtml, and so is what the editor loads
+      // -- an <img onerror> put into the stored body by any other route would
+      // otherwise run the moment an editor opened it.
+      el.innerHTML = sanitizeHtml(value || '');
       setEmpty(!el.textContent?.trim() && !el.querySelector('img,table'));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

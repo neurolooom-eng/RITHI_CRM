@@ -8,6 +8,7 @@ import {
   type PersonProfile as Profile, type RRRow, type TrainingStatusRow, type TrainingHistoryRow,
 } from '../../lib/training';
 import { loadFailure } from '../../lib/dberror';
+import { safeUrl } from '../../lib/safeUrl';
 
 // ===========================================================================
 // ONE PERSON: profile details, Roles & Responsibilities, training.
@@ -212,7 +213,7 @@ export function PersonProfile({ person, part = 'all' }: { person: DirectoryRow; 
               <tbody>
                 {rr.map((r) => (
                   <tr key={r.id}>
-                    <td><a href={r.url} target="_blank" rel="noreferrer">{r.title}</a>{!r.effective_to && <span className="badge badge-success" style={{ marginLeft: 6 }}>Current</span>}
+                    <td><a href={safeUrl(r.url)} target="_blank" rel="noreferrer">{r.title}</a>{!r.effective_to && <span className="badge badge-success" style={{ marginLeft: 6 }}>Current</span>}
                       {r.notes && <div className="muted" style={{ fontSize: 12 }}>{r.notes}</div>}</td>
                     {period?.id === r.id ? (
                       <>
@@ -282,7 +283,7 @@ export function PersonProfile({ person, part = 'all' }: { person: DirectoryRow; 
                         <td>{h.source === 'Session' ? (h.method || 'Session') : 'Read & understood'}{h.source === 'Session' && !h.attended ? ' (absent)' : ''}</td>
                         <td>{h.trainer || '—'}</td>
                         <td>{h.assessment ? `${h.assessment}${h.score != null ? ` (${h.score})` : ''}` : '—'}</td>
-                        <td>{(h.attachments ?? []).map((a) => <div key={a.url}><a href={a.url} target="_blank" rel="noreferrer">{a.name || 'file'}</a></div>)}</td>
+                        <td>{(h.attachments ?? []).map((a) => <div key={a.url}><a href={safeUrl(a.url)} target="_blank" rel="noreferrer">{a.name || 'file'}</a></div>)}</td>
                       </tr>
                     ))}
                   </Fragment>
