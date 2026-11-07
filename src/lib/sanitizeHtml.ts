@@ -26,17 +26,31 @@ const TAG_ATTRS: Record<string, Set<string>> = {
   colgroup: new Set(['span']),
 };
 
+// DROPPED WITH EVERYTHING INSIDE, never unwrapped: what these hold is code,
+// markup in another namespace, or a document of its own, not article text.
+const DROP_TAGS = new Set([
+  'script', 'style', 'template', 'iframe', 'frame', 'frameset', 'object', 'embed',
+  'svg', 'math', 'noscript', 'noembed', 'noframes', 'xmp', 'plaintext', 'textarea',
+  'select', 'option', 'button', 'input', 'link', 'meta', 'base', 'head', 'title',
+]);
+
 const SAFE_URL = /^(https?:|mailto:|tel:|data:image\/(png|jpe?g|gif|webp|svg\+xml);|\/|#|\.\.?\/)/i;
 
 function cleanEl(el: Element) {
   const tag = el.tagName.toLowerCase();
   if (!ALLOWED_TAGS.has(tag)) {
-    // Unwrap unknown tags: keep their text/children, drop the tag itself.
     const parent = el.parentNode;
-    if (parent) {
-      while (el.firstChild) parent.insertBefore(el.firstChild, el);
-      parent.removeChild(el);
-    }
+    if (!parent) return;
+    if (DROP_TAGS.has(tag)) { parent.removeChild(el); return; }
+    // Unwrap unknown tags: keep their text/children, drop the tag itself --
+    // and CLEAN WHAT IS MOVED UP. The caller's list of children was taken
+    // before this element was unwrapped, so nothing else would reach them:
+    // `<section><img onerror=…></section>` kept the handler until 2026-11-07
+    // (security re-scan, F-13).
+    const moved = [...el.children];
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    parent.removeChild(el);
+    for (const child of moved) cleanEl(child);
     return;
   }
   const allowed = TAG_ATTRS[tag];

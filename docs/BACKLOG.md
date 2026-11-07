@@ -160,6 +160,28 @@ up)_
 
 ---
 
+## 2026-11-07 — Security re-scan: F-10 to F-13 fixed (0465–0467, D-177–D-179, v0.10.229)
+
+- The user: "Re-scan for vulnerabilities"; asked: "Fix all four", and "I'll
+  change it myself" for email confirmation (F-05, still open on live: self
+  sign-up ENABLED, confirmation NOT required).
+- **F-10 (High, 0465)** — `product_database_v2_mv` (no RLS on a matview) was
+  granted to every signed-in login: a self-made login read the install base.
+  Now granted to no API role, read through `product_database_v2_gate`.
+- **F-11 (Medium, 0466)** — `app_user_names` gave a self-made login every
+  name (and emails where no name). Now needs a profile.
+- **F-12 (Low, 0467)** — `next_ffr_no(smallint)` callable by any login burned
+  FFR numbers. Withdrawn from the API roles.
+- **F-13 (High, sanitizeHtml.ts)** — Knowledge Base stored script via an
+  unwrapped tag (`<section><img onerror>`); proved in Chromium. Fixed.
+- Unchanged: live check — 162 relations, none returns a row to the public
+  key; `record_audit` HTTP 500 (F-09); no CSP (F-08); no secret in 4,316
+  commits; npm audit — react-router / vite / esbuild only (F-07).
+- **After merge**: check the "Apply database migrations" run applied
+  0465–0467, then re-run the live check.
+
+---
+
 ## 2026-10-27 — Training Record sheet on A4 from page 3; the Auto Review is non-auditable (FRS-283.4, NAR-013, v0.10.228)
 
 - **Training Record sheet.** The user: "Record - Attached Sheet - Training No is

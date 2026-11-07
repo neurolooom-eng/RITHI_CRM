@@ -24,6 +24,7 @@
 --   0346_rename_carries_pending_indoor_dc.sql
 --   0408_user_tags.sql
 --   0444_email_harshvardhan_corrected.sql
+--   0466_staff_names_need_a_profile.sql
 --   0122_user_directory_replay_tail.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
@@ -464,6 +465,7 @@
 --   0271_call_refresh_from_masters.sql
 --   0294_product_database_2_rebuild_key.sql
 --   0337_product_database_2_store_not_public.sql
+--   0465_product_database_2_needs_a_profile.sql
 --   0229_feedback_without_report.sql
 --   0227_data_export.sql
 --   0228_export_schedules.sql
@@ -478,6 +480,7 @@
 --   0248_lock_down_internal_functions.sql
 --   0338_helpers_not_public.sql
 --   0462_security_scan_lockdown.sql
+--   0467_ffr_number_not_public.sql
 --   0464_no_profile_no_rows.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -1916,6 +1919,37 @@ begin
     end if;
   end if;
 end $fix$;
+
+-- ------------------------------------------------------------------------
+-- 0466_staff_names_need_a_profile.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0466 — THE STAFF NAME LIST IS FOR SOMEBODY ON THE USER MASTER
+--        (security re-scan, 2026-11-07, F-11)
+--
+-- app_user_names (0068) maps every login to a display name -- the person's
+-- full name, or their EMAIL where the profile has none -- for any signed-in
+-- caller. The function behind it is owner-rights, so the restrictive "no
+-- profile, no rows" policy (0464) never reaches it: a login with no profile,
+-- which anybody can make while self sign-up is open, read the whole staff list
+-- and some addresses. Measured on a database built from every migration.
+--
+-- The same function, answering only a caller who has a profile. Everybody who
+-- uses RITHI has one, so nothing on any screen changes. In this module, after
+-- 0068, so a re-run of user_directory.sql keeps the check.
+-- ===========================================================================
+
+create or replace function public.app_user_names_rows()
+returns table (id uuid, name text)
+language sql stable security definer set search_path = public as $$
+  select p.id, coalesce(nullif(trim(p.full_name), ''), p.email, '')
+    from public.profiles p
+   where auth.uid() is not null
+     and exists (select 1 from public.profiles me where me.id = auth.uid());
+$$;
+revoke all on function public.app_user_names_rows() from public, anon;
+grant execute on function public.app_user_names_rows() to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0122_user_directory_replay_tail.sql
@@ -64647,6 +64681,102 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0465_product_database_2_needs_a_profile.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0465 — PRODUCT DATABASE 2.0'S STORED COPY IS READ ONLY BY SOMEBODY ON THE
+--        USER MASTER (security re-scan, 2026-11-07, F-10)
+--
+-- A MATERIALISED VIEW HAS NO ROW-LEVEL SECURITY. 0222/0337 granted
+-- product_database_v2_mv to `authenticated` so the screen's view
+-- (product_database_v2, security_invoker) could read it -- which also let ANY
+-- login read it straight through the API, including one with no profile:
+-- somebody who signs themselves up (self sign-up is open) got the whole install
+-- base -- every machine, serial, customer, city and cover. 0464 closed that
+-- class for TABLES with a restrictive policy; a matview cannot carry one.
+--
+-- So the copy is granted to nobody, and is read through a GATE: an owner-rights
+-- view over the copy alone that returns rows to the two API roles only while
+-- the caller has a profile (0463 makes a profile only for an active User Master
+-- address). Any other role -- the SQL editor, the refresh, a test -- reads it
+-- as before: `current_user` in a view is still the caller, and only the API
+-- roles reach it through the website's key. The
+-- screen's view keeps security_invoker and its columns, and reads the gate
+-- instead of the copy. The gate reads no table with row-level security -- the
+-- profile test is a function -- so `check:views` has nothing to object to, and
+-- it is a security_barrier so a filter sent with the request is never applied
+-- before the gate's own test.
+--
+-- LAST IN THE product_database_2 BUNDLE, after 0337 (which grants the copy to
+-- `authenticated` again on a re-run). A migration that drops and re-creates the
+-- copy must re-create the gate and this view, and keep the copy ungranted.
+-- ===========================================================================
+
+create or replace function public.product_database_2_reader_ok()
+returns boolean language sql stable security definer set search_path = public as $$
+  select auth.uid() is not null and exists (select 1 from public.profiles where id = auth.uid());
+$$;
+comment on function public.product_database_2_reader_ok() is
+  'Product Database 2.0 gate (0465): true while the caller has a profile, i.e. is on the User Master.';
+revoke all on function public.product_database_2_reader_ok() from public, anon;
+grant execute on function public.product_database_2_reader_ok() to authenticated;
+
+do $$
+begin
+  if to_regclass('public.product_database_v2_mv') is null then return; end if;
+
+  execute $v$
+    create or replace view public.product_database_v2_gate
+      with (security_barrier = true) as
+    select m.* from public.product_database_v2_mv m
+     where current_user not in ('anon', 'authenticated')
+        or (select public.product_database_2_reader_ok())
+  $v$;
+  execute 'revoke all on public.product_database_v2_gate from public, anon, authenticated';
+  execute 'grant select on public.product_database_v2_gate to authenticated';
+
+  execute $v$
+    create or replace view public.product_database_v2 as
+    select
+      m.machine_key, m.product_name, m.serial_number, m.product_code,
+      m.party_name, m.party_from,
+      m.warranty_start, m.warranty_months, m.warranty_end, m.warranty_from,
+      public.cover_state(m.warranty_end)                     as warranty_state,
+      m.contract_number, m.contract_type_as_recorded, m.contract_type,
+      m.contract_start, m.contract_months, m.contract_end, m.contract_from,
+      public.cover_state(m.contract_end)                     as contract_state,
+      case
+        when coalesce(m.warranty_end, '-infinity'::date) >= current_date then 'WGP'
+        when coalesce(m.contract_end, '-infinity'::date) >= current_date
+          then coalesce(public.contract_cover_code(m.contract_type_as_recorded),
+                        'CONTRACT (TYPE NOT RECORDED)')
+        else 'OGP'
+      end                                                    as item_status,
+      case
+        when coalesce(m.warranty_end, '-infinity'::date) >= current_date
+          then 'inside warranty — ' || coalesce(m.warranty_from, 'source not recorded')
+        when coalesce(m.contract_end, '-infinity'::date) >= current_date
+          then 'under contract — ' || coalesce(m.contract_from, 'source not recorded')
+        else 'no warranty and no contract covers today'
+      end                                                    as item_status_reason,
+      m.sa_number, m.state, m.city, m.engineer,
+      m.from_party, m.to_party, m.transfer_date, m.reference_no,
+      m.in_warranty_register, m.in_contract_register, m.in_additional_entries,
+      m.installation_ucn,
+      s.refreshed_at,
+      s.stale
+    from public.product_database_v2_gate m
+    cross join public.product_database_v2_state s
+  $v$;
+  execute 'alter view public.product_database_v2 set (security_invoker = on)';
+  execute 'grant select on public.product_database_v2 to authenticated';
+
+  -- The copy itself: nobody through the API. The refresh runs as its owner.
+  execute 'revoke all on public.product_database_v2_mv from public, anon, authenticated';
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0229_feedback_without_report.sql
 -- ------------------------------------------------------------------------
 
@@ -66347,6 +66477,28 @@ begin
       execute format('grant execute on function %s to authenticated', fn);
     exception when undefined_object then null; end;
   end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0467_ffr_number_not_public.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0467 — THE FIELD FAILURE REPORT NUMBER IS ISSUED ONLY BY RAISING A REPORT
+--        (security re-scan, 2026-11-07, F-12)
+--
+-- next_ffr_no(smallint) (0169) ADVANCES the year's FFR counter each time it is
+-- called. It was callable by any signed-in login through the API, so anybody --
+-- a login with no profile included -- could burn numbers and leave gaps in a
+-- controlled register numbered FFR - 001/26 onwards. Only raise_ffr() and the
+-- ffr_stamp() trigger call it, and both run as the owner, so withdrawing it
+-- from the API roles changes nothing they do. 0248 withdrew the old
+-- zero-argument version; this is the one-argument version that replaced it.
+-- ===========================================================================
+do $$
+begin
+  if to_regprocedure('public.next_ffr_no(smallint)') is null then return; end if;
+  execute 'revoke execute on function public.next_ffr_no(smallint) from public, anon, authenticated';
 end $$;
 
 -- ------------------------------------------------------------------------
