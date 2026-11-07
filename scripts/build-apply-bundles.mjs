@@ -156,6 +156,9 @@ const MODULES = {
             // One address corrected everywhere, login included (0444). Data
             // only, and nothing to find on a freshly built database.
             '0444_email_harshvardhan_corrected.sql',
+            // F-11 (re-scan 2026-11-07): the staff name list answers only a
+            // caller with a profile. Redefines 0068's function, so after it.
+            '0466_staff_names_need_a_profile.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -1544,7 +1547,11 @@ const MODULES = {
             '0294_product_database_2_rebuild_key.sql',
             // D-127: the stored copy is not readable without signing in. LAST, so a
             // re-run of this bundle (which re-creates the view) closes it again.
-            '0337_product_database_2_store_not_public.sql'],
+            '0337_product_database_2_store_not_public.sql',
+            // F-10 (re-scan 2026-11-07): the copy is granted to nobody and read
+            // through a gate that answers only a caller with a profile. AFTER
+            // 0337, which grants the copy again on a re-run.
+            '0465_product_database_2_needs_a_profile.sql'],
   },
   feedback_checks: {
     title: 'Feedback Without a Report',
@@ -1664,6 +1671,8 @@ const MODULES = {
             // The security scan's lockdown (0462): spare_request_rollup off
             // every API role, the dispatch and receipt actions off anon.
             '0462_security_scan_lockdown.sql',
+            // F-12 (re-scan 2026-11-07): the FFR number off the API roles.
+            '0467_ffr_number_not_public.sql',
             // No profile, no rows (0464, F-02): a restrictive policy on every
             // table with row-level security. LAST, to reach every table.
             '0464_no_profile_no_rows.sql'],

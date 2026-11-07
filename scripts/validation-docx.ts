@@ -170,7 +170,7 @@ B.push(p('Reference documents:'));
   `[3] ${VAL_META.standards.join('; ')}.`,
   `[4] RITHI validation package, ${VAL_META.docId} version ${VAL_META.packageVersion} — held in RITHI under Software Validation: user and functional requirements, the traceability matrix (docs/REQUIREMENTS.md), risk register, test protocols and defect register.`,
   `[5] Validation run record (docs/VALIDATION_RUN.md) — the automated execution of every database test suite and check; last run ${runDay}.`,
-  '[6] Security Scan report (docs/SECURITY_SCAN.md) — penetration test and vulnerability scan, 27-Oct-2026.',
+  '[6] Security Scan report (docs/SECURITY_SCAN.md) — penetration test and vulnerability scan, 27-Oct-2026, re-scanned 07-Nov-2026.',
   '[7] Servicing requirements against ISO 13485 §7.5.4 (docs/ISO13485_SERVICING.md); Cover requirements (docs/COVER_REQUIREMENTS.md); Call Request requirements (docs/CALL_REQUEST_REQUIREMENTS.md).',
   '[8] RITHI handbook (docs/HOW_TO_USE.md).',
 ].forEach((t) => B.push(p(t)));
@@ -363,6 +363,7 @@ const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en
 S.push(h(1, 'Scope'));
 S.push(p(`Security scan of RITHI version ${SC.version}, ${day(SC.date)}: a penetration test and a vulnerability scan, asked for by the system owner. It is an annex to the Software Validation document R/QMS/SV/13 (reference [6] there).`));
 SC.scope.forEach((t) => S.push(li(t)));
+SC.rescans.forEach((r) => S.push(p(`Re-scanned ${day(r.date)} on version ${r.version}: ${r.summary}`)));
 S.push(h(1, 'Method'));
 S.push(table(['Activity', 'How it was done'], SC.method.map((m) => [m.name, m.how]), [28, 72]));
 S.push(h(1, 'Summary of findings'));
@@ -371,7 +372,10 @@ S.push(table(['Severity', 'Found', 'Fixed', 'Open / accepted'], sevs.map((sv) =>
   const f = SC.findings.filter((x) => x.severity === sv);
   return [sv, String(f.length), String(f.filter((x) => x.status === 'Fixed').length), String(f.filter((x) => x.status !== 'Fixed').length)];
 }), [25, 25, 25, 25]));
-S.push(p('Every High finding is fixed and verified: after the release the live check found no table or view returning a row to the public key, and the penetration test passes on every validation run.'));
+const highOpen = SC.findings.filter((x) => x.severity === 'High' && x.status !== 'Fixed').length;
+S.push(p(highOpen === 0
+  ? 'Every High finding is fixed and verified: the live check finds no table or view returning a row to the public key, and the penetration test passes on every validation run.'
+  : `${highOpen} High finding${highOpen === 1 ? ' is' : 's are'} still open.`));
 S.push(h(1, 'Findings'));
 // One block per finding: seven narrow columns broke every word in two.
 SC.findings.forEach((f) => S.push(table([`${f.id}`, f.title], [
@@ -383,7 +387,8 @@ SC.clean.forEach((t) => S.push(li(t)));
 S.push(h(1, 'Re-running the scan'));
 ['The penetration test is supabase/tests/security_pentest_test.sql: it runs with every `npm run validate`, so a change that re-opens a hole fails the validation run.', 'The live, read-only checks are scripts/security-live-check.mjs: GitHub → Actions → "Security scan (live, read-only)" → Run workflow. It prints counts and statuses, never a row.', 'Dependencies: `npm audit`.'].forEach((t) => S.push(li(t)));
 S.push(h(1, 'CONCLUSION'));
-S.push(p('The penetration test and vulnerability scan found two High findings, both fixed and verified on the live project; the open items are the owner\'s decisions recorded above.'));
+const highs = SC.findings.filter((x) => x.severity === 'High');
+S.push(p(`The penetration test and vulnerability scan, with the re-scan${SC.rescans.length === 1 ? '' : 's'}, found ${highs.length} High finding${highs.length === 1 ? '' : 's'}; ${highs.filter((x) => x.status === 'Fixed').length} fixed and re-tested. The open items are the owner\'s decisions recorded above.`));
 S.push(p(''));
 S.push(p('Reviewed by:                                        Date:'));
 S.push(p(''));

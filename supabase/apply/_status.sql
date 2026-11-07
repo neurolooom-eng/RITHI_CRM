@@ -1135,7 +1135,10 @@ with checks(sort_order, bundle, provides, present) as (
          -- "permission denied for materialized view". A project that ran 0220
          -- and not 0221 has all four objects above and a screen that refuses
          -- everybody, so the four are not enough to answer this row.
-         and has_table_privilege('authenticated','public.product_database_v2_mv','select'))),
+         -- Since 0465 (re-scan F-10) it reads it through the GATE, which
+         -- the API role may read and the stored copy itself it may not.
+         and has_table_privilege('authenticated','public.product_database_v2_gate','select')
+         and not has_table_privilege('authenticated','public.product_database_v2_mv','select'))),
     (171, 'Product Database 2.0 is ALIVE, and its status is not stored', 'product_database_v2_state.stale + pdv2_mark_stale() on 8 sources + refresh_product_database_2_if_stale() (0223), and the cover status computed on READ (0222). TWO FAULTS IN 0220, BOTH FOUND BY THE USER ASKING "Should I Re-build it everytime?". FIRST: item_status, item_status_reason, warranty_state and contract_state all read current_date, and a MATERIALISED VIEW EVALUATES ITS EXPRESSIONS AT REFRESH TIME AND STORES THE ANSWER -- so every machine''s cover was frozen at whenever somebody last pressed Rebuild. A warranty lapsing overnight went on reading WGP indefinitely, beside a "Built <time>" caption that looks like it accounts for exactly this and does not. Measured on a loaded fixture: 209 machines of 10,000 wrong after thirty days, ~2% a month, silently. The four are computed on every read now and the matview no longer mentions current_date at all -- asserted on the DEFINITION rather than on a value, because a value read the day it was built agrees either way, which is precisely why it shipped. SECOND: "alive data" (the user) cannot mean a button somebody has to remember, least of all on a screen about to become the primary product list. The five registers plus the installation calls and feedback now MARK IT STALE on change -- a STATEMENT-level trigger, so a 12,000-row upload costs ONE flag write rather than 12,000, a structural property of "for each statement" and not an optimisation to hope for -- and pg_cron rebuilds every five minutes ONLY IF something moved. The refresh is deliberately NOT fired from the trigger: that would rebuild once per statement of a bulk load and make somebody''s upload wait on it. NO means the screen still needs rebuilding by hand, or still freezes its cover status at the last rebuild. Restore: product_database_2.sql',
         (to_regprocedure('public.refresh_product_database_2_if_stale()') is not null
          and to_regprocedure('public.pdv2_mark_stale()') is not null
@@ -2333,7 +2336,18 @@ with checks(sort_order, bundle, provides, present) as (
                          where b.schemaname = 'public' and b.permissive = 'PERMISSIVE' and b.cmd in ('SELECT', 'ALL')
                            and b.tablename <> 'app_roles'
                            and regexp_replace(coalesce(b.qual, ''), '[()\s]|SELECT|AS role|::text', '', 'g') in ('true', 'auth.role=''authenticated''')
-                           and not exists (select 1 from pg_policies pp where pp.schemaname = 'public' and pp.tablename = b.tablename and pp.policyname = 'zz_needs_a_profile')))
+                           and not exists (select 1 from pg_policies pp where pp.schemaname = 'public' and pp.tablename = b.tablename and pp.policyname = 'zz_needs_a_profile'))),
+    (375, 'Security: Product Database 2.0''s stored copy is read only through its gate', 'product_database_v2_mv granted to no API role; product_database_v2_gate + product_database_2_reader_ok() (0465, re-scan F-10). A materialised view has no row-level security, so while the copy is granted a login with no profile reads the whole install base. NO means it is granted again: re-run product_database_2.sql. Restore: product_database_2.sql (0465)',
+        to_regclass('public.product_database_v2_gate') is not null
+        and to_regprocedure('public.product_database_2_reader_ok()') is not null
+        and not has_table_privilege('authenticated', 'public.product_database_v2_mv', 'select')
+        and not has_table_privilege('anon', 'public.product_database_v2_mv', 'select')),
+    (376, 'Security: the staff name list answers only somebody with a profile', 'app_user_names_rows() tests the caller''s profile (0466, re-scan F-11). NO means a login with no profile reads every name and some addresses. Restore: user_directory.sql (0466)',
+        position('me.id = auth.uid()' in coalesce(pg_get_functiondef(to_regprocedure('public.app_user_names_rows()')), '')) > 0),
+    (377, 'Security: the FFR number is drawn only by raising a report', 'next_ffr_no(smallint) off every API role (0467, re-scan F-12). NO means anybody signed in can burn numbers in the Field Failure Register. Restore: lockdown.sql (0467)',
+        to_regprocedure('public.next_ffr_no(smallint)') is null
+        or (not has_function_privilege('authenticated', 'public.next_ffr_no(smallint)', 'execute')
+            and not has_function_privilege('anon', 'public.next_ffr_no(smallint)', 'execute')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

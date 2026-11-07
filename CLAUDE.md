@@ -993,6 +993,17 @@ on testing the old shape. **When a migration replaces a definition, move the
   editor only. `supabase/tests/_stub.sql`'s `auth.role()` reads
   `request.jwt.claim.role` (default `authenticated`), so a suite can act as
   `anon` the way Supabase does.
+- **A MATERIALISED VIEW HAS NO ROW-LEVEL SECURITY, AND NEITHER DOES WHAT AN
+  OWNER-RIGHTS FUNCTION OR VIEW RETURNS** (security re-scan, 2026-11-07,
+  F-10/F-11). 0464's "no profile, no rows" is a restrictive POLICY, so it
+  reaches tables only: `product_database_v2_mv` granted to `authenticated`
+  handed a self-made login the whole install base, and `app_user_names_rows()`
+  (definer) the staff list. A matview is granted to NO API role and read
+  through an owner-rights gate view that tests the caller
+  (`product_database_v2_gate`, 0465 — `current_user not in ('anon',
+  'authenticated') or <has a profile>`, so the SQL editor still reads it); a
+  definer function that returns rows tests the caller's profile itself. Ask
+  the penetration test (PT-8) rather than reading the grants.
 - **A SECURITY DEFINER FUNCTION IS CALLABLE BY THE PUBLIC KEY UNLESS SOMEBODY
   SAYS OTHERWISE** (table review, 2026-09-26, findings 49-52). Postgres grants
   EXECUTE to PUBLIC by default and Supabase grants it to `anon`, so a definer

@@ -589,6 +589,9 @@ export function SoftwareValidation() {
             <li><a href={`${import.meta.env.BASE_URL}docs/RITHI_Software_Validation_R-QMS-SV-13_Rev02.docx`} download>⭳ Software Validation of RITHI — R/QMS/SV/13 Rev 02 (Word)</a> — the old AppSheet template's sections, filled from this package; sign-off blank.</li>
             <li><a href={`${import.meta.env.BASE_URL}docs/RITHI_Security_Scan_2026-10-27.docx`} download>⭳ Security Scan of RITHI — annex to R/QMS/SV/13 (Word)</a></li>
           </ul>
+          {SECURITY_SCAN.rescans.map((r) => (
+            <p key={r.date} className="sv-p"><b>Re-scanned {formatDay(r.date)} (v{r.version}).</b> {r.summary}</p>
+          ))}
           <div className="sv-h3" style={{ fontSize: 14, marginTop: 12 }}>Scope</div>
           <ul className="sv-list">{SECURITY_SCAN.scope.map((t, i) => <li key={i}>{t}</li>)}</ul>
           <div className="sv-h3" style={{ fontSize: 14, marginTop: 12 }}>Method</div>

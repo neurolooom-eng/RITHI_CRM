@@ -20,6 +20,7 @@
 --   0248_lock_down_internal_functions.sql
 --   0338_helpers_not_public.sql
 --   0462_security_scan_lockdown.sql
+--   0467_ffr_number_not_public.sql
 --   0464_no_profile_no_rows.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -211,6 +212,28 @@ begin
       execute format('grant execute on function %s to authenticated', fn);
     exception when undefined_object then null; end;
   end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0467_ffr_number_not_public.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0467 — THE FIELD FAILURE REPORT NUMBER IS ISSUED ONLY BY RAISING A REPORT
+--        (security re-scan, 2026-11-07, F-12)
+--
+-- next_ffr_no(smallint) (0169) ADVANCES the year's FFR counter each time it is
+-- called. It was callable by any signed-in login through the API, so anybody --
+-- a login with no profile included -- could burn numbers and leave gaps in a
+-- controlled register numbered FFR - 001/26 onwards. Only raise_ffr() and the
+-- ffr_stamp() trigger call it, and both run as the owner, so withdrawing it
+-- from the API roles changes nothing they do. 0248 withdrew the old
+-- zero-argument version; this is the one-argument version that replaced it.
+-- ===========================================================================
+do $$
+begin
+  if to_regprocedure('public.next_ffr_no(smallint)') is null then return; end if;
+  execute 'revoke execute on function public.next_ffr_no(smallint) from public, anon, authenticated';
 end $$;
 
 -- ------------------------------------------------------------------------

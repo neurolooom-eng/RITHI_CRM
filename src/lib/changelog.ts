@@ -20,6 +20,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.229',
+    date: '2026-11-07',
+    title: 'Security fixes from the re-scan',
+    changes: [
+      'A login that is not on the User Master can no longer read Product Database 2.0 or the list of staff names. Before this, anybody who signed themselves up could.',
+      'A Knowledge Base article can no longer carry hidden script: a way round the cleaning of article text was found and closed. Articles already saved are cleaned when they are shown.',
+      'A Field Failure Report number is now given only when a report is raised, so nobody can use up numbers in the series.',
+      'Software Validation → Security Scan & Documents shows the re-scan of 07-Nov-2026 and its four findings (F-10 to F-13), all fixed. Still your decision: email confirmation on sign-up (F-05).',
+    ],
+  },
+  {
     version: '0.10.228',
     date: '2026-10-27',
     title: 'The Training Record sheet prints on A4 from page 3',

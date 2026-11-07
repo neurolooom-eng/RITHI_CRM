@@ -2628,6 +2628,21 @@ console.log('\n-- security scan: links from data, and who holds nothing --');
       && m64.includes('as restrictive for all to anon, authenticated using ((select public.has_a_profile()))'), true);
   const live = readFileSync('scripts/security-live-check.mjs', 'utf8');
   eq('...and the live check only reads, and prints no row', !/method:\s*['"](POST|PATCH|PUT|DELETE)/i.test(live) && !/rpc\//.test(live) && !/console\.log\([^)]*body\b/.test(live), true);
+  // THE RE-SCAN (the user, 2026-11-07: "Re-scan for vulnerabilities").
+  const san = readFileSync('src/lib/sanitizeHtml.ts', 'utf8');
+  eq('the sanitiser cleans what an unwrapped tag held, and drops script-bearing tags whole (F-13)',
+    /const moved = \[\.\.\.el\.children\];[\s\S]*for \(const child of moved\) cleanEl\(child\);/.test(san)
+      && /if \(DROP_TAGS\.has\(tag\)\) \{ parent\.removeChild\(el\); return; \}/.test(san)
+      && ['script', 'style', 'svg', 'math', 'iframe', 'object', 'embed', 'template'].every((t) => new RegExp(`'${t}'`).test(san.slice(san.indexOf('DROP_TAGS'), san.indexOf('const SAFE_URL')))), true);
+  const m65 = readFileSync('supabase/migrations/0465_product_database_2_needs_a_profile.sql', 'utf8');
+  const m66 = readFileSync('supabase/migrations/0466_staff_names_need_a_profile.sql', 'utf8');
+  const m67 = readFileSync('supabase/migrations/0467_ffr_number_not_public.sql', 'utf8');
+  eq('the install base copy is granted to nobody and read through its gate; the name list and the FFR number need more than a login (F-10 to F-12)',
+    m65.includes("revoke all on public.product_database_v2_mv from public, anon, authenticated")
+      && /from public\.product_database_v2_gate m\s+cross join public\.product_database_v2_state s/.test(m65)
+      && /where current_user not in \('anon', 'authenticated'\)\s+or \(select public\.product_database_2_reader_ok\(\)\)/.test(m65)
+      && m66.includes('and exists (select 1 from public.profiles me where me.id = auth.uid())')
+      && m67.includes('revoke execute on function public.next_ffr_no(smallint) from public, anon, authenticated'), true);
 }
 
 // THE TRAINING FORM RECORD, THE DEVICE COPY'S CHANGE CHECK, AND AN ADMIN'S
