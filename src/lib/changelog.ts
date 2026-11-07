@@ -20,6 +20,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.230',
+    date: '2026-11-07',
+    title: 'Libraries upgraded: no known vulnerabilities left',
+    changes: [
+      'The libraries RITHI is built with are upgraded to their current versions, closing the last finding of the security scan about them (F-07). A check of every library now reports no known vulnerabilities.',
+      'Nothing on any screen should look or work differently. If a page behaves oddly after this update, please report it.',
+    ],
+  },
+  {
     version: '0.10.229',
     date: '2026-11-07',
     title: 'Security fixes from the re-scan',
