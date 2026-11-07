@@ -160,6 +160,21 @@ up)_
 
 ---
 
+## 2026-11-07 — Libraries upgraded, F-07 fixed (v0.10.230)
+
+- The user: "Both on components and code" → asked: "Fix the components too".
+  react-router-dom 6.30.6 → 7.18.5; vite 5.4.21 → 8.3.6; @vitejs/plugin-react
+  4 → 6.2.1; esbuild 0.28.2 added as a devDependency (scripts call it; vite 8
+  uses rolldown). `npm audit`: 0 vulnerabilities (was 4 packages).
+- Verified: build; `npm run validate` 200/200 suites, 22/22 checks; the built
+  site served and opened in Chromium (no script error; only blocked network
+  calls from the sandbox); a router test in Chromium of every router feature
+  the app uses (catch-all, params + query, link state, `navigate('.')`).
+  Not verifiable here: the screens behind sign-in (Supabase is unreachable from
+  the sandbox) — **watch for anything odd after the deploy**.
+
+---
+
 ## 2026-11-07 — Security re-scan: F-10 to F-13 fixed (0465–0467, D-177–D-179, v0.10.229)
 
 - The user: "Re-scan for vulnerabilities"; asked: "Fix all four", and "I'll

@@ -750,6 +750,12 @@ on testing the old shape. **When a migration replaces a definition, move the
 - A call is **Unattended** only while it has no visit row; after that its status
   is the latest entry's. `calls.open_state` tests unsolved and report-pending
   **before** `solved%`, or "Solved - Report Pending" would read as Solved.
+- **VITE 8 BUILDS WITH ROLLDOWN AND NO LONGER BRINGS ESBUILD** (upgraded
+  2026-11-07 with react-router 7, security scan F-07). Thirteen `npm run`
+  scripts call `esbuild` directly, so it is a devDependency of its own now —
+  remove it and every `docs:*` / `check:*` that bundles a script stops with
+  "esbuild: not found". `@vitejs/plugin-react` 6 is the one that matches vite
+  8. Keep `npm audit` at zero; it was 0 after the upgrade.
 - The Supabase anon/publishable key in `src/lib/supabase.ts` is public by design;
   access is enforced by RLS. Never ship the service_role key.
 - `script.google.com` is blocked from the sandbox's outbound proxy, so the Apps
