@@ -559,6 +559,25 @@ against the call it was fitted to.
   > correct one, record another the other way — and a removal cannot take them
   > below zero. This replaces WinMax's *eBizWiz Admin* account, whose opening
   > stock has been removed.
+  > **🧮 Reconcile** (whoever holds the **Reconcile hand stock** permission —
+  > nobody but an administrator until it is ticked on Roles & Permissions): a
+  > physical count. Choose the engineer and every part on their hand stock is
+  > listed with what the system says; type the **physical** quantity beside the
+  > parts you counted, add any part they hold that is not listed, and save. Each
+  > counted part's stock level becomes the count, from that **date and time**,
+  > signed with your name, with what the system said kept beside it.
+  > **Everything entered for that part before the count stops counting.** It is
+  > not deleted: it stays on Stock Out, Spare Consumption, Stock Transfer and
+  > MRN as history. Anything entered **after** the count is added or taken off
+  > as usual, even if it happened before the count. So enter late paperwork
+  > before you count, or count again afterwards. **A part left blank is not
+  > counted** and keeps its figure. Field work does not stop while you count, so
+  > it can be done two or three engineers a day. A count is never edited or
+  > deleted; to correct one, count that part again (the latest count is the one
+  > that counts). The **Last counted** column shows when each line was last
+  > counted and the quantity. Several engineers at once: **Bulk Uploads → Hand
+  > Stock Reconciliation — physical count** (Engineer, Part, Physical Qty,
+  > Remarks).
   > **The cap applies on every route.** Marking a booking, transfer or return
   > as "imported" no longer lets it past the limit — only Bulk Uploads and the
   > Data Import panel load history. Stores cannot lower an issued quantity or

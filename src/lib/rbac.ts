@@ -387,6 +387,9 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
+  // 0468: a physical count that resets an engineer's hand stock on the parts
+  // counted -- granted to NO role (an administrator passes; tick it for whoever counts).
+  { group: 'Spares', key: 'handstock.reconcile', label: 'Reconcile hand stock to a physical count' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters (all of the below)' },
   // THE PARTS OF "EDIT MASTERS" (finding 67). Its children, so a role holding
@@ -787,7 +790,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch', 'spare.drop'] },
     { path: '/stock-out', label: 'Stock Out', actions: [] },
     { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
-    { path: '/handstock', label: 'Hand Stock', actions: ['consumption.reconcile', 'stock.transfer'] },
+    { path: '/handstock', label: 'Hand Stock', actions: ['consumption.reconcile', 'handstock.reconcile', 'stock.transfer'] },
     { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return', 'stock.return.others'] },
     { path: '/stock-transfer', label: 'Stock Transfer (MTN)', actions: ['stock.transfer'] },
   ] },

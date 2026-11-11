@@ -617,14 +617,16 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
       'Filter In hand, Short, Settled; search the whole register',
       'Open a line for its movement trail, or read the Movements ledger',
       '± Adjust stock with a reason and reference (reconciliation permission)',
+      '🧮 Reconcile an engineer to a physical count, part by part (Reconcile hand stock permission)',
     ],
-    records: ['handstock_balance', 'rpc:handstock_balance_all', 'handstock_movements', 'handstock_adjustments'],
+    records: ['handstock_balance', 'rpc:handstock_balance_all', 'handstock_movements', 'handstock_adjustments', 'handstock_reconciliations'],
     rules: [
       'A negative (Short) level is a finding: more was consumed than this system knows was issued',
       'If the balance is wrong the Spare Coordinator corrects the stock; the engineer does not book around it',
       'An adjustment is never edited or deleted, and a removal cannot take anyone below zero',
       'Counted from 09-Jun-2022, the WinMax opening: anything older is inside that opening and is not counted again',
       'Labour charges (service, transport, installation) are not hand stock and have no line here',
+      'A reconciled part starts from its physical count: anything entered for it before the count is kept on its own register but no longer counted; parts not counted keep their figure',
     ],
   },
   {

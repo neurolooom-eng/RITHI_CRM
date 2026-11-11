@@ -20,6 +20,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.231',
+    date: '2026-11-11',
+    title: 'Hand Stock: reconcile an engineer to a physical count',
+    changes: [
+      'Hand Stock has a 🧮 Reconcile button. Choose the engineer, type the physically verified quantity beside the parts you counted and save. From that date and time each counted part starts from your count: whatever was entered for it before the count is no longer counted, but it is kept as history on Stock Out, Spare Consumption, Stock Transfer and MRN. Whatever is entered after the count is added or taken off as usual.',
+      'Only the parts you count are reset; a part left blank keeps its figure. The count records who made it, when, and what the system showed at that moment. It can never be edited or deleted; to correct one, count that part again.',
+      'Field work carries on while you count, so it can be done two or three engineers a day. Several engineers at once: Bulk Uploads → Hand Stock Reconciliation — physical count (Engineer, Part, Physical Qty, Remarks).',
+      'Reconciling needs the new permission "Reconcile hand stock to a physical count". No role has it yet, so only an administrator can reconcile until it is ticked on Roles & Permissions for whoever counts.',
+      'The Stock Level table shows Last counted, and the movement trail of a counted part starts with a Reconciliation row: the physical count, with what the system said.',
+    ],
+  },
+  {
     version: '0.10.230',
     date: '2026-11-07',
     title: 'Libraries upgraded: no known vulnerabilities left',

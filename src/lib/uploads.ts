@@ -964,6 +964,23 @@ export const UPLOADS: UploadDef[] = [
       TEXT('remarks'),
     ] },
 
+  // HAND STOCK RECONCILIATION (0468): the physically verified count, several
+  // engineers at once. Each row resets ONE engineer + part; parts not in the
+  // file keep their figure. Inserted, never upserted: a count is a record, and
+  // counting a part again is a new count, the latest of which wins. Who and
+  // when are stamped by the database (the time of the upload), as on screen.
+  { key: 'handstock_reconciliation', label: 'Hand Stock Reconciliation — physical count', group: 'Spares',
+    table: 'handstock_reconciliations',
+    prepare: 'handstock-engineers',
+    stamp: { source: 'Upload' },
+    note: 'The physically verified hand stock — one row per engineer + part counted, with the Physical Qty. Each row becomes that line\u2019s count, dated and signed with the time of this upload and your name: anything entered for that engineer and part BEFORE the upload is no longer counted (it stays on its own register as history), and anything entered after it counts as usual. A part not in the file keeps its figure. Needs the Reconcile hand stock permission. A count is never edited: to correct one, upload (or count on screen) that part again. ONLY ACTIVE USERS OF THE USER MASTER are loaded; the names left out are named before anything is written. Give each engineer + part only once in a file: if it appears twice, the rows are refused when they reach the database together, and otherwise the later row becomes the count.',
+    cols: [
+      { to: 'engineer', from: ['engineer', 'engineer name', 'user name'], required: true },
+      { to: 'part', from: ['part', 'part no', 'spare', 'item detail'], required: true },
+      { to: 'physical_qty', from: ['physical qty', 'physical quantity', 'physical count', 'counted', 'qty', 'quantity'], type: 'num', required: true },
+      TEXT('remarks'),
+    ] },
+
   { key: 'spare_consumption_history', label: 'Consumption — historical (pre-2026)', group: 'Spares',
     table: 'spare_consumption_history', conflict: 'source_key,ref', conflictFrom: ['source', 'ref'],
     extraInto: 'data',

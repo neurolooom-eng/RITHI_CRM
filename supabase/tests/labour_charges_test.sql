@@ -105,7 +105,13 @@ select 'ordinary' as t,
 call public.nobody();
 insert into public.parts (code, item_detail) values ('TC001', 'TC001|TRANSPORTATION CHARGES') on conflict do nothing;
 update public.parts set labour_charge = false where code = 'TC001';
+-- Re-run the way HandStock_X.sql re-runs it: 0023 drops the two views first,
+-- and 0468 (hand stock reconciliation) owns the view's latest definition, with
+-- a column 0413's does not have -- so 0413 alone cannot replace it.
+drop view if exists public.handstock_balance cascade;
+drop view if exists public.handstock_movements cascade;
 \i supabase/migrations/0413_labour_charges.sql
+\i supabase/migrations/0468_handstock_reconciliation.sql
 select 're-run' as t,
   (select not labour_charge from public.parts where code = 'TC001') as unticked_stays_unticked;
 select 'grants' as t,
