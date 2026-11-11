@@ -704,6 +704,17 @@ on testing the old shape. **When a migration replaces a definition, move the
   0401 a DB trigger refused it — which saved the visit and silently dropped the
   part that WAS fitted. Transfers and returns still move only what is held
   (0339); the Spare Coordinator corrects the stock, not the engineer.
+- **A HAND STOCK RECONCILIATION RESETS A LINE BY ENTRY TIME, NOT BY DATE**
+  (0468, the user, 2026-11-11). `handstock_movements` drops every movement
+  whose `entered_at` (sys_created_on, else created_at) is before the latest
+  `handstock_reconciliations` row for the same engineer + part, and adds that
+  count as a Reconciliation arm. **A NEW ARM OF `handstock_movements` MUST
+  APPEND `entered_at`**, or every count ignores it (a NULL entry time counts
+  as before every count). The view reads `sys_created_on`, which sys_columns
+  (0244) attaches LAST on a fresh apply, so 0468 adds the plain column to the
+  ten arm tables first; a new arm table goes on that list too. The read policy
+  on the counts must cover everybody who can read the movements: the view runs
+  as its reader, and a reader who cannot see a count gets the pre-count figure.
 - **Quality records are never deleted** (0049 blocks it). A wrong consumption
   line is VOIDED — quantity set to 0, the row retained with its original
   quantity, reason and author, and the stock returns.

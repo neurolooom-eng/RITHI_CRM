@@ -4737,6 +4737,22 @@ export async function addHandstockAdjustment(a: { engineer: string; part: string
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+/** A HAND STOCK RECONCILIATION (0468): the physically verified count of the
+ *  parts given, for one engineer, in ONE insert -- so every line shares the
+ *  database's one timestamp and the save is all-or-nothing. The database
+ *  stamps who, when and what the system said; checks the engineer is active on
+ *  the User Master, each part is on the Part Master and not a labour charge,
+ *  and each count is a whole number of 0 or more. Needs handstock.reconcile.
+ *  Never edited: a wrong count is put right by counting the part again. */
+export async function addHandstockReconciliation(a: { engineer: string; remarks: string; lines: { part: string; physical_qty: number }[] }): Promise<{ ok: boolean; error?: string }> {
+  if (!a.lines.length) return { ok: false, error: 'Nothing was counted.' };
+  const { error } = await must().from('handstock_reconciliations').insert(a.lines.map((l) => ({
+    engineer: a.engineer.trim(), part: l.part.trim(), physical_qty: l.physical_qty,
+    remarks: a.remarks.trim(), source: 'Screen',
+  })));
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // `includeEmpty` also returns the parts the engineer holds none of, or is
 // already below zero on -- the visit form offers them since 0401, because a
 // part fitted beyond the hand stock is now booked (and the Spare Coordinator
@@ -4754,7 +4770,7 @@ export async function handstockForEngineer(engineer: string, limit = 1000, opts:
 // Every column of handstock_movements after `moved_at`, in the view's order.
 const HANDSTOCK_MOVEMENT_TIEBREAK = [
   'direction', 'movement', 'engineer_key', 'engineer', 'engineer_email', 'part_code', 'part',
-  'qty', 'ref', 'ref_type', 'ref_uid', 'ucn', 'call_number', 'party_name', 'remarks',
+  'qty', 'ref', 'ref_type', 'ref_uid', 'ucn', 'call_number', 'party_name', 'remarks', 'entered_at',
 ] as const;
 // Every movement, newest first — the Movements tab of the Hand Stock register.
 // Optional engineer / part filters narrow it server-side.

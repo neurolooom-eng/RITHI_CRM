@@ -159,6 +159,10 @@ const MODULES = {
             // F-11 (re-scan 2026-11-07): the staff name list answers only a
             // caller with a profile. Redefines 0068's function, so after it.
             '0466_staff_names_need_a_profile.sql',
+            // A rename carries the hand stock counts (0469). Redefines 0346's
+            // function, so after it; the table is made by handstock (0468) and
+            // the loop skips it until then.
+            '0469_rename_carries_reconciliations.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],
@@ -314,6 +318,9 @@ const MODULES = {
             // A profile only for an address on an active User Master row
             // (0463, security scan F-02); restates 0033's ensure_my_profile.
             '0463_profile_only_for_the_user_master.sql',
+            // The delete guard counts the hand stock counts (0470). Redefines
+            // 0350's master_delete_guard(), so after it.
+            '0470_delete_guard_counts_reconciliations.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -1246,6 +1253,11 @@ const MODULES = {
             // A one-time data fix (0448): the test request OR-2610-0356 and its
             // stock out SO-2610-0135 deleted at the user's request; images kept.
             '0448_delete_test_or_2610_0356.sql',
+            // Hand stock reconciliation (0468): a physical count per engineer +
+            // part; movements entered before it stop counting. Wraps 0413's
+            // view and 0102's balance, redefines 0310's rename_part_records and
+            // 0309's part_rename_impact, so after all of them.
+            '0468_handstock_reconciliation.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

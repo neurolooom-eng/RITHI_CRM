@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**114 tables · 44 views · 3292 columns · 235 policies · 69 foreign keys.**
+**119 tables · 45 views · 3452 columns · 270 policies · 70 foreign keys.**
 
 ## How to read this
 
@@ -50,6 +50,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [dccr_history_import](#dccr-history-import)
 - [device_cache_status](#device-cache-status)
 - [documents](#documents)
+- [employee_requests](#employee-requests)
 - [engineer_rename_ticket](#engineer-rename-ticket)
 - [export_runs](#export-runs)
 - [export_schedules](#export-schedules)
@@ -62,6 +63,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [handstock_adjustments](#handstock-adjustments)
 - [handstock_opening](#handstock-opening)
 - [handstock_period](#handstock-period)
+- [handstock_reconciliations](#handstock-reconciliations)
 - [harness](#harness)
 - [help_screenshots](#help-screenshots)
 - [indoor_dc_counters](#indoor-dc-counters)
@@ -104,6 +106,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [products](#products)
 - [products_install_start_backup](#products-install-start-backup)
 - [products_new_owner_address_backup](#products-new-owner-address-backup)
+- [products_party_remap_backup](#products-party-remap-backup)
 - [products_resync_backup](#products-resync-backup)
 - [profiles](#profiles)
 - [quality_objectives](#quality-objectives)
@@ -139,6 +142,8 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [tracker_items](#tracker-items)
 - [training_assignments](#training-assignments)
 - [training_attendance](#training-attendance)
+- [training_content_by_designation](#training-content-by-designation)
+- [training_requests](#training-requests)
 - [training_sessions](#training-sessions)
 - [ucn_counters](#ucn-counters)
 - [user_directory](#user-directory)
@@ -204,6 +209,7 @@ Views are listed [after the tables](#views).
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `app_settings_write` | `(is_admin() OR has_perm('config.manage'::text))` | `(is_admin() OR has_perm('config.manage'::text))` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `app_settings_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -333,6 +339,7 @@ Views are listed [after the tables](#views).
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `arc_read` | `true` | — |
 
 ---
@@ -376,6 +383,7 @@ Views are listed [after the tables](#views).
 | 29 | `record_year` | integer | yes |  | The year of the record: a yearly sheet's year, else the year of the call (0432). |
 | 30 | `duplicate` | boolean | **no** | `false` | Flagged when the same UC No. + Call No. arrived from another source or year; the latest year's record is shown, the others are kept in `duplicates`. A flag only -- nothing is acted on (0432). |
 | 31 | `duplicates` | jsonb | **no** | `'[]'::jsonb` | The other records of the same UC No. + Call No., each whole with its source and year (0432). |
+| 32 | `register` | text | yes |  | Field · Installation · PM · Which register the call belongs to: Field, Installation or PM (0451) -- chosen for the file on the upload screen, or read off the row's own Call Type for a Mixed file. The file's Call Type itself is kept as written. |
 
 **Unique:** `ucn, call_no` _(call_history_key)_ · `sys_id` _(call_history_sys_id_key)_
 
@@ -383,7 +391,7 @@ Views are listed [after the tables](#views).
 
 - `call_history_ucn_check` — `CHECK ((btrim(ucn) <> ''::text))`
 
-**Triggers:** `call_history_stamp` → `call_history_stamp()` · `call_history_year_default` → `call_history_year_default()` · `call_history_zz_keep_latest` → `call_history_keep_latest()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_history_register` → `call_history_register()` · `call_history_stamp` → `call_history_stamp()` · `call_history_year_default` → `call_history_year_default()` · `call_history_zz_keep_latest` → `call_history_keep_latest()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -561,6 +569,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `call_reviews_write` | `(( SELECT has_perm('review.edit'::text) AS has_perm) AND (( SELECT has_perm('bulk.upload'::text) AS has_perm) OR (EXISTS ( SELECT 1    FROM calls c   WHERE (c.ucn = call_reviews.uc…` | `(( SELECT has_perm('review.edit'::text) AS has_perm) AND (( SELECT has_perm('bulk.upload'::text) AS has_perm) OR (EXISTS ( SELECT 1    FROM calls c   WHERE (c.ucn = call_reviews.uc…` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `call_reviews_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -907,10 +916,75 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `documents_delete` | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` | — |
 | INSERT | `documents_insert` | — | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` |
 | SELECT | `documents_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `documents_update` | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` | `CASE     WHEN (kind = 'qms'::text) THEN has_perm('qms.manage'::text)     ELSE has_perm('docs.manage'::text) END` |
+
+---
+
+## employee_requests
+
+> A new employee asked for by a Reporting or Regional Manager, approved into the User Master by Admin / NSM / Technical Support (0449). The User Master's own Add user is a separate route and is unchanged.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `req_no` | text | yes |  |  |
+| 3 | `status` | text | **no** | `'Pending'::text` | Pending · Approved · Rejected |
+| 4 | `name` | text | **no** | `''::text` |  |
+| 5 | `email` | text | **no** | `''::text` |  |
+| 6 | `gmail` | text | **no** | `''::text` |  |
+| 7 | `designation` | text | **no** | `''::text` |  |
+| 8 | `department` | text | **no** | `''::text` |  |
+| 9 | `region` | text | **no** | `''::text` |  |
+| 10 | `reporting_manager` | text | **no** | `''::text` |  |
+| 11 | `regional_manager` | text | **no** | `''::text` |  |
+| 12 | `phone` | text | **no** | `''::text` |  |
+| 13 | `address` | text | **no** | `''::text` |  |
+| 14 | `city` | text | **no** | `''::text` |  |
+| 15 | `state` | text | **no** | `''::text` |  |
+| 16 | `remarks` | text | **no** | `''::text` |  |
+| 17 | `requested_by` | uuid | yes |  |  |
+| 18 | `requested_by_name` | text | **no** | `''::text` |  |
+| 19 | `requested_by_email` | text | **no** | `''::text` |  |
+| 20 | `requested_by_role` | text | **no** | `''::text` |  |
+| 21 | `decided_by` | uuid | yes |  |  |
+| 22 | `decided_by_name` | text | **no** | `''::text` |  |
+| 23 | `decided_at` | timestamp with time zone | yes |  |  |
+| 24 | `reject_reason` | text | **no** | `''::text` |  |
+| 25 | `user_directory_id` | bigint | yes |  |  |
+| 26 | `approved_data` | jsonb | yes |  |  |
+| 27 | `login_email` | text | **no** | `''::text` |  |
+| 28 | `login_created_at` | timestamp with time zone | yes |  |  |
+| 29 | `login_error` | text | **no** | `''::text` |  |
+| 30 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 31 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 32 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 33 | `sys_created_by` | uuid | yes |  |  |
+| 34 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 35 | `sys_updated_by` | uuid | yes |  |  |
+| 36 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 37 | `training_topic` | text | **no** | `''::text` |  |
+| 38 | `trainer_name` | text | **no** | `''::text` |  |
+| 39 | `trainer_designation` | text | **no** | `''::text` |  |
+| 40 | `training_risk` | text | **no** | `''::text` |  |
+
+**Unique:** `req_no` _(employee_requests_req_no_key)_ · `req_no` _(employee_requests_req_no_key)_ · `sys_id` _(employee_requests_sys_id_key)_
+
+**Referenced by:** `training_requests.employee_request_id`
+
+**Triggers:** `employee_request_stamp` → `employee_request_stamp()` · `employee_request_training_check` → `employee_request_training_check()` · `no_hard_delete` → `block_hard_delete()` · `zz_employee_request_raise_training` → `employee_request_raise_training()` · `zz_employee_request_training_decision` → `employee_request_training_decision()` · `zz_notify_employee_request` → `notify_employee_request()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `er_insert` | — | `( SELECT has_perm('users.request'::text) AS has_perm)` |
+| SELECT | `er_read` | `((requested_by = auth.uid()) OR ( SELECT has_perm('users.request.approve'::text) AS has_perm))` | — |
 
 ---
 
@@ -1054,7 +1128,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 13 | `visit_at` | timestamp with time zone | yes |  |  |
 | 14 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 15 | `created_by` | uuid | yes |  | → users(id) |
-| 16 | `ucn_key` | text _(generated)_ | yes |  |  |
+| 16 | `ucn_key` | text | yes |  |  |
 | 17 | `entry_at` | timestamp with time zone | **no** | `now()` | When the feedback was taken. For a migrated row this is the export's "Visit Entry Date"; for one recorded here it is when it was recorded. NOT created_at, which is when the ROW was written and reads as the upload date on every migrated feedback. |
 | 18 | `imported_from` | text | **no** | `''::text` | The file this feedback was loaded from; EMPTY means it was recorded in this system. Lets a figure drawn from both report the split. |
 | 19 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
@@ -1069,7 +1143,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(feedback_created_by_fkey)_
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_install_start_to_product` → `install_start_to_product()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `feedback_key_stamp` → `feedback_key_stamp()` · `no_hard_delete` → `block_hard_delete()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_install_start_to_product` → `install_start_to_product()` · `zz_pdv2_stale` → `pdv2_mark_stale()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -1449,7 +1523,52 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `hp_read` | `(auth.role() = 'authenticated'::text)` | — |
+
+---
+
+## handstock_reconciliations
+
+> Hand stock reconciliation (0468): a physically verified quantity per engineer + part. Movements entered before the latest count of that pair are not counted; they are kept.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `engineer` | text | **no** |  |  |
+| 3 | `engineer_key` | text _(generated)_ | yes |  |  |
+| 4 | `part` | text | **no** |  |  |
+| 5 | `part_code` | text _(generated)_ | yes |  |  |
+| 6 | `physical_qty` | numeric | **no** |  |  |
+| 7 | `system_qty` | numeric | yes |  |  |
+| 8 | `reconciled_at` | timestamp with time zone | **no** | `now()` |  |
+| 9 | `recorded_by` | uuid | yes |  |  |
+| 10 | `recorded_by_name` | text | **no** | `''::text` |  |
+| 11 | `remarks` | text | **no** | `''::text` |  |
+| 12 | `source` | text | **no** | `'Screen'::text` | Screen · Upload |
+| 13 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 14 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 15 | `sys_created_by` | uuid | yes |  |  |
+| 16 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 17 | `sys_updated_by` | uuid | yes |  |  |
+| 18 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(handstock_reconciliations_sys_id_key)_ · `engineer_key, part_code, reconciled_at` _(handstock_reconciliations_uniq)_
+
+**Constraints:**
+
+- `handstock_reconciliations_qty` — `CHECK ((physical_qty >= (0)::numeric))`
+
+**Triggers:** `handstock_reconciliations_bi` → `handstock_reconciliations_bi()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `hsr_insert` | — | `( SELECT has_perm('handstock.reconcile'::text) AS has_perm)` |
+| SELECT | `hsr_read` | `(( SELECT can_view_all_calls() AS can_view_all_calls) OR ( SELECT has_perm('data.view_all'::text) AS has_perm) OR (lower(btrim(engineer)) IN ( SELECT lower(btrim(v.n)) AS lower    …` | — |
 
 ---
 
@@ -1498,6 +1617,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `help_shot_delete` | `is_admin()` | — |
 | INSERT | `help_shot_insert` | — | `is_admin()` |
 | SELECT | `help_shot_read` | `(auth.role() = 'authenticated'::text)` | — |
@@ -2135,6 +2255,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | INSERT | `iws_insert` | — | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
 | SELECT | `iws_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `iws_update` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` | `( SELECT has_perm('bulk.upload'::text) AS has_perm)` |
@@ -2212,6 +2333,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `master_lists_write` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `master_lists_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2245,6 +2367,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `masters_delete` | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.delete'::text)))` | — |
 | INSERT | `masters_insert` | — | `(has_perm('masters.edit.records'::text) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '.add'::text)) OR has_perm((('master.'::text \|\| COALESCE(name, ''::text)) \|\| '…` |
 | SELECT | `masters_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
@@ -2427,6 +2550,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `os_read` | `true` | — |
 | UPDATE | `os_update` | `( SELECT has_perm('objective.manage'::text) AS has_perm)` | `( SELECT has_perm('objective.manage'::text) AS has_perm)` |
 
@@ -2510,6 +2634,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `ownership_write` | `has_perm('ownership.transfer'::text)` | `has_perm('ownership.transfer'::text)` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `ownership_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -2598,6 +2723,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `parties_delete` | `( SELECT has_perm('masters.parties.delete'::text) AS has_perm)` | — |
 | INSERT | `parties_insert` | — | `( SELECT has_perm('masters.parties.add'::text) AS has_perm)` |
 | SELECT | `parties_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
@@ -2645,6 +2771,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `parts_delete` | `( SELECT has_perm('masters.parts.delete'::text) AS has_perm)` | — |
 | INSERT | `parts_insert` | — | `( SELECT has_perm('masters.parts.add'::text) AS has_perm)` |
 | SELECT | `parts_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
@@ -2981,6 +3108,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `pa_delete` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | — |
 | INSERT | `pa_insert` | — | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `pa_read` | `true` | — |
@@ -3034,6 +3162,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `pae_write` | `has_perm('cover.edit.entries'::text)` | `has_perm('cover.edit.entries'::text)` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `pae_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -3067,6 +3196,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `pdv2_state_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit.entries'::text) OR has_perm('contract.edit.entries'::text) OR is_admin())` | — |
 | SELECT | `pdv2_state_read_all` | `(auth.role() = 'authenticated'::text)` | — |
 
@@ -3112,6 +3242,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `pm_delete` | `( SELECT has_perm('masters.product_master.delete'::text) AS has_perm)` | — |
 | INSERT | `pm_insert` | — | `( SELECT has_perm('masters.product_master.add'::text) AS has_perm)` |
 | SELECT | `pm_read` | `(auth.role() = 'authenticated'::text)` | — |
@@ -3178,12 +3309,13 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Unique:** `machine_key` _(products_machine_key_uniq)_ · `sys_id` _(products_sys_id_key)_
 
-**Triggers:** `products_cover_code` → `cover_code_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `products_cover_code` → `cover_code_stamp()` · `zz_products_party_follows_owner` → `products_party_follows_owner()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | INSERT | `products_insert` | — | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
 | SELECT | `products_read` | `(( SELECT auth.role() AS role) = 'authenticated'::text)` | — |
 | UPDATE | `products_update` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` | `( SELECT has_perm('masters.edit.records'::text) AS has_perm)` |
@@ -3234,6 +3366,38 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
 
 **Unique:** `sys_id` _(products_new_owner_address_backup_sys_id_key)_
+
+**Triggers:** `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
+## products_party_remap_backup
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `machine_key` | text | **no** |  |  |
+| 3 | `old_party` | text | yes |  |  |
+| 4 | `old_address` | text | yes |  |  |
+| 5 | `old_city` | text | yes |  |  |
+| 6 | `old_state` | text | yes |  |  |
+| 7 | `old_engineer` | text | yes |  |  |
+| 8 | `new_party` | text | yes |  |  |
+| 9 | `decided_by` | text | yes |  |  |
+| 10 | `saved_at` | timestamp with time zone | **no** | `now()` |  |
+| 11 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 12 | `sys_created_by` | uuid | yes |  |  |
+| 13 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 14 | `sys_updated_by` | uuid | yes |  |  |
+| 15 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(products_party_remap_backup_sys_id_key)_
 
 **Triggers:** `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3744,6 +3908,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `rtv_write` | `(is_admin() OR has_perm('layouts.share'::text))` | `(is_admin() OR has_perm('layouts.share'::text))` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `rtv_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -4007,6 +4172,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `sla_write` | `(is_admin() OR has_perm('config.manage'::text))` | `(is_admin() OR has_perm('config.manage'::text))` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `sla_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -4164,6 +4330,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `sdl_write` | `( SELECT has_perm('spare.dispatch'::text) AS has_perm)` | `( SELECT has_perm('spare.dispatch'::text) AS has_perm)` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `sdl_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -4727,6 +4894,110 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## training_content_by_designation
+
+> The Content of training each User Master designation gets on a Training Form's Record (0458), typed by whoever may manage training.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `designation` | text | **no** |  |  |
+| 3 | `designation_key` | text _(generated)_ | yes |  |  |
+| 4 | `content` | text | **no** | `''::text` |  |
+| 5 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 6 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 7 | `sys_created_by` | uuid | yes |  |  |
+| 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 9 | `sys_updated_by` | uuid | yes |  |  |
+| 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `designation_key` _(training_content_designation_key)_ · `sys_id` _(training_content_by_designation_sys_id_key)_ · `designation_key` _(training_content_designation_key)_
+
+**Triggers:** `training_content_stamp` → `training_content_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| DELETE | `tcd_delete` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | — |
+| INSERT | `tcd_insert` | — | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+| SELECT | `tcd_read` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | — |
+| UPDATE | `tcd_update` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+
+---
+
+## training_requests
+
+> Training Form R/HR/11 (0453): PLAN, RECORD and EVALUATION of the training a new employee is to get, raised with the New Employee Request that asks for them. The Request No. is raised elsewhere and typed in.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `employee_request_id` | bigint | yes |  | → employee_requests(id) |
+| 3 | `req_no` | text | **no** | `''::text` |  |
+| 4 | `req_date` | date | **no** | `((now() AT TIME ZONE 'Asia/Kolkata'::text))::date` |  |
+| 5 | `trainee_name` | text | **no** | `''::text` |  |
+| 6 | `designation` | text | **no** | `''::text` |  |
+| 7 | `manager_name` | text | **no** | `''::text` |  |
+| 8 | `topic` | text | **no** | `''::text` |  |
+| 9 | `trainer_name` | text | **no** | `''::text` |  |
+| 10 | `trainer_designation` | text | **no** | `''::text` |  |
+| 11 | `risk` | text | **no** | `'Low'::text` | Low · Medium · High |
+| 12 | `approval` | text | **no** | `'Pending'::text` | Pending · Approved · Not approved |
+| 13 | `approved_by_name` | text | **no** | `''::text` |  |
+| 14 | `approved_at` | timestamp with time zone | yes |  |  |
+| 15 | `not_approved_reason` | text | **no** | `''::text` |  |
+| 16 | `from_date` | date | yes |  |  |
+| 17 | `to_date` | date | yes |  |  |
+| 18 | `record_lines` | jsonb | **no** | `'[]'::jsonb` |  |
+| 19 | `evaluation_required` | boolean | yes |  |  |
+| 20 | `evaluation_justification` | text | **no** | `''::text` |  |
+| 21 | `evaluation_method` | text | **no** | `''::text` |  |
+| 22 | `evaluation_plan` | jsonb | **no** | `'[]'::jsonb` |  |
+| 23 | `reassessment` | text | **no** | `''::text` | (empty) · Yes · No |
+| 24 | `remarks` | text | **no** | `''::text` |  |
+| 25 | `created_by` | uuid | yes | `auth.uid()` |  |
+| 26 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 27 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 28 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 29 | `sys_created_by` | uuid | yes |  |  |
+| 30 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 31 | `sys_updated_by` | uuid | yes |  |  |
+| 32 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 33 | `source_doc_url` | text | **no** | `''::text` |  |
+| 34 | `source_doc_name` | text | **no** | `''::text` |  |
+| 35 | `evaluator_name` | text | **no** | `''::text` |  |
+| 36 | `trainer_signed` | jsonb | yes |  |  |
+| 37 | `evaluator_signed` | jsonb | yes |  |  |
+
+**Unique:** `employee_request_id` _(training_requests_employee_request_id_key)_ · `employee_request_id` _(training_requests_employee_request_id_key)_ · `sys_id` _(training_requests_sys_id_key)_
+
+**References:**
+
+- `employee_request_id` → **employee_requests**(`id`) · on delete no action _(training_requests_employee_request_id_fkey)_
+
+**Constraints:**
+
+- `training_requests_plan_array` — `CHECK ((jsonb_typeof(evaluation_plan) = 'array'::text))`
+- `training_requests_record_array` — `CHECK ((jsonb_typeof(record_lines) = 'array'::text))`
+- `training_requests_dates` — `CHECK (((to_date IS NULL) OR (from_date IS NULL) OR (to_date >= from_date)))`
+
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `training_request_guard` → `training_request_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `trq_insert` | — | `(( SELECT has_perm('training.manage'::text) AS has_perm) AND (employee_request_id IS NULL))` |
+| SELECT | `trq_read` | `(( SELECT has_perm('training.manage'::text) AS has_perm) OR ( SELECT has_perm('users.request.approve'::text) AS has_perm) OR (EXISTS ( SELECT 1    FROM employee_requests er   WHERE…` | — |
+| UPDATE | `trq_update` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
+
+---
+
 ## training_sessions
 
 **Primary key:** `id` · **Row-level security:** **on**
@@ -4769,6 +5040,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | INSERT | `ts_insert` | — | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
 | SELECT | `ts_read` | `true` | — |
 | UPDATE | `ts_update` | `( SELECT has_perm('training.manage'::text) AS has_perm)` | `( SELECT has_perm('training.manage'::text) AS has_perm)` |
@@ -4830,6 +5102,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | DELETE | `ud_delete` | `( SELECT has_perm('users.manage.disable'::text) AS has_perm)` | — |
 | INSERT | `ud_insert` | — | `( SELECT (has_perm('users.manage.details'::text) OR has_perm('users.manage.create'::text)))` |
 | SELECT | `ud_read` | `(auth.role() = 'authenticated'::text)` | — |
@@ -4935,6 +5208,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 8 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 9 | `sys_updated_by` | uuid | yes |  |  |
 | 10 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 11 | `set_by` | uuid | yes |  |  |
+| 12 | `set_by_name` | text | **no** | `''::text` |  |
 
 **Unique:** `sys_id` _(user_signatures_sys_id_key)_
 
@@ -4988,6 +5263,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | ALL | `valres_write` | `(is_admin() OR has_perm('validation.manage'::text))` | `(is_admin() OR has_perm('validation.manage'::text))` |
+| ALL | `zz_needs_a_profile` | `( SELECT has_a_profile() AS has_a_profile)` | `( SELECT has_a_profile() AS has_a_profile)` |
 | SELECT | `valres_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
@@ -5001,7 +5277,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | View | security_invoker | Columns |
 | --- | --- | --- |
 | `app_user_names` | _not set_ | 2 |
-| `call_dates` | **on** | 4 |
+| `call_dates` | **on** | 5 |
 | `call_report` | **on** | 51 |
 | `call_state` | **on** | 6 |
 | `calls` | **on** | 54 |
@@ -5017,15 +5293,16 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `field_call_review` | **on** | 59 |
 | `field_call_review_summary` | **on** | 16 |
 | `field_failure_register` | **on** | 62 |
-| `handstock_balance` | **on** | 20 |
-| `handstock_movements` | **on** | 16 |
+| `handstock_balance` | **on** | 22 |
+| `handstock_movements` | **on** | 17 |
 | `indoor_dc_list` | **on** | 20 |
 | `indoor_job_list` | **on** | 111 |
-| `kpi_field_inst` | **on** | 34 |
+| `kpi_field_inst` | **on** | 38 |
 | `machine_cover` | **on** | 19 |
 | `pending_calls` | **on** | 54 |
 | `product_database` | **on** | 42 |
 | `product_database_v2` | **on** | 35 |
+| `product_database_v2_gate` | _not set_ | 29 |
 | `product_party_names` | **on** | 2 |
 | `product_register_names` | **on** | 2 |
 | `recycle_consumption_list` | **on** | 10 |
@@ -5045,7 +5322,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `unused_spare_report` | **on** | 25 |
 | `warranty_sale_details` | **on** | 46 |
 
-**`call_dates`** — Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424). security_invoker: one row per call the reader may see.
+**`call_dates`** — Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424); and the Call Pending Reason of the latest visit entry while the call is open (0433). security_invoker: one row per call the reader may see.
 
 **`call_report`** — One row per CALL — never per visit — with its latest visit and what was fitted. security_invoker, so it shows a reader exactly the calls they may see and no more.
 
@@ -5057,7 +5334,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 
 **`feedback_without_report`** — Customer feedback with no "Solved - Report Completed" visit behind it. The feedback is the evidence that a visit happened; the report is the record of it, and a call carrying one without the other is a visit that was never written up. `missing` names which of the four findings applies. Administrators only, by the module key rather than by a rule of its own (0229).
 
-**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425). The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
+**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425); every day count is the lower of complaint-to and breakdown-to that is not negative (call_days(), 0440), the three "... Days From" columns name the date each count came from (0442), and "Register" says which of the three registers the call is on (0450). The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST (0159).
 
 **`product_database`** — The install base as it stands NOW: the party from the later of the latest sale and the latest ownership transfer (0238), and the contract and installation call that name that machine AND that party. Item Status is warranty-first over the matching contract; the engineer is always the Party Master's. The stored values are kept beside them as *_keyed.
 

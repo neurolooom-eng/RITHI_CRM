@@ -46,11 +46,16 @@ export interface HandstockBalance {
   hist_consumed: number;
   hist_net: number;
   on_hand_live: number;
+  // THE LATEST PHYSICAL COUNT (0468): the quantity the line now starts from and
+  // when it was counted. Null on a line never counted. Movements entered before
+  // it are not in on_hand any more; they are still on their own registers.
+  reconciled_qty?: number | null;
+  reconciled_at?: string | null;
 }
 
 // 'Adjustment' (0266): the office's + / - with a reason, replacing WinMax's
 // eBizWiz Admin account.
-export type MovementKind = 'Stock out' | 'Consumption' | 'Transfer in' | 'Transfer out' | 'Return' | 'Adjustment';
+export type MovementKind = 'Stock out' | 'Consumption' | 'Transfer in' | 'Transfer out' | 'Return' | 'Adjustment' | 'Reconciliation';
 
 export interface HandstockMovement {
   direction: 'IN' | 'OUT';
@@ -96,7 +101,7 @@ export const balanceTone = (onHand: number): StockTone =>
   onHand < 0 ? 'danger' : onHand > 0 ? 'success' : 'neutral';
 
 export const movementTone = (m: MovementKind): 'success' | 'neutral' | 'info' | 'warning' =>
-  m === 'Stock out' ? 'success' : m === 'Consumption' ? 'neutral' : m === 'Return' || m === 'Adjustment' ? 'warning' : 'info';
+  m === 'Stock out' ? 'success' : m === 'Consumption' ? 'neutral' : m === 'Return' || m === 'Adjustment' || m === 'Reconciliation' ? 'warning' : 'info';
 
 export interface HandstockSummary {
   engineers: number;   // people holding at least one spare

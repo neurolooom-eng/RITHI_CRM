@@ -2347,7 +2347,18 @@ with checks(sort_order, bundle, provides, present) as (
     (377, 'Security: the FFR number is drawn only by raising a report', 'next_ffr_no(smallint) off every API role (0467, re-scan F-12). NO means anybody signed in can burn numbers in the Field Failure Register. Restore: lockdown.sql (0467)',
         to_regprocedure('public.next_ffr_no(smallint)') is null
         or (not has_function_privilege('authenticated', 'public.next_ffr_no(smallint)', 'execute')
-            and not has_function_privilege('anon', 'public.next_ffr_no(smallint)', 'execute')))
+            and not has_function_privilege('anon', 'public.next_ffr_no(smallint)', 'execute'))),
+    (378, 'Hand stock reconciliation: a physical count sets the line', 'handstock_reconciliations + its stamping guard, the Reconciliation arm and the entered-before-the-count filter on handstock_movements, reconciled_qty / reconciled_at on handstock_balance, and part renames carrying the counts (0468). NO means Reconcile on Hand Stock answers an error, or a count does not change the figure. Restore: HandStock_X.sql (0468)',
+        to_regclass('public.handstock_reconciliations') is not null
+        and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.handstock_reconciliations') and tgname = 'handstock_reconciliations_bi')
+        and position('handstock_reconciliations k' in coalesce(pg_get_viewdef(to_regclass('public.handstock_movements')), '')) > 0
+        and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'handstock_balance' and column_name = 'reconciled_at')
+        and position('handstock_reconciliations' in coalesce(pg_get_functiondef(to_regprocedure('public.rename_part_records(bigint,text,text)')), '')) > 0
+        and not has_table_privilege('authenticated', 'public.handstock_reconciliations', 'update')),
+    (379, 'A User Master rename carries the hand stock counts', 'user_directory_carry_rename_records() lists handstock_reconciliations (0469). NO means a renamed engineer''s count stays under the old name and the line splits in two. Restore: user_directory.sql (0469)',
+        position('handstock_reconciliations' in coalesce(pg_get_functiondef(to_regprocedure('public.user_directory_carry_rename_records()')), '')) > 0),
+    (380, 'A counted part cannot be deleted from the Part Master', 'master_delete_guard() counts handstock_reconciliations.part (0470). NO means a part on a hand stock count can be deleted. Restore: rbac.sql (0470)',
+        position('handstock_reconciliations.part' in coalesce(pg_get_functiondef(to_regprocedure('public.master_delete_guard()')), '')) > 0)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

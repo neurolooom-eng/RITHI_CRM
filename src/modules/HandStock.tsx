@@ -8,6 +8,7 @@ import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { useArrivingFilter } from '../lib/arriveWith';
 import {
   listHandstockBalanceAll, handstockCountedFrom, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
+  handstockForEngineer, addHandstockReconciliation,
 } from '../lib/supabase';
 import { PickList } from '../components/ui/PickList';
 import { useMaster } from '../lib/masters';
@@ -89,6 +90,9 @@ const asRow = (r: Record<string, unknown>): Row => ({
   // balance: the toggle then changes nothing, which is the honest behaviour
   // when the database cannot yet tell the two apart.
   on_hand_live: r.on_hand_live === undefined ? num(r.on_hand) : num(r.on_hand_live),
+  // The latest physical count (0468); absent before it is applied.
+  reconciled_qty: r.reconciled_qty == null ? null : num(r.reconciled_qty),
+  reconciled_at: r.reconciled_at ? String(r.reconciled_at) : null,
   id: `${String(r.engineer_key ?? '')}::${String(r.part_code ?? '')}`,
 });
 
@@ -198,6 +202,7 @@ export function HandStock() {
   const team = useTeamEngineers();
   const [detail, setDetail] = useState<Row | null>(null);
   const [adjusting, setAdjusting] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
@@ -312,6 +317,13 @@ export function HandStock() {
     { key: 'transferred_out', header: 'Transfer out', width: 105, align: 'right', wrap: false },
     { key: 'returned', header: 'Returned', width: 95, align: 'right', wrap: false },
     { key: 'last_movement', header: 'Last movement', width: 135, render: (r) => fmtLongDate(r.last_movement) },
+    // THE LATEST PHYSICAL COUNT (0468). The level starts from it: movements
+    // entered before it are not counted, and stay on their own registers.
+    { key: 'reconciled_at', header: 'Last counted', width: 160,
+      accessor: (r) => (r.reconciled_at ? formatDayTime(r.reconciled_at) : ''),
+      render: (r) => (r.reconciled_at
+        ? <span title={`Physical count ${r.reconciled_qty ?? ''} — the level starts from this count`}>{formatDayTime(r.reconciled_at)} ({r.reconciled_qty ?? ''})</span>
+        : <span className="muted">—</span>) },
   ];
 
   return (
@@ -321,6 +333,7 @@ export function HandStock() {
         refreshing={busy}
         title="Hand Stock"
         subtitle={'Stock level per engineer and spare: opening + stock out from Stores − consumption − transfers out + transfers in − returns ± adjustments.'
+          + ' Where a line has been reconciled, it starts from the physical count and only what was entered after the count is added or taken off.'
           + (countedFrom ? ` Counted from ${formatDay(countedFrom)}: anything older is inside that day's opening balance and is not counted again.` : '')
           + ' Labour charges (service, transport, installation) are not hand stock.'}
         icon="🎒"
@@ -344,8 +357,12 @@ export function HandStock() {
             {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length}{more ? '+' : ''} match{hits.length === 1 ? '' : 'es'}</span>}
           </>
         }
-        actions={(can('stock.transfer') || can('consumption.reconcile')) && (
+        actions={(can('stock.transfer') || can('consumption.reconcile') || can('handstock.reconcile')) && (
           <div className="row" style={{ gap: 6 }}>
+            {can('handstock.reconcile') && onDb && (
+              <button className="btn" onClick={() => setReconciling(true)}
+                title="Set an engineer's hand stock to a physically verified count, part by part">🧮 Reconcile</button>
+            )}
             {can('consumption.reconcile') && onDb && (
               <button className="btn" onClick={() => setAdjusting(true)}
                 title="Add or remove quantity from an engineer's hand stock, with a reason">± Adjust stock</button>
@@ -354,6 +371,11 @@ export function HandStock() {
           </div>
         )}
       />
+
+      {reconciling && (
+        <ReconcileDrawer engineers={team.names} onClose={() => setReconciling(false)}
+          onSaved={(text) => { setReconciling(false); setMsg({ tone: 'ok', text }); void load(); }} />
+      )}
 
       {adjusting && (
         <AdjustDrawer engineers={team.names} onClose={() => setAdjusting(false)}
@@ -564,7 +586,7 @@ function Movements({
     { key: 'remarks', header: 'Remarks', width: 180 },
   ];
 
-  const KINDS: MovementKind[] = ['Stock out', 'Consumption', 'Transfer in', 'Transfer out', 'Return', 'Adjustment'];
+  const KINDS: MovementKind[] = ['Stock out', 'Consumption', 'Transfer in', 'Transfer out', 'Return', 'Adjustment', 'Reconciliation'];
 
   return (
     <>
@@ -869,6 +891,162 @@ function AdjustDrawer({ engineers, onClose, onSaved }: {
         <div className="rep-actions">
           <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save adjustment'}</button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+// ===========================================================================
+// 🧮 RECONCILE (0468). The user, 2026-11-11: "When i Reconcile, it should take
+// the Date and Time of Reconcilliation and Igonre all past transactions for
+// Calculation but those should be retained as Historical Data ... i will be
+// setting the Opening Stock which is physcially verified".
+//
+// Choose the engineer; every part on their hand stock is listed with what the
+// system says. Type the PHYSICAL count beside the parts you counted -- a part
+// left blank is NOT counted and keeps its figure (the user's choice: only the
+// parts entered). Add a part they hold that the system does not show. One
+// save is one reconciliation: the database stamps who and when, and what the
+// system said, and from then on the line starts from the count -- anything
+// ENTERED before it is not counted again, anything entered after it is.
+// Needs `handstock.reconcile`. Never edited: a wrong count is counted again.
+// ===========================================================================
+interface CountLine { part: string; system: number; physical: string }
+
+function ReconcileDrawer({ engineers, onClose, onSaved }: {
+  engineers: string[]; onClose: () => void; onSaved: (text: string) => void;
+}) {
+  const parts = useMaster('spare').values;
+  const [engineer, setEngineer] = useState('');
+  const [lines, setLines] = useState<CountLine[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [adding, setAdding] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setLines([]); setErr('');
+    if (!engineer) return;
+    let live = true;
+    setLoading(true);
+    handstockForEngineer(engineer, 1000, { includeEmpty: true })
+      .then((rows) => {
+        if (!live) return;
+        setLines(rows.map((r) => ({ part: String(r.part ?? r.part_code ?? ''), system: num(r.on_hand), physical: '' }))
+          .filter((l) => l.part)
+          .sort((a, b) => a.part.localeCompare(b.part)));
+      })
+      .catch((e) => { if (live) setErr(`Could not load ${engineer}'s hand stock: ${e instanceof Error ? e.message : String(e)}`); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [engineer]);
+
+  const addPart = (p: string) => {
+    setAdding('');
+    if (!p) return;
+    const key = p.trim().toLowerCase();
+    if (lines.some((l) => l.part.trim().toLowerCase() === key)) { setFilter(p.split('|')[0]); return; }
+    setLines((ls) => [{ part: p, system: 0, physical: '' }, ...ls]);
+  };
+  const setPhysical = (part: string, v: string) =>
+    setLines((ls) => ls.map((l) => (l.part === part ? { ...l, physical: v } : l)));
+
+  const counted = lines.filter((l) => l.physical.trim() !== '');
+  const bad = counted.filter((l) => { const n = Number(l.physical); return !Number.isInteger(n) || n < 0; });
+  const differ = counted.filter((l) => Number(l.physical) !== l.system);
+  const shown = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    return q ? lines.filter((l) => l.part.toLowerCase().includes(q)) : lines;
+  }, [lines, filter]);
+
+  const problem = !engineer ? 'Choose the engineer.'
+    : !counted.length ? 'Type the physical count beside at least one part.'
+      : bad.length ? `A count must be a whole number, 0 or more — check ${bad.map((l) => l.part.split('|')[0]).join(', ')}.` : '';
+
+  const save = async () => {
+    if (problem) { setErr(problem); return; }
+    setBusy(true); setErr('');
+    const r = await addHandstockReconciliation({
+      engineer, remarks,
+      lines: counted.map((l) => ({ part: l.part, physical_qty: Number(l.physical) })),
+    });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error ?? 'Could not save the reconciliation.'); return; }
+    onSaved(`${engineer}: ${counted.length} part${counted.length === 1 ? '' : 's'} reconciled to the physical count`
+      + (differ.length ? ` (${differ.length} differed from the system)` : ' (all agreed with the system)')
+      + '. Movements entered before now are no longer counted on those parts; they stay on record.');
+  };
+
+  return (
+    <Drawer open onClose={onClose} title="Reconcile hand stock" width={760}>
+      <div className="rep-form">
+        {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
+        <label className="field"><span className="field-label">Engineer *</span>
+          <SelectPicker value={engineer} onChange={setEngineer} placeholder="— active User Master names —" options={engineers} /></label>
+        {engineer && (
+          <>
+            <div className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label className="field" style={{ flex: '1 1 260px' }}><span className="field-label">Find a part on the list</span>
+                <input className="input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Code or description" /></label>
+              <label className="field" style={{ flex: '1 1 300px' }}><span className="field-label">Add a part not on the list</span>
+                <PickList value={adding} options={parts} onPick={addPart} placeholder="Type any part of the code or description…"
+                  emptyLabel={parts.length ? '— pick a part —' : '— loading parts… —'} /></label>
+            </div>
+            <div className="muted" style={{ fontSize: 12.5 }}>
+              {loading ? 'Loading their hand stock…'
+                : `${lines.length} part${lines.length === 1 ? '' : 's'} listed · ${counted.length} counted · ${differ.length} differ from the system. A part left blank is not counted and keeps its figure.`}
+            </div>
+            <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
+              <table className="assoc-table" style={{ minWidth: 640 }}>
+                <thead>
+                  <tr><th>Spare</th><th>Description</th><th style={{ textAlign: 'right' }}>System</th><th style={{ textAlign: 'right' }}>Physical</th><th style={{ textAlign: 'right' }}>Difference</th></tr>
+                </thead>
+                <tbody>
+                  {shown.map((l) => {
+                    const has = l.physical.trim() !== '';
+                    const diff = has ? Number(l.physical) - l.system : 0;
+                    return (
+                      <tr key={l.part}>
+                        <td style={{ whiteSpace: 'nowrap' }}>{l.part.split('|')[0]}</td>
+                        <td>{partDescription(l.part) || l.part}</td>
+                        <td style={{ textAlign: 'right' }}>{l.system}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <input className="input" type="number" min={0} step={1} style={{ width: 90, textAlign: 'right' }}
+                            aria-label={`Physical count of ${l.part.split('|')[0]}`}
+                            value={l.physical} onChange={(e) => setPhysical(l.part, e.target.value)} placeholder="—" />
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {!has ? <span className="muted">not counted</span>
+                            : diff === 0 ? <span className="muted">0</span>
+                              : <b className={diff > 0 ? 'wf-in' : 'wf-out'}>{diff > 0 ? '+' : '−'}{Math.abs(diff)}</b>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!loading && !shown.length && (
+                    <tr><td colSpan={5} className="muted">{lines.length ? 'No part on the list matches.' : 'The system shows no hand stock for them — add the parts you counted.'}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <label className="field"><span className="field-label">Remarks</span>
+              <input className="input" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. Counted at the Chennai branch with the engineer" /></label>
+          </>
+        )}
+        <p className="muted" style={{ fontSize: 12.5 }}>
+          On save, each counted part&rsquo;s level becomes the physical count, recorded with your name and the date and time.
+          Anything entered for that part <i>before</i> the count is no longer counted. It stays on its own register
+          (stock out, consumption, transfer, return) as history. Anything entered <i>after</i> the count is added or taken off as usual.
+          A count cannot be edited or deleted; to correct one, count that part again.
+        </p>
+        <div className="rep-actions">
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy || loading || !engineer} onClick={() => void save()}>
+            {busy ? 'Saving…' : `Save reconciliation${counted.length ? ` (${counted.length})` : ''}`}
+          </button>
         </div>
       </div>
     </Drawer>
