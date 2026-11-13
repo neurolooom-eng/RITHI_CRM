@@ -208,6 +208,11 @@ grant insert on public.training_requests to authenticated;
 -- ---- the signature tracker -------------------------------------------------
 -- Per login: whether and when a signature was saved. Never the image. For
 -- whoever may edit User Master details (its parent, users.manage, grants it).
+-- DROPPED FIRST (0477): 0477 appends `required` to the columns this returns,
+-- and a bundle replayed on a project that has it would otherwise stop here
+-- with "cannot change return type of existing function". 0477 re-creates it,
+-- with its grants, later in this same bundle; nothing is built on it.
+drop function if exists public.signature_tracker();
 create or replace function public.signature_tracker()
 returns table (user_id uuid, full_name text, email text, designation text, active boolean, has_signature boolean, signed_at timestamptz)
 language plpgsql stable security definer set search_path = public as $$

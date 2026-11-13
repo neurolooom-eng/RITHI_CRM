@@ -413,7 +413,7 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'Request Registration with its own key, the True Key (RQ2-yymm-nnnn), and — when the call was attended — the visit, recorded in Req_VisitTable. Administrators only.',
     does: [
       'Raise a request exactly as on Request Registration; it goes on to Pending Registrations the same way',
-      'When Call Attended? = Yes, choose the Call Status (Unsolved or Solved - Report Pending) and the Call Pending Reason from the Visit Report’s list (mandatory)',
+      'When Call Attended? = Yes, choose the Call Status (Unsolved or Solved - Report Pending) and the Call Pending Reason from the Visit Report’s list (mandatory; Solved - Report Pending sets it to REPORT PENDING, locked)',
       'See the v2 requests, each with its True Key',
     ],
     records: ['call_requests', 'req_visit_table', 'rpc:submit_call_request_v2', 'masters', 'reports'],

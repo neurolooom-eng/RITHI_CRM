@@ -148,7 +148,8 @@ different totals. An empty register usually means access, not emptiness.
   > Key first.
   > When **Call Attended? = Yes**, **Call Status** is asked — **Unsolved** (the
   > default) or **Solved - Report Pending**, nothing else — and **Call Pending
-  > Reason** — the Visit Report's own list, mandatory. Each machine then gets a
+  > Reason** — the Visit Report's own list, mandatory. With **Solved - Report
+  > Pending** the reason is **REPORT PENDING**, filled in and locked. Each machine then gets a
   > row in **Req_VisitTable**, keyed `<True Key>-<Product>-<Serial>`: that Call
   > Status, Visiting Service Engineer **you**, Engineer Email **your
   > login**, Visit Date & Time **the Attended Date**, Visit Entry Date **the time
@@ -1338,8 +1339,13 @@ typed into a form that reads it.
   > **Signatures saved: X of Y** (above the list, for whoever may edit these
   > details): how many active logins have saved a signature, **Show who** for
   > those still to do and when each one saved theirs, and **⬇ CSV**.
+  > **No signature is asked of a test account or an inactive user**: tag a
+  > test login **Test Account** in Tags (any capitals), or mark the person
+  > inactive. They read **Not required**, are not counted in Signatures saved,
+  > and never get the "Add your signature" reminder. A signature already saved
+  > still reads Saved.
   > The list has a **Signature** column (Saved with the date / Not
-  > yet / No login), a **signature filter** beside the tag box, and it goes in
+  > yet / Not required / No login), a **signature filter** beside the tag box, and it goes in
   > the CSV. **Administrators** can open a person and press **✍️ Show
   > signature** to see the image itself; each look is recorded in the audit
   > log (`signature.view`), the button is hidden while Audit Mode is on, and

@@ -160,6 +160,29 @@ up)_
 
 ---
 
+## 2026-11-13 — v2: Solved - Report Pending sets REPORT PENDING, locked (0478, v0.10.238)
+
+- The user: "Solved - Report Pending should set the Call Pending Reason to
+  REPORT PENDING and Lock it." 0478 (call_requests.sql): the save and the
+  table guard write REPORT PENDING for that status, not looked up on the
+  master; the form locks it. FRS-288.2b; `_status.sql` row 384;
+  `request_registration_v2_test`. The Visit Report form is NOT changed.
+
+---
+
+## 2026-11-13 — No signature asked of test accounts or inactive users (0477, v0.10.237)
+
+- The user: "For Test Accounts, Signature is not Required in User Master.
+  Same with Inactive Users." Asked: a test account is a User Master row
+  tagged "Test Account"; applies to the Signature column (+ filter), the
+  tracker count and the sign-in reminder.
+- 0477 (training.sql): `signature_not_required()`, `my_signature_required()`,
+  `signature_tracker()` re-created with `required` appended. FRS-281.7a;
+  `_status.sql` row 385; `signature_not_required_test`.
+- ⏳ THE USER'S STEP: tag each test login **Test Account** on User Master.
+
+---
+
 ## 2026-11-13 — Request Registration v2 shows Call Status (0476, v0.10.236)
 
 - The user: "Show Call Status, But Limit the Options to Unsolved and Solved

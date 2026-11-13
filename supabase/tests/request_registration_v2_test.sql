@@ -68,7 +68,6 @@ begin; set local role authenticated;
 commit;
 
 \echo '--- 3b. Call Status shown (0476): Solved - Report Pending is kept; anything else refused ---'
-\echo 'expect: Solved - Report Pending'
 call public.be('v2_admin@x.com');
 begin; set local role authenticated;
   select public.submit_call_request_v2(
@@ -76,7 +75,16 @@ begin; set local role authenticated;
     '[{"product":"V2PROD","serial_no":"V2S5","standard_complaint":"X","reported_problem":"Y"}]'::jsonb,
     'V2 Spare Awaited', 'Solved - Report Pending') is not null as saved;
 commit;
-select call_status from public.req_visit_table where serial_no = 'V2S5';
+\echo 'expect: Solved - Report Pending | REPORT PENDING (0478: the reason sent is replaced)'
+select call_status, pending_reason from public.req_visit_table where serial_no = 'V2S5';
+\echo 'expect: saved with no reason sent, and it reads REPORT PENDING -- not looked up on the master'
+begin; set local role authenticated;
+  select public.submit_call_request_v2(
+    ('{"call_type":"FIELD","party_name":"P","call_attended":"Yes","attended_date":"' || (current_date - 1)::text || '"}')::jsonb,
+    '[{"product":"V2PROD","serial_no":"V2S6","standard_complaint":"X","reported_problem":"Y"}]'::jsonb,
+    '', 'Solved - Report Pending') is not null as saved;
+commit;
+select pending_reason from public.req_visit_table where serial_no = 'V2S6';
 \echo 'expect ERROR: Call Status must be Unsolved or Solved - Report Pending'
 begin; set local role authenticated;
   select public.submit_call_request_v2('{"call_type":"FIELD","call_attended":"Yes","attended_date":"2026-01-01"}'::jsonb,

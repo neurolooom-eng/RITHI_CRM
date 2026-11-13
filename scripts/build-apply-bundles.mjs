@@ -423,6 +423,9 @@ const MODULES = {
       // ...Call Status shown, Unsolved or Solved - Report Pending (0476):
       // replaces the 0475 save function and its table guard.
       '0476_request_v2_call_status.sql',
+      // ...Solved - Report Pending carries the reason REPORT PENDING, locked
+      // (0478): replaces the 0476 save function and table guard.
+      '0478_request_v2_report_pending_reason.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -1053,7 +1056,10 @@ const MODULES = {
             // A form from HR: only the Record is filled in, the plan and the
             // evaluation locked; the content of training per designation
             // (0458). Restates 0454's guard, so after it.
-            '0458_training_record_only_and_content_by_designation.sql'],
+            '0458_training_record_only_and_content_by_designation.sql',
+            // No signature asked of a test account or an inactive user (0477):
+            // the rule, and the 0454 tracker re-created with it appended.
+            '0477_signature_not_required.sql'],
   },
   masters: {
     title: 'Master Value Lists',
