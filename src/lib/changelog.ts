@@ -20,6 +20,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.246',
+    date: '2026-11-13',
+    title: 'Objective evidence: Region column',
+    changes: [
+      'The evidence download for every call-based objective has a Region column beside the engineer: the region of the Visiting Service Engineer, else of the engineer the call is allotted to, from the User Master.',
+      'The Customer Feedback Satisfaction evidence has Region beside its Engineer.',
+    ],
+  },
+  {
     version: '0.10.245',
     date: '2026-11-13',
     title: 'Hand Stock: upload counts beside Reconcile; Reconcile grouped and sortable',

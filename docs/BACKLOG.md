@@ -160,6 +160,19 @@ up)_
 
 ---
 
+## 2026-11-13 — Objective evidence Region; delete four calls with their visits (v0.10.246)
+
+- Region on the call-based evidence sheets (visit engineer, else allotted)
+  and on the feedback-satisfaction sheet. NOT on the FFR count sheet or the
+  DCCR failure-rate workbook (they carry no engineer) — ask if wanted.
+- `supabase/apply/_delete_calls_and_their_visits.sql` (hand-run, dry run by
+  default): 26K13F0024 / 0025 / 0026 / 0027 — deletes each call and its
+  visit entries, un-files its Req_VisitTable rows (kept) and puts its request
+  back to Pending; refuses a call with anything else behind it.
+  **PENDING: the user runs it in the SQL editor** (dry run, then apply).
+
+---
+
 ## 2026-11-13 — Hand Stock: count upload moved here; Reconcile grouped + sorted (v0.10.245)
 
 - The user: "Bulk Upload - Move it to Handstock Screen Itself. In the

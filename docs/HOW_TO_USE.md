@@ -1743,7 +1743,10 @@ typed into a form that reads it.
   - **Every call-based objective's evidence download** has a **Call Pending
     Reason** column beside the call's status: the same value as the call
     registers' column (the latest visit's reason while the call is open, blank
-    once it is solved or cancelled).
+    once it is solved or cancelled). It also has a **Region** column beside the
+    engineer: the User Master region of the Visiting Service Engineer, else of
+    Call Allocated To — as on the call registers. The Customer Feedback
+    Satisfaction evidence has Region beside its Engineer too.
   - **Missed PMs are left out of the PM objective.** A Missed PM is a PM call
     whose **Added On** date is after the month it is registered for — a March
     PM added in October. Switch **Missed PM: Excluded / Included** on the PM row
