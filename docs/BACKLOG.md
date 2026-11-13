@@ -160,6 +160,18 @@ up)_
 
 ---
 
+## 2026-11-13 — v2 visit inside each Call card, mobile-friendly (v0.10.241)
+
+- The user: "Mobile friendly view for the request v2 ... call attended ...
+  inside the Call <no> Window itself. And there add a Toggle ... if the same
+  needs to be applied for all the calls. Important point is the Mobile
+  friendly UI." The 0482 table is replaced by a Visit block in each Call
+  card; Call 1 carries the "Use these answers for all calls" switch.
+  Screen only -- 0482's per-call save is unchanged. Rendered at 390px with
+  the built stylesheet: no horizontal scroll. FRS-288.2c reworded.
+
+---
+
 ## 2026-11-13 — v2 Visit as a table, same for all or per call (0482, v0.10.240)
 
 - The user: "Call Attended? and its associated fields should move into the

@@ -146,9 +146,11 @@ different totals. An empty register usually means access, not emptiness.
   > Each request gets its own **True Key**, `RQ2-yymm-nnnn` (numbered from 0001
   > each month), issued by the database. The list shows only v2 requests, True
   > Key first.
-  > **Visit is a table**: choose **Same for all calls** (one row, used for every
-  > call) or **Per call** (a row for each call, so one machine can be attended
-  > and another planned on the same request).
+  > **The visit is asked inside each Call card.** Call 1's card has a **Use
+  > these answers for all calls** switch: on, Call 1's answers are used for
+  > every call and the other cards say "Same as Call 1"; off, each card is
+  > answered on its own, so one machine can be attended and another planned on
+  > the same request. Built for a phone: one column, full-width controls.
   > When **Call Attended? = Yes**, **Call Status** is asked — **Unsolved** (the
   > default) or **Solved - Report Pending**, nothing else — and **Call Pending
   > Reason** — the Visit Report's own list, mandatory. With **Solved - Report

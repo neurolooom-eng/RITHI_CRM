@@ -20,6 +20,7 @@ import { machineRowProblem, productPlaceholder } from '../lib/callrequest';
 import { sbSearchPartiesForCall, sbSearchPartiesForInstall, partyOwnsNoMachine, sbSearchMachines, type MachineHit } from '../lib/supabase';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO } from '../lib/format';
+import { formatDay } from '../lib/dates';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
@@ -865,6 +866,70 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
     <label className={`rep-field ${span2 ? 'rep-span2' : ''}`}><span className="field-label">{label}</span>{node}</label>
   );
 
+  // ---- v2: THE VISIT, INSIDE EACH CALL CARD (the user, 2026-11-13: "call
+  // attended should be part of the per call, position it should be inside the
+  // Call <no> Window itself. And there add a Toggle button of sort if the same
+  // needs to be applied for all the calls. Important point is the Mobile
+  // friendly UI"). Call 1 carries the toggle. While it is on, Call 1's answers
+  // are used for every call and the other cards say so; off, each card answers
+  // for itself. The same responsive grid as the rest of the form: one column on
+  // a phone, with tap-sized controls.
+  const sharedVisit = { attended: f.callAttended, date: f.attendedDate, plan: f.planDate || todayISO(), status: callStatus, reason: pendingReason };
+  const putShared = (patch: Partial<NonNullable<Item['visit']>>) => {
+    if (patch.attended !== undefined) set('callAttended', patch.attended);
+    if (patch.date !== undefined) set('attendedDate', patch.date);
+    if (patch.plan !== undefined) set('planDate', patch.plan);
+    if (patch.status !== undefined) setCallStatus(patch.status);
+    if (patch.reason !== undefined) setPendingReason(patch.reason);
+  };
+  const toggleSameForAll = (on: boolean) => {
+    if (on) { setVisitMode('common'); return; }
+    // Turning it off starts every call from Call 1's answers, so nothing typed is lost.
+    setItems((s2) => s2.map((x) => ({ ...x, visit: x.visit ?? { ...sharedVisit } })));
+    setVisitMode('per');
+  };
+  const visitSummary = (v: NonNullable<Item['visit']>) => (/^yes$/i.test(v.attended)
+    ? `Attended ${v.date ? formatDay(v.date) : '—'} · ${v.status}${v.status === REPORT_PENDING_STATUS ? '' : v.reason ? ` · ${v.reason}` : ''}`
+    : /^no$/i.test(v.attended) ? `Not attended · planned ${v.plan ? formatDay(v.plan) : '—'}` : 'Not answered yet');
+  const visitBlock = (it: Item, i: number) => {
+    const same = visitMode === 'common';
+    const editable = !same || i === 0;
+    const v = same ? sharedVisit : visitOf(it);
+    const put = same ? putShared : (patch: Partial<NonNullable<Item['visit']>>) => setVisit(i, patch);
+    const yes = /^yes$/i.test(v.attended);
+    return (
+      <div className="req-visit">
+        <div className="req-visit-head">
+          <span className="req-visit-title">Visit</span>
+          {i === 0 && items.length > 1 && (
+            <label className="req-switch">
+              <input type="checkbox" role="switch" checked={same} onChange={(e) => toggleSameForAll(e.target.checked)} />
+              <span>Use these answers for all calls</span>
+            </label>
+          )}
+        </div>
+        {!editable ? (
+          <div className="req-visit-same">Same as Call 1 — {visitSummary(v)}</div>
+        ) : (
+          <div className="rep-grid">
+            {field('Call Attended? *', (
+              <SelectPicker value={v.attended} onChange={(x) => put({ attended: x })} placeholder="—" options={['Yes', 'No']} />
+            ))}
+            {yes
+              ? field('Attended Date *', <input type="date" className="input" value={v.date} onChange={(e) => put({ date: e.target.value })} />)
+              : field('Planned Visit Date', <input type="date" className="input" value={v.plan || todayISO()} onChange={(e) => put({ plan: e.target.value })} />)}
+            {yes && field('Call Status *', (
+              <SelectPicker value={v.status} onChange={(x) => put({ status: x || V2_STATUSES[0] })} options={V2_STATUSES} />
+            ))}
+            {yes && field('Call Pending Reason *', v.status === REPORT_PENDING_STATUS
+              ? <input className="input" value={REPORT_PENDING_REASON} readOnly disabled title="Set by Solved - Report Pending; it cannot be changed" />
+              : <SelectPicker value={v.reason} onChange={(x) => put({ reason: x })} placeholder="—" options={pendingReasons.values} />)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       {/* The product, serial and customer below answer from this device first. */}
@@ -1136,6 +1201,7 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
                 complaint={it.standardComplaint}
                 reported={it.reportedProblem}
               />
+              {v2 && visitBlock(it, i)}
             </div>
           ))}
           {items.length < MAX_ITEMS && <button className="btn btn-sm" onClick={addItem}>＋ Add call</button>}
@@ -1190,75 +1256,11 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
           </section>
         )}
 
-        {/* v2 (0482): CALL ATTENDED? IN A TABLE, one row per call -- the same
-            answers for every call, or each call its own. */}
+        {/* v2: the visit is asked INSIDE each Call card (below); only the
+            request's comments remain here. */}
         {v2 && (
           <section className="rep-sec">
-            <div className="rep-sec-title">Visit</div>
-            <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-              <button type="button" className={`btn btn-sm${visitMode === 'common' ? ' btn-primary' : ''}`}
-                aria-pressed={visitMode === 'common'} onClick={() => setVisitMode('common')}>Same for all calls</button>
-              <button type="button" className={`btn btn-sm${visitMode === 'per' ? ' btn-primary' : ''}`}
-                aria-pressed={visitMode === 'per'} onClick={() => setVisitMode('per')}>Per call</button>
-              <span className="muted" style={{ fontSize: 12.5 }}>
-                {visitMode === 'common' ? 'One set of answers, used for every call on this request.' : 'Each call answered on its own row.'}
-              </span>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="assoc-table" style={{ minWidth: 820 }}>
-                <thead>
-                  <tr>
-                    <th>Call</th><th>Product · Serial</th><th>Call Attended? *</th><th>Attended / Planned Visit Date</th>
-                    <th>Call Status *</th><th>Call Pending Reason *</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(visitMode === 'common' ? [null] : items.map((it, i) => ({ it, i }))).map((row) => {
-                    const common = row === null;
-                    const v = common
-                      ? { attended: f.callAttended, date: f.attendedDate, plan: f.planDate || todayISO(), status: callStatus, reason: pendingReason }
-                      : visitOf(row.it);
-                    const yes = /^yes$/i.test(v.attended);
-                    const put = (patch: Partial<NonNullable<Item['visit']>>) => {
-                      if (!common) { setVisit(row.i, patch); return; }
-                      if (patch.attended !== undefined) set('callAttended', patch.attended);
-                      if (patch.date !== undefined) set('attendedDate', patch.date);
-                      if (patch.plan !== undefined) set('planDate', patch.plan);
-                      if (patch.status !== undefined) setCallStatus(patch.status);
-                      if (patch.reason !== undefined) setPendingReason(patch.reason);
-                    };
-                    return (
-                      <tr key={common ? 'all' : row.i}>
-                        <td style={{ whiteSpace: 'nowrap' }}>{common ? 'All calls' : `Call ${row.i + 1}`}</td>
-                        <td>{common
-                          ? (filled.length ? filled.map((x) => [x.product, x.serial].filter(Boolean).join(' · ')).join('; ') : <span className="muted">—</span>)
-                          : ([row.it.product, row.it.serial].filter(Boolean).join(' · ') || <span className="muted">—</span>)}</td>
-                        <td style={{ minWidth: 110 }}>
-                          <SelectPicker value={v.attended} onChange={(x) => put({ attended: x })} placeholder="—" options={['Yes', 'No']} />
-                        </td>
-                        <td style={{ minWidth: 150 }}>
-                          {yes
-                            ? <input type="date" className="input" aria-label="Attended Date" value={v.date} onChange={(e) => put({ date: e.target.value })} />
-                            : <input type="date" className="input" aria-label="Planned Visit Date" value={v.plan || todayISO()} onChange={(e) => put({ plan: e.target.value })} />}
-                        </td>
-                        <td style={{ minWidth: 190 }}>
-                          {yes
-                            ? <SelectPicker value={v.status} onChange={(x) => put({ status: x || V2_STATUSES[0] })} options={V2_STATUSES} />
-                            : <span className="muted">—</span>}
-                        </td>
-                        <td style={{ minWidth: 200 }}>
-                          {!yes ? <span className="muted">—</span>
-                            : v.status === REPORT_PENDING_STATUS
-                              ? <input className="input" value={REPORT_PENDING_REASON} readOnly disabled title="Set by Solved - Report Pending; it cannot be changed" />
-                              : <SelectPicker value={v.reason} onChange={(x) => put({ reason: x })} placeholder="—" options={pendingReasons.values} />}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="rep-grid" style={{ marginTop: 10 }}>
+            <div className="rep-grid">
               {field('Additional Comments', <textarea className="input" rows={2} value={f.additionalComments} onChange={(e) => set('additionalComments', e.target.value)} />, true)}
             </div>
           </section>

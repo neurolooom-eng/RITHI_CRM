@@ -20,6 +20,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.241',
+    date: '2026-11-13',
+    title: 'Request Registration v2: visit inside each call, built for a phone',
+    changes: [
+      'On Request Registration v2, Call Attended?, the Attended / Planned Visit Date, Call Status and Call Pending Reason are now inside each Call card instead of a separate table. Call 1 has a "Use these answers for all calls" switch: on, every call takes Call 1\'s answers and the other cards say "Same as Call 1"; off, each call is answered in its own card.',
+      'The form is laid out for a phone: one column, full-width controls and larger tap targets, with nothing to scroll sideways.',
+    ],
+  },
+  {
     version: '0.10.240',
     date: '2026-11-13',
     title: 'Request Registration v2: Visit as a table, same for all or per call',
