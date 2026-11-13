@@ -160,6 +160,17 @@ up)_
 
 ---
 
+## 2026-11-13 — Same line at the same moment refused in words (0484, v0.10.249)
+
+- Reported on the first upload after 0483: "duplicate key value violates
+  unique constraint handstock_reconciliations_uniq (row ~1)". Every row takes
+  the one picked time, so a line twice in the file, or a file uploaded again
+  at the same time, hits the index. The guard now names the line and the
+  other count; the preview refuses a repeat in the file first.
+- 0484 auto-applies on merge. `_status.sql` row 391.
+
+---
+
 ## 2026-11-13 — Hand stock counts dated on upload; delete a wrong upload (0483, v0.10.248)
 
 - The user: "In the Bulk Upload, it needs to Collect the Date of Reco ... I

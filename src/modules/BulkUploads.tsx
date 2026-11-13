@@ -86,6 +86,17 @@ export function Register({ def, count, onDone }: { def: UploadDef; count: number
     const batch = def.batch ? `${def.key.toUpperCase()}-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}` : '';
     const withBatch = (r: Record<string, unknown>) => (def.batch ? { ...r, [def.batch]: batch } : r);
     const rows = pending.shaped.rows.map((r) => withBatch(Object.keys(asked).length ? withAsked(def.asks, asked, r) : r));
+    // A LINE GIVEN TWICE is refused here, named, before anything is written.
+    if (def.uniqueIn) {
+      const seen = new Map<string, number>();
+      rows.forEach((r) => { const k = def.uniqueIn!.key(r); seen.set(k, (seen.get(k) ?? 0) + 1); });
+      const dups = [...seen.entries()].filter(([, c]) => c > 1).map(([k]) => k);
+      if (dups.length) {
+        const names = dups.slice(0, 8).map((k) => { const r = rows.find((x) => def.uniqueIn!.key(x) === k)!; return `${def.uniqueIn!.label(r)} (${seen.get(k)} times)`; });
+        setMsg({ tone: 'error', text: `Nothing was uploaded: ${dups.length} line${dups.length === 1 ? ' is' : 's are'} in the file more than once at the same date and time — ${names.join(', ')}${dups.length > 8 ? ` … and ${dups.length - 8} more` : ''}. Give each engineer + part once, or give the repeats their own Reco Date & Time.` });
+        return;
+      }
+    }
     const n = rows.length;
     const askedNote = Object.keys(asked).length
       ? `${(def.asks ?? []).some((a) => a.fallback) ? 'Rows without their own value are' : 'Every row is'} recorded with ${(def.asks ?? []).filter((a) => asked[a.to] !== undefined).map((a) => `${a.label}: ${a.type === 'datetime' ? formatDayTime(String(asked[a.to])) : String(asked[a.to])}`).join(', ')}.\n\n` : '';

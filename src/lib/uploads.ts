@@ -140,6 +140,10 @@ export interface UploadDef {
   /** A column given ONE batch number per upload, so the upload can be found
    *  and deleted as a whole (the hand stock counts, 0483). */
   batch?: string;
+  /** Rows that must not repeat within one upload, keyed AFTER the asked values
+   *  are applied; a repeat is refused before anything is written, naming the
+   *  rows (0484: the same engineer + part at the same moment). */
+  uniqueIn?: { key: (row: Record<string, unknown>) => string; label: (row: Record<string, unknown>) => string };
   /** Values ASKED on the upload screen and written on every row (UploadAsk). */
   asks?: UploadAsk[];
   /** Upsert key, where the table has one. Without it a re-run DUPLICATES. */
@@ -1027,6 +1031,12 @@ export const UPLOADS: UploadDef[] = [
     },
     // ONE BATCH NUMBER PER UPLOAD, so a wrong file can be deleted as a whole.
     batch: 'upload_batch',
+    // ONE COUNT PER LINE AND MOMENT (0484): every row takes the picked time
+    // unless the file dates it, so a line given twice collides.
+    uniqueIn: {
+      key: (r) => `${String(r.engineer ?? '').trim().toLowerCase()}|${String(r.part ?? '').split('|')[0].trim().toUpperCase()}|${String(r.reconciled_at ?? '')}`,
+      label: (r) => `${String(r.part ?? '').split('|')[0].trim().toUpperCase()} for ${String(r.engineer ?? '').trim()}`,
+    },
     note: 'The physically verified hand stock — one row per engineer + part counted, with the Physical Qty. Each row becomes that line\u2019s count AT THE RECO DATE AND TIME (picked here, or a Reco Date & Time column in the file for that row), signed with your name: anything entered for that engineer and part BEFORE that moment is no longer counted (it stays on its own register as history), and anything entered after it counts as usual. A part not in the file keeps its figure. Needs the Reconcile hand stock permission. A count dated before a later count of the same line is refused. Every upload gets a batch number: a wrong upload, or one wrong count, is deleted on Hand Stock \u2192 Counts, and the stock goes back to what it was. ONLY ACTIVE USERS OF THE USER MASTER are loaded; the names left out are named before anything is written. Give each engineer + part only once in a file: if it appears twice, the rows are refused when they reach the database together, and otherwise the later row becomes the count.',
     cols: [
       { to: 'engineer', from: ['engineer', 'engineer name', 'user name'], required: true },

@@ -132,3 +132,24 @@ rollback;
 \echo 'expect: at least 3 deleted rows recorded'
 select count(*) >= 3 as recorded from public.record_audit
  where table_name = 'handstock_reconciliations' and op = 'DELETE';
+
+\echo '--- 10. the same line at the same moment is refused in words (0484) ---'
+call public.be('hcd_admin@x.com');
+begin;
+  set local role authenticated;
+\echo 'expect ERROR: HCD-001 for HCD Engineer appears more than once in this file'
+  insert into public.handstock_reconciliations (engineer, part, physical_qty, source, upload_batch, reconciled_at) values
+   ('HCD Engineer', 'HCD-001|HCD PART ONE', 3, 'Upload', 'B2', date_trunc('minute', now()) - interval '1 hour'),
+   ('HCD Engineer', 'HCD-001|HCD PART ONE', 4, 'Upload', 'B2', date_trunc('minute', now()) - interval '1 hour');
+rollback;
+begin;
+  set local role authenticated;
+  insert into public.handstock_reconciliations (engineer, part, physical_qty, source, upload_batch, reconciled_at)
+  values ('HCD Engineer', 'HCD-001|HCD PART ONE', 3, 'Upload', 'B2', date_trunc('minute', now()) - interval '1 hour');
+commit;
+begin;
+  set local role authenticated;
+\echo 'expect ERROR: HCD-001 for HCD Engineer is already counted at ... (upload B2)'
+  insert into public.handstock_reconciliations (engineer, part, physical_qty, source, upload_batch, reconciled_at)
+  values ('HCD Engineer', 'HCD-001|HCD PART ONE', 3, 'Upload', 'B3', date_trunc('minute', now()) - interval '1 hour');
+rollback;

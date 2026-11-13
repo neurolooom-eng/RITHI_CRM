@@ -632,7 +632,11 @@ against the call it was fitted to.
   > for its row, and a date there with no time is held back. Entries made
   > before that moment stop counting; entries after it count. A count in the
   > future is refused, and so is one dated before a later count of the same
-  > part (the later one would win, so it would change nothing).
+  > part (the later one would win, so it would change nothing). **Each
+  > engineer + part once per date and time**: a line in the file twice at the
+  > same moment is refused before anything is written, and a line already
+  > counted at that moment (an earlier upload, or the screen) is refused naming
+  > it — delete that one on 🗂 Counts first, or give a different time.
   > **🗂 Counts** lists every count and every upload (each upload has a batch
   > number). **🗑 Delete upload** removes the whole file's counts; **🗑 Delete**
   > on a row removes one count, including one saved on the screen. It is

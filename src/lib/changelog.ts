@@ -20,6 +20,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.249',
+    date: '2026-11-13',
+    title: 'Hand stock count upload: a repeated line is named, not a database error',
+    changes: [
+      'An upload with the same engineer + part twice at the same date and time is stopped before anything is written, and the message names the lines.',
+      'A line already counted at that date and time (an earlier upload or the screen) is refused naming the part, the engineer and that upload\'s batch number, instead of "duplicate key value violates unique constraint".',
+    ],
+  },
+  {
     version: '0.10.248',
     date: '2026-11-13',
     title: 'Hand stock counts: a date and time on each upload, and delete a wrong upload',
