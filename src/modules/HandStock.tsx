@@ -386,10 +386,17 @@ export function HandStock() {
 
       {uploadingCounts && COUNT_UPLOAD && (
         <Drawer open onClose={() => { setUploadingCounts(false); void load(); }} title="Upload physical counts" width={860}>
-          <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
-            A CSV with <b>Engineer</b>, <b>Part</b> and <b>Physical Qty</b> (Remarks optional), one row per engineer + part counted.
-            It previews first; nothing is written until you press Upload.
-          </p>
+          <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+            <button className="btn btn-sm" onClick={downloadCountTemplate}>⬇ Download template</button>
+            <span className="muted" style={{ fontSize: 12 }}>A CSV with the four headings, ready to fill.</span>
+          </div>
+          <ul className="muted" style={{ fontSize: 12.5, marginTop: 0, paddingLeft: 18 }}>
+            <li><b>Engineer</b>: the name exactly as on the User Master; only active users are loaded.</li>
+            <li><b>Part</b>: the Part Master&rsquo;s Item Detail, code and description as one value (CODE|Description).</li>
+            <li><b>Physical Qty</b>: the count, a whole number, 0 or more.</li>
+            <li><b>Remarks</b>: optional.</li>
+            <li>One row per engineer + part counted. It previews first; nothing is written until you press Upload.</li>
+          </ul>
           <RegisterUpload def={COUNT_UPLOAD} count={null} onDone={() => void load()} />
         </Drawer>
       )}
@@ -943,6 +950,20 @@ interface CountLine { part: string; system: number; physical: string }
 
 // The physical-count upload, which lives here rather than on Bulk Uploads.
 const COUNT_UPLOAD = UPLOADS.find((d) => d.key === 'handstock_reconciliation');
+
+// ITS TEMPLATE (the user, 2026-11-13: "Give me the Template ... Add option in
+// the Screen for Download Template"): the headings only. An example row would
+// be one more row to remember to delete before uploading. A blank form, not
+// data, so it is not behind the export permission.
+const COUNT_TEMPLATE_HEADERS = ['Engineer', 'Part', 'Physical Qty', 'Remarks'];
+function downloadCountTemplate() {
+  const blob = new Blob([COUNT_TEMPLATE_HEADERS.join(',') + '\r\n'], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'hand-stock-physical-count-template.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 // The Reconcile list is GROUPED by the system quantity (the user, 2026-11-13:
 // "a Grouping based on 0 Qty and More than 0"). A balance can go below zero

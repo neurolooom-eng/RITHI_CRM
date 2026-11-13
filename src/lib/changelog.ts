@@ -20,6 +20,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.247',
+    date: '2026-11-13',
+    title: 'Hand Stock: download the physical-count template',
+    changes: [
+      'Upload counts on Hand Stock has a Download template button: a CSV with the headings Engineer, Part, Physical Qty and Remarks, ready to fill, with a note on what each column takes.',
+    ],
+  },
+  {
     version: '0.10.246',
     date: '2026-11-13',
     title: 'Objective evidence: Region column',
