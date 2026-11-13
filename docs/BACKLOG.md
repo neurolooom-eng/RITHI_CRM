@@ -160,6 +160,18 @@ up)_
 
 ---
 
+## 2026-11-13 — v2 customer details folded into one line (v0.10.242)
+
+- The user: "hide the Customer Details as well since the first product -
+  Serial number freezes the customer name, address, city, State, customer
+  contact details, contact number .. Which is occupying soooooo much space".
+  v2 only, Field/PM calls: once the serial names the customer, City / State /
+  Address / contact fields fold behind "Show details"; a line shows City,
+  State and the number. Still prefilled and editable. Installation calls keep
+  their Customer section (no machine to read it from). Screen only.
+
+---
+
 ## 2026-11-13 — v2 visit inside each Call card, mobile-friendly (v0.10.241)
 
 - The user: "Mobile friendly view for the request v2 ... call attended ...

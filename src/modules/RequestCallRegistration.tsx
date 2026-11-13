@@ -479,6 +479,9 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
   // Call ... A Table Maybe"). v2 only. Per call keeps each call's answers on
   // the call item itself, so adding or removing a call cannot misalign them.
   const [visitMode, setVisitMode] = useState<'common' | 'per'>('common');
+  // v2: which calls have their customer details opened (closed by default once
+  // the serial has named the customer -- the details are prefilled from it).
+  const [custOpen, setCustOpen] = useState<Set<number>>(new Set());
   const blankVisit = () => ({ attended: '', date: '', plan: todayISO(), status: V2_STATUSES[0], reason: '' });
   const visitOf = (it: Item) => it.visit ?? blankVisit();
   const setVisit = (i: number, patch: Partial<NonNullable<Item['visit']>>) =>
@@ -842,7 +845,7 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
         if (r2.ok) {
           setMsg({ tone: 'ok', text: `Request ${r2.trueKey} submitted — ${r2.count} call${r2.count === 1 ? '' : 's'}.`
             + (r2.visitKeys?.length ? ` Req_VisitTable: ${r2.visitKeys.join(', ')}.` : '') + ' Now in Pending Registrations.' });
-          reset(); setPendingReason(''); setCallStatus(V2_STATUSES[0]); setVisitMode('common'); onSaved();
+          reset(); setPendingReason(''); setCallStatus(V2_STATUSES[0]); setVisitMode('common'); setCustOpen(new Set()); onSaved();
         } else setMsg({ tone: 'error', text: `Submit failed: ${r2.error}` });
         return;
       }
@@ -1135,7 +1138,21 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
                 {!isInstall && (it.serial.trim() !== '' || (it.party ?? '').trim() !== '') && (
                   <div className="req-machine-party">
                     {it.party
-                      ? <>Customer: <b>{it.party}</b>{i > 0 ? <span className="muted"> · from call 1</span> : null}</>
+                      ? <>Customer: <b>{it.party}</b>{i > 0 ? <span className="muted"> · from call 1</span> : null}
+                          {/* v2 (2026-11-13: "hide the Customer Details ... Which is
+                              occupying soooooo much space"): the site in one line,
+                              its fields behind Show details. */}
+                          {v2 && (
+                            <span className="req-cust-line">
+                              {[it.city, it.state].filter((x) => String(x ?? '').trim()).join(', ') || 'No city / state'}
+                              {String(it.contactNumber ?? '').trim() ? ` · ${it.contactNumber}` : ''}
+                              <button type="button" className="btn btn-ghost btn-sm req-cust-toggle"
+                                aria-expanded={custOpen.has(i)}
+                                onClick={() => setCustOpen((o) => { const n = new Set(o); if (n.has(i)) n.delete(i); else n.add(i); return n; })}>
+                                {custOpen.has(i) ? 'Hide details' : 'Show details'}
+                              </button>
+                            </span>
+                          )}</>
                       : <span className="muted">This serial is not on the register, so no customer came with it — check it, or have the machine added to Product Database.</span>}
                   </div>
                 )}
@@ -1145,7 +1162,7 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
                     started naming the customer, they need not be. Prefilled from
                     the register and EDITABLE: the register says where the
                     machine was sold, and a ward move is not filed with anybody. */}
-                {!isInstall && (
+                {!isInstall && (!v2 || !it.party || custOpen.has(i)) && (
                   <>
                     {field('City', <input className="input" value={it.city ?? ''} onChange={(e) => setItem(i, 'city', e.target.value)} />)}
                     {field('State', <input className="input" value={it.state ?? ''} onChange={(e) => setItem(i, 'state', e.target.value)} />)}
