@@ -20,6 +20,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.236',
+    date: '2026-11-13',
+    title: 'Request Registration v2: Call Status shown',
+    changes: [
+      'When Call Attended? = Yes, Request Registration v2 now asks the Call Status: Unsolved (the default) or Solved - Report Pending, nothing else. It is saved in Req_VisitTable and carried onto the call\'s visit when the request is registered, so such a call reads Report pending.',
+    ],
+  },
+  {
     version: '0.10.235',
     date: '2026-11-13',
     title: 'Request Registration v2 (administrators)',

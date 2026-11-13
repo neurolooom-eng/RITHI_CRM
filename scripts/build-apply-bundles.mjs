@@ -420,6 +420,9 @@ const MODULES = {
       // Request Registration v2 and Req_VisitTable (0475): the True Key, the
       // one save, and the visit filed when the request is registered.
       '0475_request_registration_v2.sql',
+      // ...Call Status shown, Unsolved or Solved - Report Pending (0476):
+      // replaces the 0475 save function and its table guard.
+      '0476_request_v2_call_status.sql',
       '0164_cr_read_initplan.sql',
     ],
   },

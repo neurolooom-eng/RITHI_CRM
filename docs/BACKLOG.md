@@ -160,6 +160,16 @@ up)_
 
 ---
 
+## 2026-11-13 — Request Registration v2 shows Call Status (0476, v0.10.236)
+
+- The user: "Show Call Status, But Limit the Options to Unsolved and Solved
+  Report Pending". 0476 (call_requests.sql): `submit_call_request_v2()` takes
+  `p_call_status` (the 3-argument version dropped), the table guard accepts
+  only the two; the form asks it when attended, Unsolved by default.
+  FRS-288.2a; `_status.sql` row 384 moved; `request_registration_v2_test`.
+
+---
+
 ## 2026-11-13 — Request Registration v2 and Req_VisitTable (0475, v0.10.235)
 
 - The user: an admin-only Request Registration v2; when attended, ask the

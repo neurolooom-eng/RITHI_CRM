@@ -454,13 +454,19 @@ const LABELS: Record<string, string> = {
   cancelReason: 'Cancel Reason', actionedBy: 'Actioned By', actionedAt: 'Actioned At',
 };
 
+// The Visit Report's own spellings (STATUS_OPTIONS in CallReporting.tsx); the
+// database refuses any other (0476).
+const V2_STATUSES = ['Unsolved', 'Solved - Report Pending'];
+
 function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boolean }) {
   const { user } = useAuth();
   // v2 (0475): when attended, the Call Pending Reason -- the Visit Report's own
-  // list, mandatory. Status (Unsolved) and the engineer (the requester) are
-  // fixed by the database, so they are not asked.
+  // list, mandatory -- and (0476, the user 2026-11-13: "Show Call Status, But
+  // Limit the Options to Unsolved and Solved Report Pending") the Call Status,
+  // Unsolved by default. The engineer (the requester) is fixed by the database.
   const pendingReasons = useMaster('pendingreason');
   const [pendingReason, setPendingReason] = useState('');
+  const [callStatus, setCallStatus] = useState(V2_STATUSES[0]);
   // WHO THIS REQUEST IS FOR. A Reporting Manager raises one on behalf of any
   // engineer reporting to them; an engineer raises their own. It used to be
   // stamped from the login with no say in it, so a manager could not raise a
@@ -803,12 +809,12 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
     const t0 = performance.now();
     try {
       if (v2) {
-        const r2 = await addCallRequestV2(base, rows, attended ? pendingReason : '');
+        const r2 = await addCallRequestV2(base, rows, attended ? pendingReason : '', attended ? callStatus : 'Unsolved');
         logAudit({ action: 'request.create.v2', target: r2.trueKey ?? '', status: r2.ok ? 'ok' : 'error', error: r2.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType, reqid: r2.reqid } });
         if (r2.ok) {
           setMsg({ tone: 'ok', text: `Request ${r2.trueKey} submitted — ${r2.count} call${r2.count === 1 ? '' : 's'}.`
             + (r2.visitKeys?.length ? ` Req_VisitTable: ${r2.visitKeys.join(', ')}.` : '') + ' Now in Pending Registrations.' });
-          reset(); setPendingReason(''); onSaved();
+          reset(); setPendingReason(''); setCallStatus(V2_STATUSES[0]); onSaved();
         } else setMsg({ tone: 'error', text: `Submit failed: ${r2.error}` });
         return;
       }
@@ -1140,6 +1146,9 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
                             placeholder="—" options={['Yes', 'No']} />
             ))}
             {attended && field('Attended Date *', <input type="date" className="input" value={f.attendedDate} onChange={(e) => set('attendedDate', e.target.value)} />)}
+            {v2 && attended && field('Call Status *', (
+              <SelectPicker value={callStatus} onChange={(v) => setCallStatus(v || V2_STATUSES[0])} options={V2_STATUSES} />
+            ))}
             {v2 && attended && field('Call Pending Reason *', (
               <SelectPicker value={pendingReason} onChange={setPendingReason} placeholder="—"
                 options={pendingReasons.values} />
