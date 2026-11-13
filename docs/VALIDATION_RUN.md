@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-11-13T11:13:06.817Z
-- **Took** 138s
-- **Commit** `abe74666` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.10.235
+- **Run at** 2026-11-13T11:32:22.434Z
+- **Took** 148s
+- **Commit** `788fc847` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.10.236
 
 ## Result
 
@@ -15,7 +15,7 @@ defect register in `src/lib/validation.ts` is what accumulates.
 | --- | --- | --- |
 | Database suites | 204 | 204 |
 | Automated checks | 22 | 22 |
-| Labelled `expect ERROR` outcomes matched | 493 | 493 |
+| Labelled `expect ERROR` outcomes matched | 494 | 494 |
 
 **How a suite is judged.** Each suite runs on its OWN copy of a database
 built from every migration, because run against one shared database they
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `480 migrations applied to a fresh database` | ✅ pass |  |
+| `481 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 

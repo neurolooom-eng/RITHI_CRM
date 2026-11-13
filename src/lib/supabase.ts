@@ -2241,10 +2241,10 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
  *  Key (RQ2-yymm-nnnn), keys each visit <True Key>-<Product>-<Serial>, and
  *  stamps Call Status Unsolved, the requester's name and login email and the
  *  entry time. Administrators only. */
-export async function addCallRequestV2(base: Record<string, unknown>, items: CallRequestItem[], pendingReason: string): Promise<{ ok: boolean; reqid?: string; trueKey?: string; count?: number; visitKeys?: string[]; error?: string }> {
+export async function addCallRequestV2(base: Record<string, unknown>, items: CallRequestItem[], pendingReason: string, callStatus = 'Unsolved'): Promise<{ ok: boolean; reqid?: string; trueKey?: string; count?: number; visitKeys?: string[]; error?: string }> {
   if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
   const { data, error } = await must().rpc('submit_call_request_v2', {
-    p_base: base, p_items: items.map(itemCols), p_pending_reason: pendingReason,
+    p_base: base, p_items: items.map(itemCols), p_pending_reason: pendingReason, p_call_status: callStatus,
   });
   if (error) return { ok: false, error: errMsg(error) };
   const r = (data ?? {}) as Record<string, unknown>;

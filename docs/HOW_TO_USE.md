@@ -146,15 +146,16 @@ different totals. An empty register usually means access, not emptiness.
   > Each request gets its own **True Key**, `RQ2-yymm-nnnn` (numbered from 0001
   > each month), issued by the database. The list shows only v2 requests, True
   > Key first.
-  > When **Call Attended? = Yes**, **Call Pending Reason** is asked — the Visit
-  > Report's own list, mandatory — and each machine gets a row in
-  > **Req_VisitTable**, keyed `<True Key>-<Product>-<Serial>`: Call Status
-  > **Unsolved**, Visiting Service Engineer **you**, Engineer Email **your
+  > When **Call Attended? = Yes**, **Call Status** is asked — **Unsolved** (the
+  > default) or **Solved - Report Pending**, nothing else — and **Call Pending
+  > Reason** — the Visit Report's own list, mandatory. Each machine then gets a
+  > row in **Req_VisitTable**, keyed `<True Key>-<Product>-<Serial>`: that Call
+  > Status, Visiting Service Engineer **you**, Engineer Email **your
   > login**, Visit Date & Time **the Attended Date**, Visit Entry Date **the time
   > you saved**. Not attended: no row.
   > When the request is **registered as a call** on Pending Registrations, that
-  > row is filed on the call as its visit, so the call reads Unsolved with that
-  > pending reason. A request **mapped** to an existing call files nothing.
+  > row is filed on the call as its visit, so the call reads Unsolved (or Report
+  > pending) with that pending reason. A request **mapped** to an existing call files nothing.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. The chips at the top filter
   it by Call Type, each with its count. When an **Installation call** is created

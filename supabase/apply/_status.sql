@@ -2378,10 +2378,12 @@ with checks(sort_order, bundle, provides, present) as (
         and (select count(*) from pg_class where relnamespace = 'public'::regnamespace
               and relname in ('spare_usage', 'spare_usage_rollup', 'failure_rate_by_product', 'failure_modes_by_product')
               and 'security_invoker=on' = any (reloptions)) = 4),
-    (384, 'Request Registration v2: the True Key and Req_VisitTable', 'call_requests.true_key, next_rq2_key(), req_visit_table with its stamping guard and no update or delete privilege, submit_call_request_v2(), and the trigger that files the visit when a v2 request is registered (0475). NO means the v2 screen answers an error, or a registered v2 request files no visit. Restore: call_requests.sql (0475)',
+    (384, 'Request Registration v2: the True Key and Req_VisitTable', 'call_requests.true_key, next_rq2_key(), req_visit_table with its stamping guard and no update or delete privilege, submit_call_request_v2(), and the trigger that files the visit when a v2 request is registered (0475); Call Status shown, Unsolved or Solved - Report Pending only, and the save taking it (0476). NO means the v2 screen answers an error, or a registered v2 request files no visit. Restore: call_requests.sql (0475, 0476)',
         exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_requests' and column_name = 'true_key')
         and to_regclass('public.req_visit_table') is not null
-        and to_regprocedure('public.submit_call_request_v2(jsonb,jsonb,text)') is not null
+        and to_regprocedure('public.submit_call_request_v2(jsonb,jsonb,text,text)') is not null
+        and to_regprocedure('public.submit_call_request_v2(jsonb,jsonb,text)') is null
+        and position('Solved - Report Pending' in coalesce(pg_get_functiondef(to_regprocedure('public.req_visit_table_bi()')), '')) > 0
         and to_regprocedure('public.next_rq2_key()') is not null
         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.call_requests') and tgname = 'req_visit_file_on_register')
         and exists (select 1 from pg_trigger where tgrelid = to_regclass('public.req_visit_table') and tgname = 'req_visit_table_bi')
