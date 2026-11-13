@@ -457,6 +457,11 @@ const LABELS: Record<string, string> = {
 // The Visit Report's own spellings (STATUS_OPTIONS in CallReporting.tsx); the
 // database refuses any other (0476).
 const V2_STATUSES = ['Unsolved', 'Solved - Report Pending'];
+// SOLVED - REPORT PENDING CARRIES ITS OWN REASON, LOCKED (0478, the user
+// 2026-11-13: "Solved - Report Pending should set the Call Pending Reason to
+// REPORT PENDING and Lock it"). The database writes it whatever is sent.
+const REPORT_PENDING_STATUS = 'Solved - Report Pending';
+const REPORT_PENDING_REASON = 'REPORT PENDING';
 
 function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boolean }) {
   const { user } = useAuth();
@@ -740,7 +745,7 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
     }
     if (!f.callAttended) return 'Answer Call Attended?';
     if (attended && !f.attendedDate) return 'Attended Date is required when Call Attended? = Yes.';
-    if (v2 && attended && !pendingReason.trim()) return 'Call Pending Reason is required when Call Attended? = Yes.';
+    if (v2 && attended && callStatus !== REPORT_PENDING_STATUS && !pendingReason.trim()) return 'Call Pending Reason is required when Call Attended? = Yes.';
     if (uploading > 0) return 'Wait for the document upload to finish.';
     return '';
   };
@@ -809,7 +814,9 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
     const t0 = performance.now();
     try {
       if (v2) {
-        const r2 = await addCallRequestV2(base, rows, attended ? pendingReason : '', attended ? callStatus : 'Unsolved');
+        const r2 = await addCallRequestV2(base, rows,
+          attended ? (callStatus === REPORT_PENDING_STATUS ? REPORT_PENDING_REASON : pendingReason) : '',
+          attended ? callStatus : 'Unsolved');
         logAudit({ action: 'request.create.v2', target: r2.trueKey ?? '', status: r2.ok ? 'ok' : 'error', error: r2.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType, reqid: r2.reqid } });
         if (r2.ok) {
           setMsg({ tone: 'ok', text: `Request ${r2.trueKey} submitted — ${r2.count} call${r2.count === 1 ? '' : 's'}.`
@@ -1149,7 +1156,10 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
             {v2 && attended && field('Call Status *', (
               <SelectPicker value={callStatus} onChange={(v) => setCallStatus(v || V2_STATUSES[0])} options={V2_STATUSES} />
             ))}
-            {v2 && attended && field('Call Pending Reason *', (
+            {v2 && attended && field('Call Pending Reason *', callStatus === REPORT_PENDING_STATUS
+              ? <input className="input" value={REPORT_PENDING_REASON} readOnly disabled
+                  title="Set by Solved - Report Pending; it cannot be changed" />
+              : (
               <SelectPicker value={pendingReason} onChange={setPendingReason} placeholder="—"
                 options={pendingReasons.values} />
             ))}

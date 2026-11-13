@@ -5222,9 +5222,21 @@ export async function sbHasSignature(): Promise<boolean | null> {
   return !!String((data as { signature?: string } | null)?.signature ?? '').trim();
 }
 
+/** Must the signed-in login save a signature? (0477) False for a test account
+ *  (User Master tag "Test Account") or an inactive user; null when it cannot
+ *  be asked -- the reminder then behaves as before. */
+export async function sbSignatureRequired(): Promise<boolean | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { data, error } = await c.rpc('my_signature_required');
+  if (error || typeof data !== 'boolean') return null;
+  return data;
+}
+
 /** THE SIGNATURE TRACKER (0454): per login, whether and when a signature was
  *  saved -- never the image. For whoever may edit User Master details. */
-export interface SignatureTrackerRow { user_id: string; full_name: string; email: string; designation: string; active: boolean; has_signature: boolean; signed_at: string | null }
+export interface SignatureTrackerRow { user_id: string; full_name: string; email: string; designation: string; active: boolean; has_signature: boolean; signed_at: string | null;
+  /** 0477: false for a test account or an inactive user -- no signature is asked. Absent before it. */
+  required?: boolean }
 export async function sbSignatureTracker(): Promise<SignatureTrackerRow[]> {
   const { data, error } = await must().rpc('signature_tracker');
   if (error) throw new Error(errMsg(error));

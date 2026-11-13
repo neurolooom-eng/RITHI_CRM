@@ -202,7 +202,7 @@ export function UserMasterView() {
   // details; the database refuses anybody else.
   const [sigRows, setSigRows] = useState<SignatureTrackerRow[] | null>(null);
   const [sigErr, setSigErr] = useState('');
-  const [sigFilter, setSigFilter] = useState<'' | 'saved' | 'not'>('');
+  const [sigFilter, setSigFilter] = useState<'' | 'saved' | 'not' | 'notreq'>('');
   useEffect(() => {
     if (!editable) return;
     let on = true;
@@ -218,9 +218,15 @@ export function UserMasterView() {
   /** The login's signature row behind a User Master row; undefined = no login. */
   const sigFor = (r: DirectoryRow): SignatureTrackerRow | undefined =>
     sigByEmail.get((r.email || '').toLowerCase()) ?? sigByEmail.get((r.gmail || '').toLowerCase());
+  // NOT REQUIRED (0477, the user 2026-11-13: "For Test Accounts, Signature is
+  // not Required in User Master. Same with Inactive Users."): the database
+  // says so per login -- a "Test Account" tag or an inactive row or login.
+  // A signature already saved still reads Saved.
+  const sigNotRequired = (t: SignatureTrackerRow | undefined) => !!t && t.required === false && !t.has_signature;
   const sigText = (r: DirectoryRow): string => {
     const t = sigFor(r);
     if (!t) return 'No login';
+    if (sigNotRequired(t)) return 'Not required';
     return t.has_signature ? `Saved${t.signed_at ? ` ${formatDay(t.signed_at)}` : ''}` : 'Not yet';
   };
 
@@ -529,6 +535,7 @@ export function UserMasterView() {
       render: (r: DirectoryRow) => {
         const t = sigFor(r);
         if (!t) return <span className="muted">No login</span>;
+        if (sigNotRequired(t)) return <span className="muted" title="A test account or an inactive user: no signature is asked">Not required</span>;
         return t.has_signature
           ? <span className="badge badge-success" title={t.signed_at ? `Saved ${formatDayTime(t.signed_at)}` : undefined}>Saved{t.signed_at ? ` ${formatDay(t.signed_at)}` : ''}</span>
           : <span className="badge badge-neutral">Not yet</span>;
@@ -603,7 +610,9 @@ export function UserMasterView() {
     // who has never signed in has nothing to save one to.
     const byTag = !sigFilter || !sigRows ? byTag0 : byTag0.filter((r) => {
       const t = sigFor(r);
-      return sigFilter === 'saved' ? !!t?.has_signature : !!t && !t.has_signature;
+      return sigFilter === 'saved' ? !!t?.has_signature
+        : sigFilter === 'notreq' ? sigNotRequired(t)
+          : !!t && !t.has_signature && !sigNotRequired(t);
     });
     if (!s) return byTag;
     return byTag.filter((r) => `${r.name} ${r.email} ${r.gmail} ${r.designation} ${r.region} ${roleLabel(r.role)} ${(r.tags ?? []).join(' ')}`.toLowerCase().includes(s));
@@ -748,8 +757,8 @@ export function UserMasterView() {
               </div>
               {sigRows && (
                 <div style={{ minWidth: 170 }}>
-                  <SelectPicker value={sigFilter} onChange={(v) => setSigFilter(v as '' | 'saved' | 'not')} placeholder="Any signature"
-                    options={[{ value: '', label: 'Any signature' }, { value: 'saved', label: 'Signature saved' }, { value: 'not', label: 'Signature not yet' }]} />
+                  <SelectPicker value={sigFilter} onChange={(v) => setSigFilter(v as '' | 'saved' | 'not' | 'notreq')} placeholder="Any signature"
+                    options={[{ value: '', label: 'Any signature' }, { value: 'saved', label: 'Signature saved' }, { value: 'not', label: 'Signature not yet' }, { value: 'notreq', label: 'Signature not required' }]} />
                 </div>
               )}
               {editable && (

@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Modal } from '../ui/ui';
 import { useAuth } from '../../lib/auth';
-import { sbHasSignature, supabaseConfigured } from '../../lib/supabase';
+import { sbHasSignature, sbSignatureRequired, supabaseConfigured } from '../../lib/supabase';
 
 export const SIGNATURE_LINK = '#/profile?tab=signature';
 const QUIET_KEY = 'rithi.signatureReminder.later';
@@ -36,7 +36,10 @@ export function SignatureReminder() {
     if (!uid || realUser?.unresolved || viewAs || !supabaseConfigured() || quieted()) return;
     let live = true;
     // A failed read is NOT "no signature" -- only a definite false opens it.
-    void sbHasSignature().then((has) => { if (live && has === false) setOpen(true); }).catch(() => {});
+    // And never for a test account or an inactive user (0477): a definite
+    // "not required" keeps it shut; an unanswerable question asks as before.
+    void Promise.all([sbHasSignature(), sbSignatureRequired()])
+      .then(([has, required]) => { if (live && has === false && required !== false) setOpen(true); }).catch(() => {});
     return () => { live = false; };
   }, [uid, realUser?.unresolved, viewAs]);
 

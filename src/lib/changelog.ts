@@ -20,6 +20,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.238',
+    date: '2026-11-13',
+    title: 'Request Registration v2: Solved - Report Pending sets REPORT PENDING',
+    changes: [
+      'On Request Registration v2, choosing Call Status Solved - Report Pending sets the Call Pending Reason to REPORT PENDING and locks it. With Unsolved the reason is still chosen from the list and is mandatory.',
+    ],
+  },
+  {
+    version: '0.10.237',
+    date: '2026-11-13',
+    title: 'No signature asked of test accounts or inactive users',
+    changes: [
+      'A test account (tag the person "Test Account" in Tags on User Master) and an inactive user are no longer asked for a signature. On User Master their Signature reads "Not required", the signature filter has a "Signature not required" choice, the "Signatures saved: X of Y" tracker leaves them out, and the "Add your signature" reminder never opens for them. A signature already saved still reads Saved.',
+    ],
+  },
+  {
     version: '0.10.236',
     date: '2026-11-13',
     title: 'Request Registration v2: Call Status shown',

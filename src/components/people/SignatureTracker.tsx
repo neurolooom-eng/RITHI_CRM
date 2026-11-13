@@ -19,7 +19,9 @@ export function SignatureTracker({ rows, err }: { rows: SignatureTrackerRow[] | 
   const [open, setOpen] = useState(false);
   const [show, setShow] = useState<'pending' | 'done'>('pending');
 
-  const active = useMemo(() => (rows ?? []).filter((r) => r.active), [rows]);
+  // Who is asked: active logins that are not test accounts or inactive on the
+  // User Master (0477's `required`; absent before it, so everyone active).
+  const active = useMemo(() => (rows ?? []).filter((r) => r.active && r.required !== false), [rows]);
   const done = active.filter((r) => r.has_signature);
   const pending = active.filter((r) => !r.has_signature);
   if (err) return <div className="sheet-banner sheet-banner-info"><span>Signature tracker: {err}</span></div>;
@@ -36,7 +38,7 @@ export function SignatureTracker({ rows, err }: { rows: SignatureTrackerRow[] | 
   return (
     <div className="sheet-banner sheet-banner-info" style={{ display: 'block' }}>
       <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span>✍️ <b>Signatures saved: {done.length} of {active.length}</b> active logins ({pct}%)</span>
+        <span>✍️ <b>Signatures saved: {done.length} of {active.length}</b> active logins ({pct}%)<span className="muted"> · test accounts and inactive users are not counted</span></span>
         <span style={{ flex: '1 1 120px', maxWidth: 240, height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}
           aria-hidden="true">
           <span style={{ display: 'block', height: '100%', width: `${pct}%`, background: '#2e7d32' }} />
