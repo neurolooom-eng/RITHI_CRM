@@ -1,11 +1,13 @@
 -- ===========================================================================
--- EVERY DAY COUNT IS THE LOWER OF COMPLAINT-TO AND BREAKDOWN-TO (0440, 0441;
--- the user, 2026-10-14). The same cases check:ui asserts of callDays() in
+-- EVERY DAY COUNT IS THE LOWEST OF COMPLAINT-TO, BREAKDOWN-TO AND
+-- REGISTRATION-TO (0440, 0441; the registration since 0472, the user
+-- 2026-11-13). The same cases check:ui asserts of callDays() in
 -- src/lib/aging.ts, so the register's Aging and the database cannot disagree.
 --
 --   DY-1 complaint 07-Aug, breakdown 06-Aug, registered 08-Aug; first visit
 --        09-Aug (a spare request on 12-Aug does not move it), solved 11-Aug
---        -> Attended 2, Solved 4 (from the complaint, the lower).
+--        -> Attended 1, Solved 3 (from the registration, the lowest; 2 and 4
+--        from the complaint before 0472).
 --   DY-2 complaint 10-Aug, breakdown 06-Aug; a visit ENTERED LATER but dated
 --        08-Aug -> attended on 08-Aug, 2 days from the breakdown (the
 --        complaint count would be negative).
@@ -18,12 +20,17 @@
 set timezone = 'UTC';
 
 \echo '--- 1. the rule ---'
-select 'both positive: the lower' as t, public.call_days(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-09') = 2 as ok;
+select 'both positive, no registration: the lower' as t, public.call_days(date '2026-08-07', date '2026-08-06', null, date '2026-08-09') = 2 as ok;
+select 'all three positive: the lowest, from the registration (0472)' as t, public.call_days(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-09') = 1 as ok;
+select 'registration after the day: the lower of the other two' as t, public.call_days(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-07') = 0 as ok;
+select 'all three after the day: 0' as t, public.call_days(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-01') = 0 as ok;
+select 'no date at all: no count' as t, public.call_days(null, null, null, date '2026-08-09') is null as ok;
 select 'visit before the complaint: from the breakdown' as t, public.call_days(date '2026-08-07', date '2026-08-06', null, date '2026-08-06') = 0 as ok;
 select '...a day after the breakdown, before the complaint' as t, public.call_days(date '2026-08-10', date '2026-08-06', null, date '2026-08-08') = 2 as ok;
 select 'both negative: 0' as t, public.call_days(date '2026-08-07', date '2026-08-06', null, date '2026-08-01') = 0 as ok;
 select 'breakdown after the complaint: still the lower' as t, public.call_days(date '2026-08-01', date '2026-08-05', null, date '2026-08-09') = 4 as ok;
-select 'only a breakdown date: from it' as t, public.call_days(null, date '2026-08-06', date '2026-08-08', date '2026-08-09') = 3 as ok;
+select 'only a breakdown date: from it' as t, public.call_days(null, date '2026-08-06', null, date '2026-08-09') = 3 as ok;
+select 'a breakdown date and the registration: the lower' as t, public.call_days(null, date '2026-08-06', date '2026-08-08', date '2026-08-09') = 1 as ok;
 select 'neither: from the registration' as t, public.call_days(null, null, date '2026-08-08', date '2026-08-09') = 1 as ok;
 select 'nothing happened yet: no count' as t, public.call_days(date '2026-08-07', date '2026-08-06', null, null) is null as ok;
 
@@ -55,16 +62,16 @@ insert into public.spare_requests (uid, ucn, engineer, engineer_email, or_req_da
 alter table public.spare_requests enable trigger user;
 
 \echo '--- 2. the KPI export ---'
-select 'DY-1: Attended 2, Solved 4 -- the lower, from the complaint' as t,
-  ("Attended in Days", "Solved in Days") = (2, 4) as ok from public.kpi_field_inst where "UC Number" = 'DY-1';
+select 'DY-1: Attended 1, Solved 3 -- the lowest, from the registration' as t,
+  ("Attended in Days", "Solved in Days") = (1, 3) as ok from public.kpi_field_inst where "UC Number" = 'DY-1';
 select 'DY-2: attended on the EARLIEST visit date (08-Aug, entered later): 2 days from the breakdown' as t,
   "Call Attended On" = date '2025-08-08' and "Attended in Days" = 2 as ok from public.kpi_field_inst where "UC Number" = 'DY-2';
 select 'DY-3: neither date -> 2 days from the registration' as t,
   "Attended in Days" = 2 as ok from public.kpi_field_inst where "UC Number" = 'DY-3';
 
 \echo '--- 2b. the export says which date each count came from (0442) ---'
-select 'DY-1: Attended and Solved from the Complaint Date' as t,
-  ("Attended Days From", "Solved Days From") = ('Complaint Date', 'Complaint Date') as ok from public.kpi_field_inst where "UC Number" = 'DY-1';
+select 'DY-1: Attended and Solved from the Registration Date' as t,
+  ("Attended Days From", "Solved Days From") = ('Registration Date', 'Registration Date') as ok from public.kpi_field_inst where "UC Number" = 'DY-1';
 select 'DY-2: Attended from the Breakdown Date (the complaint count is negative)' as t,
   "Attended Days From" = 'Breakdown Date' and "Solved Days From" is null as ok from public.kpi_field_inst where "UC Number" = 'DY-2';
 select 'DY-3: from the Registration Date' as t,
@@ -73,8 +80,12 @@ select 'Pending Days From is blank on a solved call' as t,
   "Pending Days From" is null as ok from public.kpi_field_inst where "UC Number" = 'DY-1';
 select 'the same count from both reads Complaint & Breakdown Date' as t,
   public.call_days_from(date '2026-08-07', date '2026-08-07', null, date '2026-08-09') = 'Complaint & Breakdown Date' as ok;
-select 'both negative reads Neither -- both after (0)' as t,
-  public.call_days_from(date '2026-08-07', date '2026-08-06', null, date '2026-08-01') = 'Neither -- both after (0)' as ok;
+select 'all after the day reads None -- all after (0)' as t,
+  public.call_days_from(date '2026-08-07', date '2026-08-06', null, date '2026-08-01') = 'None -- all after (0)' as ok;
+select 'complaint and registration the same day reads Complaint & Registration Date' as t,
+  public.call_days_from(date '2026-08-07', date '2026-08-06', date '2026-08-07', date '2026-08-09') = 'Complaint & Registration Date' as ok;
+select 'all three the same day reads Complaint, Breakdown & Registration Date' as t,
+  public.call_days_from(date '2026-08-07', date '2026-08-07', date '2026-08-07', date '2026-08-09') = 'Complaint, Breakdown & Registration Date' as ok;
 
 \echo '--- 3. the objective ---'
 insert into public.quality_objectives (year, sort_order, process, parameter, yearly_target, frequency, calc_key, calc_params) values
@@ -83,18 +94,18 @@ select 'DY-1 and DY-2 attended within 2 days, DY-3 too' as t,
   count(*) filter (where role = 'attended') = 3 as ok
   from public.objective_evidence((select id from public.quality_objectives where parameter = 'DY attended'), 8)
  where ucn like 'DY-%';
-select 'the evidence names both dates' as t,
-  bool_and(status like '%from complaint 2025-08-07 and from breakdown 2025-08-06%') as ok
+select 'the evidence names all three dates (0473)' as t,
+  bool_and(status like '%the lowest of from complaint 2025-08-07, from breakdown 2025-08-06 and from registration 2025-08-08%') as ok
   from public.objective_evidence((select id from public.quality_objectives where parameter = 'DY attended'), 8)
  where ucn = 'DY-1';
 
 \echo '--- 4. the evidence carries every date behind the TTA (0443) ---'
-select 'DY-1: the five dates, the spare request, Attended On, and TTA 2 days / 00-03D from the Complaint Date' as t,
+select 'DY-1: the five dates, the spare request, Attended On, and TTA 1 day / 00-03D from the Registration Date' as t,
   (details->>'Complaint Date', details->>'Breakdown Date', details->>'First Visit Date',
    details->>'First Spare Request Date', details->>'Attended On',
    details->>'TTA Counted From', (details->>'TTA (Days)')::int)
-  = ('2025-08-07', '2025-08-06', '2025-08-09', '2025-08-12', '2025-08-09', 'Complaint Date', 2)
-  and details->>'TTA ( R )' = public.kpi_days_band(2)
+  = ('2025-08-07', '2025-08-06', '2025-08-09', '2025-08-12', '2025-08-09', 'Registration Date', 1)
+  and details->>'TTA ( R )' = public.kpi_days_band(1)
   and (details->>'Call Registration Date')::timestamptz = timestamptz '2025-08-08 11:00+05:30'
   and (details->>'First Visit Recorded Date')::timestamptz = timestamptz '2025-08-09 18:00+05:30' as ok
   from public.objective_evidence((select id from public.quality_objectives where parameter = 'DY attended'), 8)

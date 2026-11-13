@@ -160,6 +160,23 @@ up)_
 
 ---
 
+## 2026-11-13 — Day counts include the Call Registration Date (0472, 0473, v0.10.233)
+
+- The user: Objective "Problem Call attending within 3 days" — include the
+  Call Registration Date in TTA Counted From, as a date (not date-time).
+  Asked, they chose: the LOWEST of complaint-to, breakdown-to and
+  registration-to that is not negative; and EVERY day count everywhere.
+- 0472 (performance.sql): `call_days()` / `call_days_from()` take the
+  registration day as a third candidate (callers already pass India's day of
+  `reg_at`). Labels: "Registration Date", ties ("Complaint & Registration
+  Date"), "None -- all after (0)". 0473 (objective.sql): the evidence line
+  names all three dates. Client copies moved with it: `callDays()` (register
+  Aging) and the Dashboard SLA start. `_status.sql` rows 355 and 357 moved,
+  382 added; `call_days_test` and check:ui updated.
+- Applied by the merge's "Apply database migrations" run — read its log.
+
+---
+
 ## 2026-11-13 — KPI Export timed out (D-180, 0471, v0.10.232)
 
 - The user: a screenshot of Reports → KPI Export, Field, CSV — "Could not

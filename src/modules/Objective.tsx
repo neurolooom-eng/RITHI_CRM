@@ -998,10 +998,10 @@ export function Objective() {
 
       <SectionCard title="How the computed columns are worked out">
         <ul className="muted" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.75 }}>
-          <li><b>Attended in Days</b> / <b>Solved in Days</b> — counted from the <b>later</b> of the
-            Complaint Date and the Registration Date, never negative. That is the workbook's own
-            formula: a call complained about on the 30th, registered on the 3rd and attended on the
-            30th is <b>0 days</b>, not −4.</li>
+          <li><b>Attended in Days</b> / <b>Solved in Days</b> — the <b>lowest</b> of the days from the
+            Complaint Date, from the Breakdown Date and from the Call Registration Date (India&rsquo;s
+            date) that is not negative, and 0 when all three are after the day: a call complained
+            about on the 30th, registered on the 3rd and attended on the 30th is <b>0 days</b>, not −4.</li>
           <li><b>TTA</b> / <b>TTS</b> — the band the day count falls in, using the <b>finer</b> of
             the two tables in LOOKUPVALUES: the same up to 60 days, then 61-90D, 91-180D, &gt;180D,
             &gt;1 yr, and so on to &gt;5 yrs. A machine open eleven months no longer reads the same

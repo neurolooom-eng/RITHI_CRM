@@ -20,6 +20,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.233',
+    date: '2026-11-13',
+    title: 'Day counts include the Call Registration Date',
+    changes: [
+      'Every day count now takes the LOWEST of three: the days from the Complaint Date, from the Breakdown Date and from the Call Registration Date (its date in India, without the time). A count that would be negative is left out, and it is 0 when all three are. Until now the registration date was used only when a call had neither a Complaint nor a Breakdown Date.',
+      'This applies everywhere a day count is made: Problem Call attending within 3 days and the other objectives, the KPI Export (Attended / Solved in Days, TTA, TTS, Pending Days), Aging on the call registers and the SLA on the Dashboard. Because a call is usually registered on or after its complaint, most calls now count from their registration, and most counts go down.',
+      'TTA Counted From (and Attended / Solved / Pending Days From in the KPI Export) can now read Registration Date, or a tie such as "Complaint & Registration Date". When every date is after the day it reads "None -- all after (0)", where it used to read "Neither -- both after (0)". The objective download\'s line for each call names all three dates.',
+    ],
+  },
+  {
     version: '0.10.232',
     date: '2026-11-13',
     title: 'KPI Export no longer times out',

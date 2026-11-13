@@ -2252,9 +2252,10 @@ with checks(sort_order, bundle, provides, present) as (
     (354, 'A visit may be dated from the Breakdown Date', 'reports_visit_date_guard() (0436): a visit entered on the form cannot be dated before the call''s Breakdown Date, else its Complaint Date, nor after today. NO means a visit made between the breakdown and the request is refused. Restore: reports.sql (0436)',
         coalesce((select p.prosrc like '%coalesce(c.breakdown_date, c.complaint_date)%'
                     from pg_proc p where p.oid = to_regprocedure('public.reports_visit_date_guard()')), false)),
-    (355, 'KPI export: every day count the lower of complaint-to and breakdown-to', 'call_days() + kpi_field_inst (0440): Attended / Solved / Pending Days, TTA and TTS take the lower of the days from the Complaint Date and from the Breakdown Date that is not negative, 0 when both are, the registration day where a call has neither; the view stays security_invoker. TESTED BY VALUE. NO means the export counts from one date only. Restore: performance.sql (0440)',
+    (355, 'KPI export: every day count the lowest of complaint-to, breakdown-to and registration-to', 'call_days() + kpi_field_inst (0440, the registration day a third count since 0472): Attended / Solved / Pending Days, TTA and TTS take the lowest of the days from the Complaint Date, the Breakdown Date and the registration day that is not negative, 0 when all are; the view stays security_invoker. TESTED BY VALUE. NO means the export counts from fewer dates than that. Restore: performance.sql (0440, 0472)',
         (to_regprocedure('public.call_days(date,date,date,date)') is not null
-     and public.call_days(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-09') = 2
+     and public.call_days(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-09') = 1
+     and public.call_days(date '2026-08-07', date '2026-08-06', null, date '2026-08-09') = 2
      and public.call_days(date '2026-08-10', date '2026-08-06', null, date '2026-08-08') = 2
      and public.call_days(date '2026-08-07', date '2026-08-06', null, date '2026-08-01') = 0
      and public.call_days(null, null, date '2026-08-08', date '2026-08-09') = 1
@@ -2264,9 +2265,11 @@ with checks(sort_order, bundle, provides, present) as (
     (356, 'Attended-within-N-days objectives: the lower of complaint-to and breakdown-to', 'objective_value() and objective_evidence() (0441): days to the first attendance are call_days() (0440). NO means the objective counts from one date only. Restore: objective.sql (0441)',
         (coalesce((select p.prosrc like '%public.call_days(c.complaint_date, c.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_value(bigint,integer)')), false)
      and coalesce((select p.prosrc like '%public.call_days(c.complaint_date, c.breakdown_date%' from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))),
-    (357, 'KPI export says which date each day count came from', 'call_days_from() + kpi_field_inst (0442): Attended / Solved / Pending Days From, after Pending Days, name the date call_days() counted from. TESTED BY VALUE. NO means the export gives the counts without saying which date they came from. Restore: performance.sql (0442)',
+    (357, 'KPI export says which date each day count came from', 'call_days_from() + kpi_field_inst (0442; the registration day since 0472): Attended / Solved / Pending Days From, after Pending Days, name the date call_days() counted from. TESTED BY VALUE. NO means the export gives the counts without saying which date they came from. Restore: performance.sql (0442, 0472)',
         (to_regprocedure('public.call_days_from(date,date,date,date)') is not null
      and public.call_days_from(date '2026-08-07', date '2026-08-06', null, date '2026-08-09') = 'Complaint Date'
+     and public.call_days_from(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-09') = 'Registration Date'
+     and public.call_days_from(date '2026-08-07', date '2026-08-06', date '2026-08-08', date '2026-08-01') = 'None -- all after (0)'
      and public.call_days_from(date '2026-08-10', date '2026-08-06', null, date '2026-08-08') = 'Breakdown Date'
      and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'kpi_field_inst' and column_name = 'Pending Days From'))),
     (358, 'Attended-within-N-days evidence carries every date behind the TTA', 'objective_evidence() (0443): for an attended-within-N-days objective each call''s details give Call Registration, Complaint, Breakdown, First Visit and First Visit Recorded Dates, the First Spare Request Date, Attended On, TTA Counted From, TTA (Days) and TTA ( R ). NO means the Objective 11 download lists the calls without the dates behind the TTA. Restore: objective.sql (0443)',
@@ -2364,7 +2367,10 @@ with checks(sort_order, bundle, provides, present) as (
         to_regprocedure('public.call_first_spare_dates()') is not null
         and position('call_first_spare_dates' in coalesce(pg_get_viewdef(to_regclass('public.kpi_field_inst')), '')) > 0
         and position('call_first_spare_on' in coalesce(pg_get_viewdef(to_regclass('public.kpi_field_inst')), '')) = 0
-        and not has_function_privilege('anon', 'public.call_first_spare_dates()', 'execute'))
+        and not has_function_privilege('anon', 'public.call_first_spare_dates()', 'execute')),
+    (382, 'Objective 11''s evidence names the registration date too', 'objective_evidence() (0473): each call''s line reads "the lowest of from complaint ..., from breakdown ... and from registration ...", the three dates call_days() counts from since 0472. NO means the download names two of the three. Restore: objective.sql (0473)',
+        coalesce((select p.prosrc like '%and from registration%'
+                    from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

@@ -1612,9 +1612,11 @@ console.log('\n-- the KPI export matches the workbook --');
   // The page must say how each computed column is arrived at: a number nobody
   // can account for is not evidence.
   eq('...and says how the computed columns are worked out',
-    // The rule since 0440 (the user, 2026-10-14): the LOWER of the days from
-    // the complaint and from the breakdown -- and which one, per call (0442).
-    /<b>lower<\/b> of the days from the Complaint Date/.test(objPage)
+    // The rule since 0472 (the user, 2026-11-13): the LOWEST of the days from
+    // the complaint, the breakdown and the registration (0440 had two) -- and
+    // which one, per call (0442).
+    /<b>lowest<\/b> of the days from the Complaint Date/.test(objPage)
+    && /the days from the Call Registration Date/.test(objPage)
     && /Attended Days From, Solved Days From, Pending Days From/.test(objPage)
     && /finer of the workbook&rsquo;s two lookup tables/.test(objPage)
     && /attended and solved the same\s*\n?\s*day/.test(objPage), true);
@@ -2892,22 +2894,30 @@ console.log('\n-- cover today, and what is about to lapse --');
 // THE LOWER OF COMPLAINT-TO AND BREAKDOWN-TO (the user, 2026-10-14). The SAME
 // cases as supabase/tests/call_days_test.sql asserts of call_days() (0440), so
 // the register's Aging and the KPI export cannot disagree on a rule.
-console.log('\n-- days: the lower of complaint-to and breakdown-to --');
+console.log('\n-- days: the lowest of complaint-to, breakdown-to and registration-to --');
 {
   const C = '2026-08-07', B = '2026-08-06', R = '2026-08-08';
-  eq('both positive: the lower (from the complaint)', callDays(C, B, R, '2026-08-09'), 2);
-  eq('visit before the complaint: from the breakdown', callDays(C, B, R, '2026-08-06'), 0);
-  eq('...a day after the breakdown, before the complaint', callDays('2026-08-10', B, R, '2026-08-08'), 2);
-  eq('both negative: 0', callDays(C, B, R, '2026-08-01'), 0);
-  eq('breakdown after the complaint: still the lower', callDays('2026-08-01', '2026-08-05', R, '2026-08-09'), 4);
-  eq('only a breakdown date: from it', callDays('', B, R, '2026-08-09'), 3);
+  // With no registration date: 0440's cases, unchanged.
+  eq('both positive: the lower (from the complaint)', callDays(C, B, '', '2026-08-09'), 2);
+  eq('visit before the complaint: from the breakdown', callDays(C, B, '', '2026-08-06'), 0);
+  eq('...a day after the breakdown, before the complaint', callDays('2026-08-10', B, '', '2026-08-08'), 2);
+  eq('both negative: 0', callDays(C, B, '', '2026-08-01'), 0);
+  eq('breakdown after the complaint: still the lower', callDays('2026-08-01', '2026-08-05', '', '2026-08-09'), 4);
   eq('neither: from the registration', callDays('', '', R, '2026-08-09'), 1);
   eq('nothing happened yet: no count', callDays(C, B, R, ''), null);
-  eq('Aging uses it: a solved call counts to its visit, the lower of the two',
-    callAging({ regDate: R, complaintDate: C, breakdownDate: B, callState: 'Solved', lastVisitAt: '2026-08-09' }).days, 2);
+  eq('no date at all: no count', callDays('', '', '', '2026-08-09'), null);
+  // The registration date as a third count (0472): the lowest of the three.
+  eq('all three: the registration, the lowest', callDays(C, B, R, '2026-08-09'), 1);
+  eq('registration after the day: the lower of the other two', callDays(C, B, R, '2026-08-07'), 0);
+  eq('...a day after the breakdown, before complaint and registration', callDays('2026-08-10', B, '2026-08-10', '2026-08-08'), 2);
+  eq('only a breakdown date and the registration: the lower', callDays('', B, R, '2026-08-09'), 1);
+  eq('all three after the day: 0', callDays(C, B, R, '2026-08-01'), 0);
+  eq('Aging uses it: a solved call counts to its visit, the lowest of the three',
+    callAging({ regDate: R, complaintDate: C, breakdownDate: B, callState: 'Solved', lastVisitAt: '2026-08-09' }).days, 1);
   const dash = readFileSync('src/modules/Dashboard.tsx', 'utf8');
-  eq('the Dashboard SLA starts at the later of complaint and breakdown not in the future',
-    /past\.length \? past\[past\.length - 1\]/.test(dash) && /regAt: slaStartOf\(r\)/.test(dash), true);
+  eq('the Dashboard SLA starts at the latest of complaint, breakdown and registration not in the future',
+    /past\.length \? past\[past\.length - 1\]/.test(dash) && /regAt: slaStartOf\(r\)/.test(dash)
+    && /\['complaintDate', 'breakdownDate', 'regDate'\]/.test(dash), true);
 }
 
 console.log('\n-- every page in the menu has a permission --');

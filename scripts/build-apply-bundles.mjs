@@ -690,7 +690,10 @@ const MODULES = {
             '0441_objective_days_lower_of_two.sql',
             // Objective 11's evidence carries every date behind the TTA (0443):
             // restates objective_evidence() from 0441.
-            '0443_objective_tta_evidence.sql'],
+            '0443_objective_tta_evidence.sql',
+            // The evidence line names the registration date too (0473):
+            // restates 0443's objective_evidence() with one expression changed.
+            '0473_objective_evidence_names_registration.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -851,7 +854,11 @@ const MODULES = {
       '0450_kpi_register_column.sql',
       // The KPI export timed out (D-180, 0471): the first spare request read
       // once for the whole export, the visits in one pass. Restates 0450's view.
-      '0471_kpi_export_reads_once.sql'],
+      '0471_kpi_export_reads_once.sql',
+      // Every day count also counts from the registration date, the lowest of
+      // the three (0472): restates 0440's call_days() and 0442's
+      // call_days_from().
+      '0472_days_count_from_registration_too.sql'],
   },
   audit: {
     title: 'Audit Log',
