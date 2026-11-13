@@ -14,7 +14,7 @@ import { xlsxDownload } from '../lib/xlsx';
 import { FailureCohorts, downloadCohortWorkbook } from './FailureCohorts';
 import { logAudit } from '../lib/audit';
 import { formatDayTime, todayLocal } from '../lib/dates';
-import { useAccessScope, scopeLabel } from '../lib/access';
+import { useAccessScope, scopeLabel, useRegionByEngineer, regionFor } from '../lib/access';
 import './dccr.css';
 import './fieldcalls.css';
 import { COMPLETE } from '../lib/exportscope';
@@ -80,6 +80,11 @@ export function Objective() {
   // NOT objective.manage -- that is the audience the lock exists to hold back,
   // so it must not be what unlocks it. Administrators hold it by being admin.
   const { can } = useAuth();
+  // REGION on the evidence (the user, 2026-11-13: "In Objective Evidence, The
+  // Region Column is not present"): the User Master region now, by the same
+  // rule as the call registers -- the Visiting Service Engineer, else Call
+  // Allocated To.
+  const regionByEngineer = useRegionByEngineer();
   const mayEdit = can('objective.manage');
   const mayLock = can('objective.lock');
   const YEAR = new Date().getFullYear();
@@ -318,10 +323,11 @@ export function Objective() {
         const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
         xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
           { name: 'Feedback counted',
-            columns: ['UCN', 'Call No', 'Visit Date (Solved Date)', 'Call Type', 'Product', 'Serial', 'Party', 'Engineer', 'Scored on', ...questions, 'Satisfaction %'],
+            columns: ['UCN', 'Call No', 'Visit Date (Solved Date)', 'Call Type', 'Product', 'Serial', 'Party', 'Engineer', 'Region', 'Scored on', ...questions, 'Satisfaction %'],
             rows: rows.map((r) => ({
               UCN: r.ucn, 'Call No': r.call_number, 'Visit Date (Solved Date)': r.reg_date, 'Call Type': r.call_type,
               Product: r.product_name, Serial: r.serial, Party: r.party_name, Engineer: r.allocated_to,
+              Region: regionFor(regionByEngineer, r.allocated_to),
               'Scored on': det(r)['Scored on'],
               ...Object.fromEntries(questions.map((q) => [q, det(r)[q] ?? 'NA'])),
               'Satisfaction %': Number(det(r)['Satisfaction %']),
@@ -499,11 +505,16 @@ export function Objective() {
       // reason while the call is open; blank once solved or cancelled).
       const pendingBy = isCount ? new Map<string, CallDates>()
         : await callDatesFor(calls.map((r) => String(r.ucn ?? '')));
-      const withReason = (r: Record<string, unknown>) =>
-        ({ ...r, 'Call Pending Reason': (pendingBy.get(String(r.ucn ?? ''))?.pendingReason ?? '').trim() });
-      const reasonAfterStatus = (cols: string[]) => {
-        const at = cols.indexOf('status');
-        return at < 0 ? [...cols, 'Call Pending Reason'] : [...cols.slice(0, at + 1), 'Call Pending Reason', ...cols.slice(at + 1)];
+      const withReason = (r: Record<string, unknown>) => {
+        const d = pendingBy.get(String(r.ucn ?? ''));
+        return { ...r, 'Call Pending Reason': (d?.pendingReason ?? '').trim(),
+                 Region: regionFor(regionByEngineer, d?.visitEngineer, r.allocated_to) };
+      };
+      const reasonAfterStatus = (cols0: string[]) => {
+        const at = cols0.indexOf('status');
+        const cols = at < 0 ? [...cols0, 'Call Pending Reason'] : [...cols0.slice(0, at + 1), 'Call Pending Reason', ...cols0.slice(at + 1)];
+        const by = cols.indexOf('allocated_to');
+        return by < 0 ? [...cols, 'Region'] : [...cols.slice(0, by + 1), 'Region', ...cols.slice(by + 1)];
       };
 
       const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
