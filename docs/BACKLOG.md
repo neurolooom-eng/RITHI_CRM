@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-11-11 (HAND STOCK RECONCILIATION — 0468–0470, v0.10.231, URS-191 / FRS-287 / OQ-306: a physical count per engineer + part resets the line from the moment it is entered; older movements kept, not counted; ⏳ tick handstock.reconcile for whoever counts.) Before that: 2026-10-15 (EQUIPMENT LIST: FFR HEADER, PARTY FIRST (ONCE, outside the table since v0.10.201; header + footer on EVERY page via fixed elements since v0.10.202; Service Engineer optional, off by default; minimal header in Cormorant Garamond / Source Sans 3 since v0.10.203; Current Status beside Serial; no OT Number), ONE PARTY PER LIST — v0.10.200, FRS-118.13 / OQ-294; footer = the FFR property notice (the user's wording); template sent to the user for approval. Before: v0.10.199 four filters + green highlight; 0444 email corrected; objectives move on the next Re-Calculate ⏳; 150 calls with SEVERAL requests ⏳ USER DECISION. Still ⏳ from 0432: the 2023 yearly sheet for VISIT HISTORY; the e-service export; uploads 2018-22 (WinMax), 2023-2025 (Yearly sheet + year).)
+_Last updated: 2026-11-13 (QUEUED: Product Database → Google Sheet, waiting on the columns, the spreadsheet and the hour.) Before that: 2026-11-11 (HAND STOCK RECONCILIATION — 0468–0470, v0.10.231, URS-191 / FRS-287 / OQ-306: a physical count per engineer + part resets the line from the moment it is entered; older movements kept, not counted; ⏳ tick handstock.reconcile for whoever counts.) Before that: 2026-10-15 (EQUIPMENT LIST: FFR HEADER, PARTY FIRST (ONCE, outside the table since v0.10.201; header + footer on EVERY page via fixed elements since v0.10.202; Service Engineer optional, off by default; minimal header in Cormorant Garamond / Source Sans 3 since v0.10.203; Current Status beside Serial; no OT Number), ONE PARTY PER LIST — v0.10.200, FRS-118.13 / OQ-294; footer = the FFR property notice (the user's wording); template sent to the user for approval. Before: v0.10.199 four filters + green highlight; 0444 email corrected; objectives move on the next Re-Calculate ⏳; 150 calls with SEVERAL requests ⏳ USER DECISION. Still ⏳ from 0432: the 2023 yearly sheet for VISIT HISTORY; the e-service export; uploads 2018-22 (WinMax), 2023-2025 (Yearly sheet + year).)
 - ⏳ **DUPLICATES IN CALL HISTORY — decide later (the user: "dont action upon it until i explicitly say so")**: `call_history.duplicate` marks every call seen in two sources or years; `duplicates` holds the other records.
 _Last updated: 2026-10-13 (2025 DCCR-HISTORY CALLS INTO CALL HISTORY — 0430 (daily_review.sql) + 0431 (objective.sql), v0.10.187, FRS-267.0 / FRS-121.20: the calls 0395 filed in field_calls / pm_calls copied to call_history and removed from the live tables; their reviews kept; _dccr_failure_calls reads them through the reviews, so no Recent Failure Rate moves; the DCCR import files into call_history from now on, no visit.)
 - ⏳ **LATER (the user, 2026-10-13: "Leave the visits out will figure it out later")** — ORPHAN VISITS OF HISTORICAL CALLS: (a) 542 UC Nos in `reports` under 2018-2022 UC Nos (no call; all of them are in the Calls-18-22 file; for 160 the visit's status differs from the file's), and (b) the IMP-... visits 0395 filed for the 2025 DCCR-history calls, whose calls are now in Call History. Decide whether they move to Call History, stay, or go.
@@ -157,6 +157,28 @@ up)_
 - **The repository and its Actions logs are PUBLIC.** Two probes earlier on
   2026-10-27 printed customer names (the VEGA | 31 trace) into a public log.
   Probes run through the workflow now print counts only.
+
+---
+
+## ⏳ QUEUED — Product Database written to a Google Sheet, like the DCCR mirror (the user, 2026-11-13)
+
+- The user: "Similar to DCCR, I want to Write the Product Database also into
+  Google Sheet". Asked, they chose: the **Product Database** (`products`, the
+  install base at `/product-database`, one row per machine — not 2.0); **a
+  different spreadsheet** from the DCCR one; **once a day**.
+- **WAITING ON THE USER** ("I will check and Update, keep this in Backlog"):
+  - the **columns** to write;
+  - the **spreadsheet's link or ID** (the Google account that runs the CallReg
+    script must be able to edit it);
+  - the **hour** of the daily run (10 PM assumed nowhere until they say).
+- How it would be built, once those are given: a second scheduled function in
+  `apps-script/CallReg.gs` beside `dccrMirror()` — the same sign-in
+  (`DCCR_EMAIL` / `DCCR_PASSWORD`, read under row-level security), paged reads
+  of `products` with an ORDER and a tiebreaker, the tab cleared and rewritten
+  whole, dates as real dates formatted dd-MMM-yyyy, its own status tab, one
+  daily trigger with install/remove actions. ~20,000 rows, inside the
+  six-minute Apps Script limit with one `setValues`. Needs the script pasted
+  into the Apps Script project and the trigger installed (the user's step).
 
 ---
 
