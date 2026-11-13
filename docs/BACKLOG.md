@@ -160,6 +160,14 @@ up)_
 
 ---
 
+## 2026-11-13 — v2 switch off by default; supporting documents after submit (v0.10.243)
+
+- The user: "Toggle button should be off by default. Show supporting
+  documents once the request is submitted as a pop up. Remove from the main
+  screen." v2 only; v1 keeps its in-card panel. Screen only.
+
+---
+
 ## 2026-11-13 — v2 customer details folded into one line (v0.10.242)
 
 - The user: "hide the Customer Details as well since the first product -
