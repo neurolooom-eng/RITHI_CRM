@@ -160,6 +160,29 @@ up)_
 
 ---
 
+## 2026-11-13 — Request Registration v2 and Req_VisitTable (0475, v0.10.235)
+
+- The user: an admin-only Request Registration v2; when attended, ask the
+  Call Pending Reason and store the visit in a new table "Req_VisitTable";
+  a key without REQID (the True Key) + -Product-Serial as its key; Call
+  Status Unsolved, Pending Reason the Visit Report's list (mandatory),
+  engineer the requester, email the login, Visit Date the Attended Date,
+  Visit Entry Date the timestamp. Asked, they chose: RQ2-yymm-nnnn; the same
+  flow as v1; status and engineer fixed; no row when not attended; FILED as
+  the call's visit when the request becomes a call; `req_visit_table`.
+- 0475 (call_requests.sql): `call_requests.true_key`, `next_rq2_key()`,
+  `req_visit_table`, `submit_call_request_v2()` (one save),
+  `req_visit_file_on_register`. URS-192, FRS-288, OQ-307; `_status.sql` row
+  384; `request_registration_v2_test`.
+- ⏳ **ASK THE USER — a request MAPPED to an existing call files NO visit**:
+  a mapping can be un-mapped (wrong call) and a visit is never deleted. If
+  mapped requests should file too, say so and the trigger widens.
+- ⏳ The Visit Report fields beyond the five are waiting on the user's
+  mapping ("I will add necessary Fields from there and Tell you how to Map it").
+- Applied by the merge's "Apply database migrations" run — read its log.
+
+---
+
 ## 2026-11-13 — KPI & Failure Analysis: Call Type filter (0474, v0.10.234)
 
 - The user: "in KPI & Failure Analysis - Filter by Field Calls". Asked: a

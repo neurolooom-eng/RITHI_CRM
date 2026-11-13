@@ -417,6 +417,9 @@ const MODULES = {
       // its product + serial (the user, 2026-10-08), and once, the ones
       // already pending for a machine already installed.
       '0406_install_call_registers_requests.sql',
+      // Request Registration v2 and Req_VisitTable (0475): the True Key, the
+      // one save, and the visit filed when the request is registered.
+      '0475_request_registration_v2.sql',
       '0164_cr_read_initplan.sql',
     ],
   },

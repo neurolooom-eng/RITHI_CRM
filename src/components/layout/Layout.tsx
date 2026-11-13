@@ -172,6 +172,7 @@ export const NAV: NavGroup[] = [
     title: 'Service Calls',
     items: [
       { to: '/request-registration', label: 'Request Registration', icon: '📝' },
+      { to: '/request-registration-v2', label: 'Request Registration v2', icon: '🆕' },
       { to: '/pending-registrations', label: 'Pending Registrations', icon: '⏳' },
       { to: '/field-calls', label: 'Field Call Register', icon: '📡' },
       { to: '/installations', label: 'Installation Calls', icon: '🔧' },

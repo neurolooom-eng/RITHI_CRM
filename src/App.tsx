@@ -257,6 +257,7 @@ function Shell() {
             the "Update Call" action on each Field / Installation call. */}
         <Route path="/call-updation" element={<Navigate to="/field-calls" replace />} />
         <Route path="/request-registration" element={<RequestCallRegistration />} />
+        <Route path="/request-registration-v2" element={<RequestCallRegistration v2 />} />
         <Route path="/pending-registrations" element={<PendingRegistrations />} />
         <Route path="/product-database" element={<ProductMaster />} />
         <Route path="/product-database-2" element={<ProductDatabase2 />} />

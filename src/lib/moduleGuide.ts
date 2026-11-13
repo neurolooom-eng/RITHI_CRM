@@ -409,6 +409,21 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     ],
   },
   {
+    route: '/request-registration-v2',
+    purpose: 'Request Registration with its own key, the True Key (RQ2-yymm-nnnn), and — when the call was attended — the visit, recorded in Req_VisitTable. Administrators only.',
+    does: [
+      'Raise a request exactly as on Request Registration; it goes on to Pending Registrations the same way',
+      'When Call Attended? = Yes, choose the Call Pending Reason from the Visit Report’s list (mandatory)',
+      'See the v2 requests, each with its True Key',
+    ],
+    records: ['call_requests', 'req_visit_table', 'rpc:submit_call_request_v2', 'masters', 'reports'],
+    rules: [
+      'The True Key is issued by the database, once per request, numbered from 0001 each month',
+      'Each attended machine gets one Req_VisitTable row keyed <True Key>-<Product>-<Serial>: Call Status Unsolved, the requester as the engineer, the login email, the Attended Date as the visit date, and the time it was saved',
+      'When the request is registered as a call, that row is filed as the call’s visit; a request mapped to an existing call files nothing',
+    ],
+  },
+  {
     route: '/pending-registrations',
     purpose: 'The Hotline queue of requests with no UCN. Registering one issues the UCN and files the call.',
     does: [

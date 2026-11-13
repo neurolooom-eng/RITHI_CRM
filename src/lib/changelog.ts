@@ -20,6 +20,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.235',
+    date: '2026-11-13',
+    title: 'Request Registration v2 (administrators)',
+    changes: [
+      'New screen, Service Calls → Request Registration v2, for administrators only: the Request Registration form and journey (the request goes on to Pending Registrations), with its own key, the True Key, RQ2-yymm-nnnn, numbered from 0001 each month.',
+      'When Call Attended? = Yes it asks the Call Pending Reason, from the Visit Report\'s list, and it is mandatory. Each machine then gets a row in Req_VisitTable, keyed <True Key>-<Product>-<Serial>, with Call Status Unsolved, you as the Visiting Service Engineer, your login email, the Attended Date as the visit date, and the time you saved. Not attended: no row.',
+      'When the request is registered as a call on Pending Registrations, its Req_VisitTable row is filed on the call as a visit, so the call reads Unsolved with that pending reason. A request mapped to an existing call files nothing.',
+    ],
+  },
+  {
     version: '0.10.234',
     date: '2026-11-13',
     title: 'KPI & Failure Analysis: Call Type filter',
