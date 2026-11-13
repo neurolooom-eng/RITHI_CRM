@@ -160,6 +160,13 @@ up)_
 
 ---
 
+## 2026-11-13 — v2 Call 1 keeps customer details open (v0.10.244)
+
+- The user: "don't collapse Customer details in Call 1 .. that setup is
+  applicable only from Call 2 onwards". Screen only.
+
+---
+
 ## 2026-11-13 — v2 switch off by default; supporting documents after submit (v0.10.243)
 
 - The user: "Toggle button should be off by default. Show supporting

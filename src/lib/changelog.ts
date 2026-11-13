@@ -20,6 +20,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.244',
+    date: '2026-11-13',
+    title: 'Request Registration v2: Call 1 keeps its customer details open',
+    changes: [
+      'Call 1 shows the customer\'s City, State, Address and contact fields in full. Only from Call 2 onwards are they folded into one line behind Show details.',
+    ],
+  },
+  {
     version: '0.10.243',
     date: '2026-11-13',
     title: 'Request Registration v2: switch off by default; supporting documents after submit',
