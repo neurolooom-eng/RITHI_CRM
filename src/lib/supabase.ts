@@ -2044,6 +2044,9 @@ export interface CallRequestItem {
   address?: string;
   contactDetails?: string;
   contactNumber?: string;
+  /** Request Registration v2, "Per call" (0482): this call's own Call
+   *  Attended? answers. Absent: the request's shared answers apply. */
+  visit?: { attended: string; date: string; plan: string; status: string; reason: string };
 }
 const itemCols = (it: CallRequestItem) => ({
   product: it.product,
@@ -2244,7 +2247,17 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
 export async function addCallRequestV2(base: Record<string, unknown>, items: CallRequestItem[], pendingReason: string, callStatus = 'Unsolved'): Promise<{ ok: boolean; reqid?: string; trueKey?: string; count?: number; visitKeys?: string[]; error?: string }> {
   if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
   const { data, error } = await must().rpc('submit_call_request_v2', {
-    p_base: base, p_items: items.map(itemCols), p_pending_reason: pendingReason, p_call_status: callStatus,
+    p_base: base,
+    // A call answered on its own (0482) carries its answers; the database
+    // falls back to the shared ones for whatever a call does not carry.
+    p_items: items.map((it) => ({
+      ...itemCols(it),
+      ...(it.visit ? {
+        call_attended: it.visit.attended, attended_date: it.visit.date || '',
+        plan_date: it.visit.plan || '', call_status: it.visit.status, pending_reason: it.visit.reason,
+      } : {}),
+    })),
+    p_pending_reason: pendingReason, p_call_status: callStatus,
   });
   if (error) return { ok: false, error: errMsg(error) };
   const r = (data ?? {}) as Record<string, unknown>;

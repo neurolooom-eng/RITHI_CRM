@@ -2402,7 +2402,9 @@ with checks(sort_order, bundle, provides, present) as (
         and position('interval ''1 minute''' in coalesce(pg_get_functiondef(to_regprocedure('public.req_visit_file_on_register()')), '')) > 0),
     (388, 'Disabling a login sets the person inactive on User Master', 'profiles_login_disable_sync on profiles + the address guard''s one exception (0481). NO means a disabled login leaves its User Master row Active. Restore: rbac.sql (0481)',
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.profiles') and tgname = 'profiles_login_disable_sync')
-        and position('rithi.login_disable_sync' in coalesce(pg_get_functiondef(to_regprocedure('public.user_directory_address_guard()')), '')) > 0)
+        and position('rithi.login_disable_sync' in coalesce(pg_get_functiondef(to_regprocedure('public.user_directory_address_guard()')), '')) > 0),
+    (389, 'Request Registration v2: Call Attended? per call, or the same for all', 'submit_call_request_v2() reads each call''s own call_attended / attended_date / plan_date / call_status / pending_reason and falls back to the request''s (0482). NO means the v2 table''s Per call answers are ignored. Restore: call_requests.sql (0482)',
+        position('it->>''call_attended''' in coalesce(pg_get_functiondef(to_regprocedure('public.submit_call_request_v2(jsonb,jsonb,text,text)')), '')) > 0)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
