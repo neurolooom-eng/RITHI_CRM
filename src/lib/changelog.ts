@@ -20,6 +20,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.232',
+    date: '2026-11-13',
+    title: 'KPI Export no longer times out',
+    changes: [
+      'Reports → KPI Export stopped with "Could not export: canceling statement due to statement timeout". The export worked out each call\'s first spare request one call at a time, re-checking permissions for every call on every page. It now works them out once for the whole export and reads each call\'s visits once, so the Excel and CSV files come out in seconds. Every figure in the file is unchanged.',
+    ],
+  },
+  {
     version: '0.10.231',
     date: '2026-11-11',
     title: 'Hand Stock: reconcile an engineer to a physical count',

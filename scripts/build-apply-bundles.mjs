@@ -848,7 +848,10 @@ const MODULES = {
       '0442_kpi_days_basis.sql',
       // ...and which register each call is on, for the Call Type filter
       // (0450): restates 0442's view with one column appended.
-      '0450_kpi_register_column.sql'],
+      '0450_kpi_register_column.sql',
+      // The KPI export timed out (D-180, 0471): the first spare request read
+      // once for the whole export, the visits in one pass. Restates 0450's view.
+      '0471_kpi_export_reads_once.sql'],
   },
   audit: {
     title: 'Audit Log',
