@@ -147,10 +147,13 @@ different totals. An empty register usually means access, not emptiness.
   > each month), issued by the database. The list shows only v2 requests, True
   > Key first.
   > **The visit is asked inside each Call card.** Call 1's card has a **Use
-  > these answers for all calls** switch: on, Call 1's answers are used for
+  > these answers for all calls** switch, **off to begin with**: on, Call 1's answers are used for
   > every call and the other cards say "Same as Call 1"; off, each card is
   > answered on its own, so one machine can be attended and another planned on
   > the same request. Built for a phone: one column, full-width controls.
+  > **Supporting documents** (service manuals and knowledge-base articles for
+  > each call) open in a pop-up once the request is submitted, instead of
+  > sitting in each Call card.
   > **The customer is one line**: once the serial names the customer, each call
   > shows the customer, City, State and contact number in a single line, and
   > **Show details** opens City, State, Address and the contact fields to change

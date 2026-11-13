@@ -20,6 +20,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.243',
+    date: '2026-11-13',
+    title: 'Request Registration v2: switch off by default; supporting documents after submit',
+    changes: [
+      'The "Use these answers for all calls" switch in Call 1 now starts off, so each call is answered in its own card. Turning it on uses Call 1\'s answers for every call.',
+      'Supporting documents (service manuals and knowledge-base articles) no longer sit in each Call card. Once the request is submitted they open in a pop-up, call by call.',
+    ],
+  },
+  {
     version: '0.10.242',
     date: '2026-11-13',
     title: 'Request Registration v2: customer details folded away',

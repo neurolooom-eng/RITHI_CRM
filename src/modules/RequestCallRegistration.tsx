@@ -1,7 +1,7 @@
 import { useComplaints } from '../lib/useComplaints';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
-import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, Drawer, Toolbar, SearchBox, Modal } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { addCallRequestBatch, addCallRequestV2, listCallRequests, sbPartyInfo, sbProductBySerial, supabaseConfigured,
          updateCallRequest, callRequestEditableKeys, unmapCallRequest, sbKycByParties, kycKeyFor,
@@ -478,10 +478,17 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
   // user should have the option to make it as a Common Entry for all, or per
   // Call ... A Table Maybe"). v2 only. Per call keeps each call's answers on
   // the call item itself, so adding or removing a call cannot misalign them.
-  const [visitMode, setVisitMode] = useState<'common' | 'per'>('common');
+  // OFF BY DEFAULT (the user, 2026-11-13: "Toggle button should be off by
+  // default"): each call is answered in its own card unless Call 1's switch
+  // is turned on.
+  const [visitMode, setVisitMode] = useState<'common' | 'per'>('per');
   // v2: which calls have their customer details opened (closed by default once
   // the serial has named the customer -- the details are prefilled from it).
   const [custOpen, setCustOpen] = useState<Set<number>>(new Set());
+  // SUPPORTING DOCUMENTS AFTER SUBMIT, in a pop-up (the user, 2026-11-13: "Show
+  // supporting documents once the request is submitted as a pop up. Remove from
+  // the main screen"). The calls just submitted; null while nothing is shown.
+  const [docsFor, setDocsFor] = useState<{ product: string; serial: string; complaint: string; reported: string }[] | null>(null);
   const blankVisit = () => ({ attended: '', date: '', plan: todayISO(), status: V2_STATUSES[0], reason: '' });
   const visitOf = (it: Item) => it.visit ?? blankVisit();
   const setVisit = (i: number, patch: Partial<NonNullable<Item['visit']>>) =>
@@ -843,9 +850,10 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
           attended ? callStatus : 'Unsolved');
         logAudit({ action: 'request.create.v2', target: r2.trueKey ?? '', status: r2.ok ? 'ok' : 'error', error: r2.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType, reqid: r2.reqid } });
         if (r2.ok) {
+          const submittedCalls = rows.map((x) => ({ product: x.product, serial: x.serial, complaint: x.standardComplaint, reported: x.reportedProblem }));
           setMsg({ tone: 'ok', text: `Request ${r2.trueKey} submitted — ${r2.count} call${r2.count === 1 ? '' : 's'}.`
             + (r2.visitKeys?.length ? ` Req_VisitTable: ${r2.visitKeys.join(', ')}.` : '') + ' Now in Pending Registrations.' });
-          reset(); setPendingReason(''); setCallStatus(V2_STATUSES[0]); setVisitMode('common'); setCustOpen(new Set()); onSaved();
+          reset(); setPendingReason(''); setCallStatus(V2_STATUSES[0]); setVisitMode('per'); setCustOpen(new Set()); setDocsFor(submittedCalls); onSaved();
         } else setMsg({ tone: 'error', text: `Submit failed: ${r2.error}` });
         return;
       }
@@ -886,7 +894,9 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
     if (patch.reason !== undefined) setPendingReason(patch.reason);
   };
   const toggleSameForAll = (on: boolean) => {
-    if (on) { setVisitMode('common'); return; }
+    // Turning it on takes Call 1's answers as everybody's, so nothing typed in
+    // Call 1 is lost.
+    if (on) { if (items[0]?.visit) putShared({ ...items[0].visit }); setVisitMode('common'); return; }
     // Turning it off starts every call from Call 1's answers, so nothing typed is lost.
     setItems((s2) => s2.map((x) => ({ ...x, visit: x.visit ?? { ...sharedVisit } })));
     setVisitMode('per');
@@ -1213,11 +1223,14 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
                   It is the call's own component, so the matching rule is the
                   same one; it renders nothing until there is a product, and
                   nothing when nothing matches. */}
-              <SupportingDocs
-                product={it.product}
-                complaint={it.standardComplaint}
-                reported={it.reportedProblem}
-              />
+              {/* v2 shows these in a pop-up once the request is submitted. */}
+              {!v2 && (
+                <SupportingDocs
+                  product={it.product}
+                  complaint={it.standardComplaint}
+                  reported={it.reportedProblem}
+                />
+              )}
               {v2 && visitBlock(it, i)}
             </div>
           ))}
@@ -1281,6 +1294,25 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
               {field('Additional Comments', <textarea className="input" rows={2} value={f.additionalComments} onChange={(e) => set('additionalComments', e.target.value)} />, true)}
             </div>
           </section>
+        )}
+
+        {v2 && docsFor && (
+          <Modal open onClose={() => setDocsFor(null)} title="Supporting documents" width={720}>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              The request is submitted. These are the service manuals and knowledge-base articles for the calls on it.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '70vh', overflowY: 'auto' }}>
+              {docsFor.map((c, k) => (
+                <div key={k}>
+                  <div className="req-item-title" style={{ marginBottom: 4 }}>Call {k + 1} · {[c.product, c.serial].filter(Boolean).join(' · ')}</div>
+                  <SupportingDocs product={c.product} complaint={c.complaint} reported={c.reported} />
+                </div>
+              ))}
+            </div>
+            <div className="rep-actions" style={{ position: 'static' }}>
+              <button className="btn btn-primary" onClick={() => setDocsFor(null)}>Close</button>
+            </div>
+          </Modal>
         )}
 
         <div className="rep-actions">
