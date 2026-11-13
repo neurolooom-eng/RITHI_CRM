@@ -715,6 +715,13 @@ on testing the old shape. **When a migration replaces a definition, move the
   ten arm tables first; a new arm table goes on that list too. The read policy
   on the counts must cover everybody who can read the movements: the view runs
   as its reader, and a reader who cannot see a count gets the pre-count figure.
+  **An UPLOADED count is dated by the person, not the clock** (0483): its
+  `reconciled_at` is the Reco date & time given, so movements entered after
+  that moment count against it even if they were entered before the upload.
+  A count dated before a later count of the same line is refused (it would
+  change nothing). Counts ARE deletable — `delete_handstock_reconciliations()`,
+  by upload batch or id, for `handstock.reconcile` (the user chose permanent
+  deletion) — and the stock reverts because nothing is stored.
 - **Quality records are never deleted** (0049 blocks it). A wrong consumption
   line is VOIDED — quantity set to 0, the row retained with its original
   quantity, reason and author, and the stock returns.

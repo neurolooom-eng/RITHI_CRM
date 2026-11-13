@@ -4796,6 +4796,32 @@ export async function addHandstockReconciliation(a: { engineer: string; remarks:
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// THE COUNTS THEMSELVES (0483), newest count first: what Hand Stock -> Counts
+// lists so a wrong upload, or one wrong count, can be deleted. Read under the
+// table's own read policy.
+export interface HandstockCount {
+  id: number; engineer: string; part: string; part_code: string; physical_qty: number;
+  system_qty: number | null; reconciled_at: string; recorded_by_name: string; remarks: string;
+  source: string; upload_batch: string; created_at: string;
+}
+export async function listHandstockReconciliations(): Promise<HandstockCount[]> {
+  const c = must();
+  return allRows<HandstockCount>((a, b) => c.from('handstock_reconciliations')
+    .select('id, engineer, part, part_code, physical_qty, system_qty, reconciled_at, recorded_by_name, remarks, source, upload_batch, created_at')
+    .order('reconciled_at', { ascending: false }).order('id', { ascending: false }).range(a, b));
+}
+// DELETE WRONG COUNTS (0483): the listed counts, or a whole upload by its batch
+// number. Permanent; the stock reverts because it is derived. Counted, since a
+// refusal that matched nothing is not "deleted".
+export async function deleteHandstockReconciliations(a: { ids?: number[]; batch?: string }): Promise<{ ok: boolean; deleted: number; error?: string }> {
+  const { data, error } = await must().rpc('delete_handstock_reconciliations', {
+    p_ids: a.ids && a.ids.length ? a.ids : null, p_batch: a.batch ?? null,
+  });
+  if (error) return { ok: false, deleted: 0, error: errMsg(error) };
+  const n = Number(data ?? 0);
+  return n > 0 ? { ok: true, deleted: n } : { ok: false, deleted: 0, error: 'Nothing was deleted — the counts may already have gone. Refresh and look again.' };
+}
+
 // `includeEmpty` also returns the parts the engineer holds none of, or is
 // already below zero on -- the visit form offers them since 0401, because a
 // part fitted beyond the hand stock is now booked (and the Spare Coordinator

@@ -72,8 +72,12 @@ export interface Col {
 export interface UploadAsk {
   to: string;
   label: string;
-  type: 'select' | 'year';
+  /** `datetime`: a date and time picked on the screen, written as an instant. */
+  type: 'select' | 'year' | 'datetime';
   options?: string[];
+  /** Fill only rows whose file left this column blank: a value in the file
+   *  wins for its row (the reconciliation date, 0483). */
+  fallback?: boolean;
   /** Required always, or only given the other answers. */
   required?: boolean | ((answers: Record<string, string>) => boolean);
   hint?: string;
@@ -85,10 +89,30 @@ export function askedFields(asks: UploadAsk[] | undefined, answers: Record<strin
   for (const a of asks ?? []) {
     const v = String(answers[a.to] ?? '').trim();
     if (!v) continue;
-    out[a.to] = a.type === 'year' ? Number(v) : v;
+    out[a.to] = a.type === 'year' ? Number(v) : a.type === 'datetime' ? localInputToIso(v) : v;
   }
   return out;
 }
+
+/** A `datetime-local` value (local wall clock, no zone) as an instant. */
+export function localInputToIso(v: string): string {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toISOString();
+}
+
+/** The asked values put on one row: a `fallback` ask fills only a blank. */
+export function withAsked(asks: UploadAsk[] | undefined, asked: Record<string, unknown>, row: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...row };
+  for (const [k, v] of Object.entries(asked)) {
+    const fb = (asks ?? []).find((a) => a.to === k)?.fallback;
+    if (fb && out[k] !== undefined && out[k] !== null && out[k] !== '') continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+/** Does a date the person typed carry a time of day? */
+export const hasTimeOfDay = (s: string): boolean => /\d{1,2}:\d{2}/.test(s);
 
 /** The first asked value still missing, or '' when every required one is there. */
 export function missingAsk(asks: UploadAsk[] | undefined, answers: Record<string, string>): string {
@@ -97,6 +121,7 @@ export function missingAsk(asks: UploadAsk[] | undefined, answers: Record<string
     const v = String(answers[a.to] ?? '').trim();
     if (need && !v) return a.label;
     if (v && a.type === 'year' && !/^(19|20)\d{2}$/.test(v)) return `${a.label} (a four-digit year)`;
+    if (v && a.type === 'datetime' && Number.isNaN(new Date(v).getTime())) return `${a.label} (a date and time)`;
   }
   return '';
 }
@@ -112,6 +137,9 @@ export interface UploadDef {
   /** The screen this upload lives on INSTEAD of Bulk Uploads (its route).
    *  Bulk Uploads leaves it out and says where it went. */
   home?: string;
+  /** A column given ONE batch number per upload, so the upload can be found
+   *  and deleted as a whole (the hand stock counts, 0483). */
+  batch?: string;
   /** Values ASKED on the upload screen and written on every row (UploadAsk). */
   asks?: UploadAsk[];
   /** Upsert key, where the table has one. Without it a re-run DUPLICATES. */
@@ -979,11 +1007,33 @@ export const UPLOADS: UploadDef[] = [
     home: '/handstock',
     prepare: 'handstock-engineers',
     stamp: { source: 'Upload' },
-    note: 'The physically verified hand stock — one row per engineer + part counted, with the Physical Qty. Each row becomes that line\u2019s count, dated and signed with the time of this upload and your name: anything entered for that engineer and part BEFORE the upload is no longer counted (it stays on its own register as history), and anything entered after it counts as usual. A part not in the file keeps its figure. Needs the Reconcile hand stock permission. A count is never edited: to correct one, upload (or count on screen) that part again. ONLY ACTIVE USERS OF THE USER MASTER are loaded; the names left out are named before anything is written. Give each engineer + part only once in a file: if it appears twice, the rows are refused when they reach the database together, and otherwise the later row becomes the count.',
+    // THE DATE OF THE COUNT (0483, the user, 2026-11-13: "it needs to Collect
+    // the Date of Reco"): a date AND time picked on the screen for the whole
+    // file, and a Reco Date column overriding it per row. A file value with no
+    // time of day is held back rather than read as midnight.
+    asks: [{ to: 'reconciled_at', label: 'Reco date & time', type: 'datetime', required: true, fallback: true,
+      hint: 'when the physical count was taken; a Reco Date & Time column in the file overrides it for that row.' }],
+    finish: (row) => {
+      const raw = String(row.reconciled_at ?? '').trim();
+      if (!raw) { delete row.reconciled_at; return; }
+      const iso = hasTimeOfDay(raw) ? toTs(raw) : null;
+      if (iso) row.reconciled_at = iso;
+      else row._reco_bad = hasTimeOfDay(raw) ? `Reco Date "${raw}" is not a date` : `Reco Date "${raw}" has no time — give date and time, e.g. 13/11/2026 10:30`;
+    },
+    reject: (row) => {
+      const bad = row._reco_bad ? String(row._reco_bad) : '';
+      delete row._reco_bad;
+      return bad;
+    },
+    // ONE BATCH NUMBER PER UPLOAD, so a wrong file can be deleted as a whole.
+    batch: 'upload_batch',
+    note: 'The physically verified hand stock — one row per engineer + part counted, with the Physical Qty. Each row becomes that line\u2019s count AT THE RECO DATE AND TIME (picked here, or a Reco Date & Time column in the file for that row), signed with your name: anything entered for that engineer and part BEFORE that moment is no longer counted (it stays on its own register as history), and anything entered after it counts as usual. A part not in the file keeps its figure. Needs the Reconcile hand stock permission. A count dated before a later count of the same line is refused. Every upload gets a batch number: a wrong upload, or one wrong count, is deleted on Hand Stock \u2192 Counts, and the stock goes back to what it was. ONLY ACTIVE USERS OF THE USER MASTER are loaded; the names left out are named before anything is written. Give each engineer + part only once in a file: if it appears twice, the rows are refused when they reach the database together, and otherwise the later row becomes the count.',
     cols: [
       { to: 'engineer', from: ['engineer', 'engineer name', 'user name'], required: true },
       { to: 'part', from: ['part', 'part no', 'spare', 'item detail'], required: true },
       { to: 'physical_qty', from: ['physical qty', 'physical quantity', 'physical count', 'counted', 'qty', 'quantity'], type: 'num', required: true },
+      // Read as TEXT so `finish` can see whether a time was given.
+      { to: 'reconciled_at', from: ['reco date & time', 'reco date and time', 'reco date', 'reconciliation date', 'reconciled at', 'count date', 'date of reco'] },
       TEXT('remarks'),
     ] },
 

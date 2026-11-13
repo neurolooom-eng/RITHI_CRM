@@ -160,6 +160,17 @@ up)_
 
 ---
 
+## 2026-11-13 — Hand stock counts dated on upload; delete a wrong upload (0483, v0.10.248)
+
+- The user: "In the Bulk Upload, it needs to Collect the Date of Reco ... I
+  need a Provision to Delete the Bulk uploads if it is incorrect and the Stock
+  should revert back." Chosen: date AND time, asked on screen with a file
+  column overriding; delete PERMANENTLY; whole upload or single counts (screen
+  ones too); by `handstock.reconcile` holders.
+- 0483 auto-applies on merge (db-migrate). `_status.sql` row 390.
+
+---
+
 ## 2026-11-13 — Hand Stock count template (v0.10.247)
 
 - The user: "Give me the Template for Upload ... for Reconciliation. Add

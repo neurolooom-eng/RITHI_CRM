@@ -615,18 +615,30 @@ against the call it was fitted to.
   > as usual, even if it happened before the count. So enter late paperwork
   > before you count, or count again afterwards. **A part left blank is not
   > counted** and keeps its figure. Field work does not stop while you count, so
-  > it can be done two or three engineers a day. A count is never edited or
-  > deleted; to correct one, count that part again (the latest count is the one
-  > that counts). The **Last counted** column shows when each line was last
+  > it can be done two or three engineers a day. A count is never edited; to
+  > correct one, count that part again (the latest count is the one that
+  > counts), or delete it on **🗂 Counts**. The **Last counted** column shows when each line was last
   > counted and the quantity. The list is **grouped by the system quantity** —
   > **More than 0**, then **0** (and **Below 0** when a part has gone below
   > zero) — and **Sort by** orders it by **Part No** or **Qty**, either way.
   > Several engineers at once: **⤵ Upload counts**, beside Reconcile on the same
   > screen (Engineer, Part, Physical Qty, Remarks) — it previews first and
   > needs the same permission. It is no longer on Bulk Uploads. **⬇ Download
-  > template** there gives the CSV with those four headings: Engineer as on the
-  > User Master, Part as the Part Master's Item Detail (CODE|Description),
-  > Physical Qty a whole number 0 or more, Remarks optional.
+  > template** there gives the CSV: Engineer as on the User Master, Part as the
+  > Part Master's Item Detail (CODE|Description), Physical Qty a whole number 0
+  > or more, Reco Date & Time (optional), Remarks (optional).
+  > **The upload asks the Reco date & time** — when the count was taken, date
+  > AND time. It applies to every row; a **Reco Date & Time** in the file wins
+  > for its row, and a date there with no time is held back. Entries made
+  > before that moment stop counting; entries after it count. A count in the
+  > future is refused, and so is one dated before a later count of the same
+  > part (the later one would win, so it would change nothing).
+  > **🗂 Counts** lists every count and every upload (each upload has a batch
+  > number). **🗑 Delete upload** removes the whole file's counts; **🗑 Delete**
+  > on a row removes one count, including one saved on the screen. It is
+  > permanent, and the stock of those parts goes back to what it was without
+  > them — the earlier count, or the movements. Same permission as Reconcile;
+  > every deletion is on the audit trail.
   > **The cap applies on every route.** Marking a booking, transfer or return
   > as "imported" no longer lets it past the limit — only Bulk Uploads and the
   > Data Import panel load history. Stores cannot lower an issued quantity or

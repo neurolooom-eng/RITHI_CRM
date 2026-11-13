@@ -1295,6 +1295,10 @@ const MODULES = {
             // view and 0102's balance, redefines 0310's rename_part_records and
             // 0309's part_rename_impact, so after all of them.
             '0468_handstock_reconciliation.sql',
+            // An uploaded count keeps its date and time, carries its upload
+            // batch, and a wrong count can be deleted (0483). Redefines
+            // 0468's guard, so after it.
+            '0483_handstock_count_dated_and_deletable.sql',
             // LAST: the whole balance in one request (0384). A SQL-language
             // body resolves the view at creation, so it follows every file
             // that defines handstock_balance.

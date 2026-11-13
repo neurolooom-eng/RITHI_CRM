@@ -2404,7 +2404,11 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from pg_trigger where tgrelid = to_regclass('public.profiles') and tgname = 'profiles_login_disable_sync')
         and position('rithi.login_disable_sync' in coalesce(pg_get_functiondef(to_regprocedure('public.user_directory_address_guard()')), '')) > 0),
     (389, 'Request Registration v2: Call Attended? per call, or the same for all', 'submit_call_request_v2() reads each call''s own call_attended / attended_date / plan_date / call_status / pending_reason and falls back to the request''s (0482). NO means the v2 table''s Per call answers are ignored. Restore: call_requests.sql (0482)',
-        position('it->>''call_attended''' in coalesce(pg_get_functiondef(to_regprocedure('public.submit_call_request_v2(jsonb,jsonb,text,text)')), '')) > 0)
+        position('it->>''call_attended''' in coalesce(pg_get_functiondef(to_regprocedure('public.submit_call_request_v2(jsonb,jsonb,text,text)')), '')) > 0),
+    (390, 'An uploaded hand stock count keeps its date and time, and a wrong count can be deleted', 'handstock_reconciliations.upload_batch, the guard keeping an uploaded count''s reconciled_at, and delete_handstock_reconciliations() (0483). NO means an upload is dated at the time of the upload, or Delete on Hand Stock answers an error. Restore: HandStock_X.sql (0483)',
+        exists (select 1 from pg_attribute where attrelid = coalesce(to_regclass('public.handstock_reconciliations'), 0::regclass) and attname = 'upload_batch' and not attisdropped)
+        and position('v_later' in coalesce(pg_get_functiondef(to_regprocedure('public.handstock_reconciliations_bi()')), '')) > 0
+        and to_regprocedure('public.delete_handstock_reconciliations(bigint[],text)') is not null)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
