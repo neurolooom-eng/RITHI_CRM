@@ -623,7 +623,10 @@ against the call it was fitted to.
   > zero) — and **Sort by** orders it by **Part No** or **Qty**, either way.
   > Several engineers at once: **⤵ Upload counts**, beside Reconcile on the same
   > screen (Engineer, Part, Physical Qty, Remarks) — it previews first and
-  > needs the same permission. It is no longer on Bulk Uploads.
+  > needs the same permission. It is no longer on Bulk Uploads. **⬇ Download
+  > template** there gives the CSV with those four headings: Engineer as on the
+  > User Master, Part as the Part Master's Item Detail (CODE|Description),
+  > Physical Qty a whole number 0 or more, Remarks optional.
   > **The cap applies on every route.** Marking a booking, transfer or return
   > as "imported" no longer lets it past the limit — only Bulk Uploads and the
   > Data Import panel load history. Stores cannot lower an issued quantity or

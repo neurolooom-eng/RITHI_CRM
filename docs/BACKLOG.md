@@ -160,6 +160,14 @@ up)_
 
 ---
 
+## 2026-11-13 — Hand Stock count template (v0.10.247)
+
+- The user: "Give me the Template for Upload ... for Reconciliation. Add
+  option in the Screen for Download Template". Headings only; verified they
+  shape through the upload with nothing unmatched. Screen only.
+
+---
+
 ## 2026-11-13 — Objective evidence Region; delete four calls with their visits (v0.10.246)
 
 - Region on the call-based evidence sheets (visit engineer, else allotted)
