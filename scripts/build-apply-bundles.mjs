@@ -858,7 +858,10 @@ const MODULES = {
       // Every day count also counts from the registration date, the lowest of
       // the three (0472): restates 0440's call_days() and 0442's
       // call_days_from().
-      '0472_days_count_from_registration_too.sql'],
+      '0472_days_count_from_registration_too.sql',
+      // KPI & Failure Analysis by Call Type (0474): the four 0101 views gain
+      // the register each call is on, appended.
+      '0474_kpi_views_by_register.sql'],
   },
   audit: {
     title: 'Audit Log',

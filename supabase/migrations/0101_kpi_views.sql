@@ -35,6 +35,16 @@
 -- ENGINEER, not about the part, so they are read from there rather than copied
 -- onto the consumption row where they would age.
 -- ---------------------------------------------------------------------------
+-- DROPPED FIRST (0474): 0474 appends a `register` column to all four, and a
+-- bundle replayed on a project that has them would otherwise stop here with
+-- "cannot drop columns from view". Nothing else is built on them -- the KPI
+-- screen reads them -- and 0474 re-creates them, with their grants, later in
+-- this same bundle.
+drop view if exists public.spare_usage_rollup;
+drop view if exists public.failure_rate_by_product;
+drop view if exists public.failure_modes_by_product;
+drop view if exists public.spare_usage;
+
 create or replace view public.spare_usage as
   select c.id,
          c.ucn,

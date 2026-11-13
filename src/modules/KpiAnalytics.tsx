@@ -41,6 +41,35 @@ import './fieldcalls.css';
 const num = (n: unknown) => Number(n ?? 0);
 const fmt = (n: number) => n.toLocaleString();
 
+// THE CALL TYPE FILTER (0474, the user 2026-11-13: "in KPI & Failure Analysis -
+// Filter by Field Calls"; asked: All / Field / Installation / PM, starting on
+// Field, all three sections). The register is the TABLE a call was read from,
+// never the Call Type text (the KPI Export's rule, 0450). Remembered per
+// device; a blocked or empty storage starts on Field.
+type Reg = '' | 'Field' | 'Installation' | 'PM';
+const REGS: [Reg, string][] = [['', 'All'], ['Field', 'Field'], ['Installation', 'Installation'], ['PM', 'PM']];
+const REG_KEY = 'kpi.register';
+const readReg = (): Reg => {
+  try {
+    const v = localStorage.getItem(REG_KEY);
+    return v === null ? 'Field' : (REGS.some(([k]) => k === v) ? v as Reg : 'Field');
+  } catch { return 'Field'; }
+};
+/** A product's rate row for one register: its counts and its rate per 100 machines. */
+const rateFor = (r: FailureRate, reg: Reg): FailureRate => {
+  if (!reg) return r;
+  const p = reg === 'Field' ? 'field' : reg === 'Installation' ? 'installation' : 'pm';
+  const row = r as unknown as Record<string, unknown>;
+  const c12 = num(row[`${p}_12m`]);
+  const m = num(r.machines);
+  return {
+    ...r,
+    calls_total: num(row[`${p}_total`]), calls_12m: c12, calls_open: num(row[`${p}_open`]),
+    per_100_machines: m > 0 ? Math.round((c12 * 100 * 10) / m) / 10 : null,
+  };
+};
+const REGISTER_ROUTE: Record<string, string> = { Field: '/field-calls', Installation: '/installations', PM: '/pm-calls' };
+
 type RateRow = FailureRate & { id: string };
 type ModeRow = FailureMode & { id: string };
 
@@ -73,6 +102,8 @@ export function KpiAnalytics() {
   const [usage, setUsage] = useState<SpareUsage[]>([]);
   const [product, setProduct] = useState('');
   const [region, setRegion] = useState('');
+  const [reg, setRegState] = useState<Reg>(readReg);
+  const setReg = (v: Reg) => { setRegState(v); try { localStorage.setItem(REG_KEY, v); } catch { /* per-device only */ } };
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(0);
   const [msg, setMsg] = useState('');
@@ -94,8 +125,8 @@ export function KpiAnalytics() {
 
   // ---- spare use, sliced by whatever the chips are set to -------------------
   const usageFiltered = useMemo(
-    () => usage.filter((u) => (!product || u.product === product) && (!region || u.region === region)),
-    [usage, product, region],
+    () => usage.filter((u) => (!reg || u.register === reg) && (!product || u.product === product) && (!region || u.region === region)),
+    [usage, product, region, reg],
   );
   const roll = (key: 'cover' | 'region' | 'product') => {
     const by = new Map<string, { qty: number; calls: number; lines: number }>();
@@ -125,39 +156,51 @@ export function KpiAnalytics() {
   const warrantyQty = coverQty('WGP');
 
   // ---- failure rate ---------------------------------------------------------
+  // Every rate row read for the register chosen, the cards included.
+  const regRates = useMemo(() => rates.map((r) => rateFor(r, reg)), [rates, reg]);
   const rateRows = useMemo<RateRow[]>(
-    () => rates
+    () => regRates
       .filter((r) => r.product && (!product || r.product === product))
       .map((r) => ({ ...r, id: r.product }))
       .sort((a, b) => (num(b.per_100_machines) - num(a.per_100_machines)) || num(b.calls_12m) - num(a.calls_12m)),
-    [rates, product],
+    [regRates, product],
   );
-  const modeRows = useMemo<ModeRow[]>(
-    () => modes
-      .filter((m) => !product || m.product === product)
+  // One row per product and complaint: the register chosen, or all three
+  // added together.
+  const modeRows = useMemo<ModeRow[]>(() => {
+    const by = new Map<string, FailureMode>();
+    modes.forEach((m) => {
+      if (reg && m.register !== reg) return;
+      if (product && m.product !== product) return;
+      const k = `${m.product}|${m.complaint}`;
+      const had = by.get(k);
+      if (had) { had.calls = num(had.calls) + num(m.calls); had.calls_12m = num(had.calls_12m) + num(m.calls_12m); }
+      else by.set(k, { ...m, register: reg || '' });
+    });
+    return [...by.values()]
       .map((m, i) => ({ ...m, id: `${m.product}|${m.complaint}|${i}` }))
-      .sort((a, b) => num(b.calls_12m) - num(a.calls_12m) || num(b.calls) - num(a.calls)),
-    [modes, product],
-  );
+      .sort((a, b) => num(b.calls_12m) - num(a.calls_12m) || num(b.calls) - num(a.calls));
+  }, [modes, product, reg]);
   // All three cards follow the product chip (finding 11). Only the calls did, so
   // choosing a product put ITS calls beside EVERY product's machines and rate.
   // With no product chosen the fleet figures stay over EVERY rate row, as before,
   // including any with a blank product that the table leaves out.
-  const rateBase = product ? rateRows : rates;
+  const rateBase = product ? rateRows : regRates;
   const fleet = rateBase.reduce((t, r) => t + num(r.machines), 0);
   const calls12 = rateRows.reduce((t, r) => t + num(r.calls_12m), 0);
   const fleetRate = fleet ? (rateBase.reduce((t, r) => t + num(r.calls_12m), 0) * 100) / fleet : 0;
 
   const productChips = useMemo(() => {
     const by = new Map<string, number>();
-    rates.forEach((r) => { if (r.product) by.set(r.product, num(r.calls_12m)); });
+    regRates.forEach((r) => { if (r.product) by.set(r.product, num(r.calls_12m)); });
     return [...by].map(([key, count]) => ({ key, count }));
-  }, [rates]);
+  }, [regRates]);
   const regionChips = useMemo(() => {
     const by = new Map<string, number>();
-    usage.forEach((u) => by.set(u.region, (by.get(u.region) ?? 0) + num(u.qty)));
+    usage.forEach((u) => { if (!reg || u.register === reg) by.set(u.region, (by.get(u.region) ?? 0) + num(u.qty)); });
     return [...by].map(([key, count]) => ({ key, count }));
-  }, [usage]);
+  }, [usage, reg]);
+  const regName = reg ? `${reg} calls` : 'all calls';
 
   return (
     <div>
@@ -176,11 +219,23 @@ export function KpiAnalytics() {
 
       {msg && <div className="sheet-banner sheet-banner-info"><span>{msg}</span></div>}
 
+      {/* CALL TYPE first: it changes what every figure below counts. */}
+      <div className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'wrap', margin: '4px 0 10px' }}>
+        <span className="field-label" style={{ margin: 0 }}>Call Type</span>
+        {REGS.map(([k, label]) => (
+          <button key={label} className={`btn btn-sm${reg === k ? ' btn-primary' : ''}`} onClick={() => setReg(k)}
+            aria-pressed={reg === k}>{label}</button>
+        ))}
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          Every figure below counts {reg ? <><b>{reg}</b> calls only</> : <>Field, Installation and PM calls together</>}; the machines in the field are the whole Product Register either way.
+        </span>
+      </div>
+
 
       <KpiGrid min={200}>
         <KpiCard label="Machines in the field" value={fmt(fleet)} tone="neutral" icon="🏭" sub={product ? `${product} · the Product Register` : 'the Product Register'} />
-        <KpiCard label="Calls · 12 months" value={fmt(calls12)} tone="primary" icon="📞" sub={product || 'every product'} />
-        <KpiCard label="Failure rate" value={fleetRate ? fleetRate.toFixed(1) : '—'} tone={fleetRate > 100 ? 'danger' : fleetRate > 50 ? 'warning' : 'success'} icon="📉" sub={`calls per 100 machines / year${product ? ` · ${product}` : ''}`} />
+        <KpiCard label="Calls · 12 months" value={fmt(calls12)} tone="primary" icon="📞" sub={`${regName} · ${product || 'every product'}`} />
+        <KpiCard label="Failure rate" value={fleetRate ? fleetRate.toFixed(1) : '—'} tone={fleetRate > 100 ? 'danger' : fleetRate > 50 ? 'warning' : 'success'} icon="📉" sub={`${regName} per 100 machines / year${product ? ` · ${product}` : ''}`} />
         <KpiCard label="Spares consumed" value={fmt(totalQty)} tone="info" icon="📦" sub={`${fmt(totalCalls)} calls`} />
         <KpiCard label="Parts per call" value={partsPerCall ? partsPerCall.toFixed(2) : '—'} tone="neutral" icon="🔩" />
         <KpiCard label="Out of guarantee" value={fmt(ogpQty)} tone="warning" icon="💰" sub="parts on OGP calls" />
@@ -289,7 +344,7 @@ export function KpiAnalytics() {
           storageKey="kpiFailureModes"
           rowsBeforeScroll={10}
           dense
-          onRowClick={(r) => navigate('/field-calls', { state: { search: { q: r.complaint } } })}
+          onRowClick={(r) => navigate(REGISTER_ROUTE[reg] ?? '/field-calls', { state: { search: { q: r.complaint } } })}
           emptyText={busy ? 'Building…' : 'No calls to analyse yet.'}
         />
       </SectionCard>

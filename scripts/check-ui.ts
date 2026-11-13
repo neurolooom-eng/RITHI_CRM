@@ -10376,8 +10376,14 @@ console.log('\n-- module review batch 3: paging that keeps its place, searches t
   eq('#10 ...and Load more does not append to a newer load', /if \(seq !== loadSeq\.current\) return;/.test(dcr), true);
   // #11 / #12 the KPI cards follow the product chip, and cover goes through coverCode.
   const kpi = rd('src/modules/KpiAnalytics.tsx');
-  eq('#11 KPI: machines and failure rate follow the product chip', /const rateBase = product \? rateRows : rates;/.test(kpi)
+  // ...and the Call Type filter (0474): the base is the register's rows.
+  eq('#11 KPI: machines and failure rate follow the product chip', /const rateBase = product \? rateRows : regRates;/.test(kpi)
     && !/const fleet = rates\.reduce/.test(kpi), true);
+  eq('KPI: the Call Type filter starts on Field and reaches all three sections (0474)',
+    /return v === null \? 'Field'/.test(kpi)
+    && /\(!reg \|\| u\.register === reg\)/.test(kpi)
+    && /if \(reg && m\.register !== reg\) return;/.test(kpi)
+    && /rates\.map\(\(r\) => rateFor\(r, reg\)\)/.test(kpi), true);
   eq('#12 KPI: cover tiles bucket through coverCode, not overlapping substrings',
     /coverCode\(c\.label\) === code/.test(kpi) && !/ogp\|out of/.test(kpi), true);
   // #14 the top-25 product list says it is the top 25.

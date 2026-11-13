@@ -164,9 +164,10 @@ export const MODULE_GUIDE: ModuleGuideEntry[] = [
     purpose: 'Failure rate per 100 machines in the field, how products fail, and spare use by cover, region and product.',
     does: [
       'See cards: machines in the field, calls in 12 months, failure rate, spares consumed, parts per call',
+      'Choose the Call Type (All, Field, Installation, PM) — every figure follows it; it opens on Field',
       'Narrow every panel with the Product and Region chips',
       'Read spare use by cover, region and product, and the region × cover table',
-      'Click a complaint in “How products fail” to open the Field Call Register searched for it',
+      'Click a complaint in “How products fail” to open the register of the chosen Call Type searched for it',
     ],
     records: ['failure_rate_by_product', 'failure_modes_by_product', 'spare_usage_rollup'],
     rules: [

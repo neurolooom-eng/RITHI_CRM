@@ -20,6 +20,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.234',
+    date: '2026-11-13',
+    title: 'KPI & Failure Analysis: Call Type filter',
+    changes: [
+      'KPI & Failure Analysis has a Call Type filter at the top: All, Field, Installation or PM. Every figure on the page follows it: the cards, the failure rate per 100 machines, how products fail, and spare use by cover, region and product. It opens on Field and remembers your last choice on that device.',
+      'A call counts under the register it is in (Field Call Register, Installation Calls or PM), whatever its Call Type text says. The machines in the field are always the whole Product Register. Clicking a complaint opens the register of the Call Type chosen.',
+    ],
+  },
+  {
     version: '0.10.233',
     date: '2026-11-13',
     title: 'Day counts include the Call Registration Date',

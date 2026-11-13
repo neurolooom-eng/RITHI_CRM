@@ -160,6 +160,20 @@ up)_
 
 ---
 
+## 2026-11-13 — KPI & Failure Analysis: Call Type filter (0474, v0.10.234)
+
+- The user: "in KPI & Failure Analysis - Filter by Field Calls". Asked: a
+  Call Type filter (All / Field / Installation / PM), starting on Field,
+  applied to all three sections.
+- 0474 (performance.sql): the four 0101 views gain the register (the table a
+  call was read from): `register` on failure modes, spare usage and its
+  rollup; `failure_rate_by_product` stays one row per product with
+  field_ / installation_ / pm_ counts appended. FRS-042.1; `_status.sql` row
+  383; `kpi_views_by_register_test`.
+- Applied by the merge's "Apply database migrations" run — read its log.
+
+---
+
 ## ⏳ QUEUED — Product Database written to a Google Sheet, like the DCCR mirror (the user, 2026-11-13)
 
 - The user: "Similar to DCCR, I want to Write the Product Database also into
