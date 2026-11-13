@@ -20,6 +20,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.248',
+    date: '2026-11-13',
+    title: 'Hand stock counts: a date and time on each upload, and delete a wrong upload',
+    changes: [
+      'Upload counts asks the Reco date & time — when the count was taken. A Reco Date & Time column in the file wins for its row (date and time; a date with no time is held back). The template has the new column.',
+      'Entries made before that moment stop counting; entries after it count. A count dated in the future, or before a later count of the same part, is refused.',
+      'New 🗂 Counts on Hand Stock: every count and every upload. Delete a whole upload, or one count (screen counts too); the stock of those parts goes back to what it was. Deletions are permanent and on the audit trail.',
+    ],
+  },
+  {
     version: '0.10.247',
     date: '2026-11-13',
     title: 'Hand Stock: download the physical-count template',

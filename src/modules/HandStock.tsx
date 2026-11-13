@@ -8,7 +8,7 @@ import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { useArrivingFilter } from '../lib/arriveWith';
 import {
   listHandstockBalanceAll, handstockCountedFrom, listHandstockMovements, listAllHandstockMovements, supabaseConfigured, addHandstockAdjustment,
-  handstockForEngineer, addHandstockReconciliation,
+  handstockForEngineer, addHandstockReconciliation, listHandstockReconciliations, deleteHandstockReconciliations, type HandstockCount,
 } from '../lib/supabase';
 import { PickList } from '../components/ui/PickList';
 import { Register as RegisterUpload } from './BulkUploads';
@@ -206,6 +206,7 @@ export function HandStock() {
   const [adjusting, setAdjusting] = useState(false);
   const [reconciling, setReconciling] = useState(false);
   const [uploadingCounts, setUploadingCounts] = useState(false);
+  const [showCounts, setShowCounts] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
@@ -375,6 +376,10 @@ export function HandStock() {
               <button className="btn" onClick={() => setUploadingCounts(true)}
                 title="Load physical counts for several engineers from a CSV file">⤵ Upload counts</button>
             )}
+            {can('handstock.reconcile') && onDb && (
+              <button className="btn" onClick={() => setShowCounts(true)}
+                title="Every physical count, by upload; delete a wrong upload or a wrong count">🗂 Counts</button>
+            )}
             {can('consumption.reconcile') && onDb && (
               <button className="btn" onClick={() => setAdjusting(true)}
                 title="Add or remove quantity from an engineer's hand stock, with a reason">± Adjust stock</button>
@@ -384,17 +389,23 @@ export function HandStock() {
         )}
       />
 
+      {showCounts && (
+        <CountsDrawer onClose={() => setShowCounts(false)} onChanged={(text) => { setMsg({ tone: 'ok', text }); void load(); }} />
+      )}
+
       {uploadingCounts && COUNT_UPLOAD && (
         <Drawer open onClose={() => { setUploadingCounts(false); void load(); }} title="Upload physical counts" width={860}>
           <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
             <button className="btn btn-sm" onClick={downloadCountTemplate}>⬇ Download template</button>
-            <span className="muted" style={{ fontSize: 12 }}>A CSV with the four headings, ready to fill.</span>
+            <span className="muted" style={{ fontSize: 12 }}>A CSV with the five headings, ready to fill.</span>
           </div>
           <ul className="muted" style={{ fontSize: 12.5, marginTop: 0, paddingLeft: 18 }}>
             <li><b>Engineer</b>: the name exactly as on the User Master; only active users are loaded.</li>
             <li><b>Part</b>: the Part Master&rsquo;s Item Detail, code and description as one value (CODE|Description).</li>
             <li><b>Physical Qty</b>: the count, a whole number, 0 or more.</li>
+            <li><b>Reco Date &amp; Time</b>: optional — when that count was taken, date AND time (e.g. 13/11/2026 10:30). Left blank, the row takes the <b>Reco date &amp; time</b> picked below. A date with no time is held back.</li>
             <li><b>Remarks</b>: optional.</li>
+            <li>Every upload gets a batch number. A wrong upload, or one wrong count, is deleted on <b>🗂 Counts</b>, and the stock goes back to what it was.</li>
             <li>One row per engineer + part counted. It previews first; nothing is written until you press Upload.</li>
           </ul>
           <RegisterUpload def={COUNT_UPLOAD} count={null} onDone={() => void load()} />
@@ -946,6 +957,109 @@ function AdjustDrawer({ engineers, onClose, onSaved }: {
 // ENTERED before it is not counted again, anything entered after it is.
 // Needs `handstock.reconcile`. Never edited: a wrong count is counted again.
 // ===========================================================================
+// EVERY COUNT, AND DELETING A WRONG ONE (0483, the user, 2026-11-13: "I need a
+// Provision to Delete the Bulk uploads if it is incorrect and the Stock should
+// revert back"). A whole upload by its batch number, or one count at a time
+// (screen counts too). Permanent, as chosen; the stock reverts because it is
+// derived from the latest remaining count.
+function CountsDrawer({ onClose, onChanged }: { onClose: () => void; onChanged: (text: string) => void }) {
+  const [rows, setRows] = useState<HandstockCount[] | null>(null);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = () => {
+    setErr('');
+    listHandstockReconciliations().then(setRows)
+      .catch((e) => { setRows([]); setErr(`Could not read the counts: ${e instanceof Error ? e.message : String(e)}`); });
+  };
+  useEffect(load, []);
+
+  const shown = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return (rows ?? []).filter((r) => !s || [r.engineer, r.part, r.upload_batch, r.recorded_by_name].some((v) => String(v ?? '').toLowerCase().includes(s)));
+  }, [rows, q]);
+  const batches = useMemo(() => {
+    const m = new Map<string, HandstockCount[]>();
+    shown.filter((r) => r.upload_batch).forEach((r) => { const l = m.get(r.upload_batch) ?? []; l.push(r); m.set(r.upload_batch, l); });
+    return [...m.entries()].map(([batch, list]) => ({
+      batch, list,
+      uploaded: list.reduce((a, r) => (r.created_at < a ? r.created_at : a), list[0].created_at),
+      by: list[0].recorded_by_name,
+      engineers: new Set(list.map((r) => r.engineer.trim().toLowerCase())).size,
+    })).sort((a, b) => (a.uploaded < b.uploaded ? 1 : -1));
+  }, [shown]);
+
+  const remove = async (what: { ids?: number[]; batch?: string }, label: string) => {
+    if (!confirm(`Delete ${label}?\n\nThis is permanent. The hand stock of those lines goes back to what it was without ${what.batch ? 'these counts' : 'this count'}: an earlier count, or the movements.`)) return;
+    setBusy(true); setErr('');
+    const r = await deleteHandstockReconciliations(what);
+    setBusy(false);
+    if (!r.ok) { setErr(r.error ?? 'Could not delete.'); return; }
+    onChanged(`Deleted ${r.deleted} count${r.deleted === 1 ? '' : 's'} (${label}). The stock of those lines has gone back.`);
+    load();
+  };
+
+  return (
+    <Drawer open onClose={onClose} title="Physical counts" width={980}>
+      <div className="rep-form">
+        {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
+        <label className="field"><span className="field-label">Find</span>
+          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Engineer, part, batch number or who counted" /></label>
+        {rows === null ? <div className="muted">Loading the counts…</div> : (
+          <>
+            <h4 style={{ margin: '8px 0 4px' }}>Uploads · {batches.length}</h4>
+            {!batches.length ? <div className="muted" style={{ fontSize: 12.5 }}>No upload{q ? ' matches' : ' yet'}.</div> : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="assoc-table" style={{ minWidth: 640 }}>
+                  <thead><tr><th>Batch</th><th>Uploaded</th><th>By</th><th style={{ textAlign: 'right' }}>Counts</th><th style={{ textAlign: 'right' }}>Engineers</th><th /></tr></thead>
+                  <tbody>
+                    {batches.map((b) => (
+                      <tr key={b.batch}>
+                        <td style={{ whiteSpace: 'nowrap' }}><code>{b.batch}</code></td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{formatDayTime(b.uploaded)}</td>
+                        <td>{b.by}</td>
+                        <td style={{ textAlign: 'right' }}>{b.list.length}</td>
+                        <td style={{ textAlign: 'right' }}>{b.engineers}</td>
+                        <td><button className="btn btn-sm" disabled={busy}
+                          onClick={() => void remove({ batch: b.batch }, `upload ${b.batch} — ${b.list.length} count${b.list.length === 1 ? '' : 's'}`)}>🗑 Delete upload</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <h4 style={{ margin: '12px 0 4px' }}>Counts · {shown.length}</h4>
+            <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto' }}>
+              <table className="assoc-table" style={{ minWidth: 900 }}>
+                <thead><tr><th>Reco date &amp; time</th><th>Engineer</th><th>Spare</th><th style={{ textAlign: 'right' }}>Physical</th><th style={{ textAlign: 'right' }}>System</th><th>From</th><th>By</th><th>Entered</th><th>Remarks</th><th /></tr></thead>
+                <tbody>
+                  {shown.map((r) => (
+                    <tr key={r.id}>
+                      <td style={{ whiteSpace: 'nowrap' }}>{formatDayTime(r.reconciled_at)}</td>
+                      <td>{r.engineer}</td>
+                      <td style={{ whiteSpace: 'nowrap' }} title={r.part}>{r.part_code}</td>
+                      <td style={{ textAlign: 'right' }}>{r.physical_qty}</td>
+                      <td style={{ textAlign: 'right' }}>{r.system_qty ?? ''}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{r.source === 'Upload' ? <>Upload <code>{r.upload_batch}</code></> : 'Screen'}</td>
+                      <td>{r.recorded_by_name}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{formatDayTime(r.created_at)}</td>
+                      <td>{r.remarks}</td>
+                      <td><button className="btn btn-ghost btn-sm" disabled={busy}
+                        onClick={() => void remove({ ids: [r.id] }, `the count of ${r.part_code} for ${r.engineer} at ${formatDayTime(r.reconciled_at)}`)}>🗑 Delete</button></td>
+                    </tr>
+                  ))}
+                  {!shown.length && <tr><td colSpan={10} className="muted">No count{q ? ' matches' : ' yet'}.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        <div className="rep-actions"><button className="btn" onClick={onClose}>Close</button></div>
+      </div>
+    </Drawer>
+  );
+}
+
 interface CountLine { part: string; system: number; physical: string }
 
 // The physical-count upload, which lives here rather than on Bulk Uploads.
@@ -955,7 +1069,7 @@ const COUNT_UPLOAD = UPLOADS.find((d) => d.key === 'handstock_reconciliation');
 // the Screen for Download Template"): the headings only. An example row would
 // be one more row to remember to delete before uploading. A blank form, not
 // data, so it is not behind the export permission.
-const COUNT_TEMPLATE_HEADERS = ['Engineer', 'Part', 'Physical Qty', 'Remarks'];
+const COUNT_TEMPLATE_HEADERS = ['Engineer', 'Part', 'Physical Qty', 'Reco Date & Time', 'Remarks'];
 function downloadCountTemplate() {
   const blob = new Blob([COUNT_TEMPLATE_HEADERS.join(',') + '\r\n'], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -1129,7 +1243,7 @@ function ReconcileDrawer({ engineers, onClose, onSaved }: {
           On save, each counted part&rsquo;s level becomes the physical count, recorded with your name and the date and time.
           Anything entered for that part <i>before</i> the count is no longer counted. It stays on its own register
           (stock out, consumption, transfer, return) as history. Anything entered <i>after</i> the count is added or taken off as usual.
-          A count cannot be edited or deleted; to correct one, count that part again.
+          A count cannot be edited; to correct one, count that part again, or delete it on 🗂 Counts.
         </p>
         <div className="rep-actions">
           <button className="btn" onClick={onClose}>Cancel</button>

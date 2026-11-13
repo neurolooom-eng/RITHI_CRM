@@ -4,7 +4,8 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
 import { uploadRows, prepareUpload, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
-import { UPLOADS, masterUpload, shapeUpload, uploadGroups, askedFields, missingAsk, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { UPLOADS, masterUpload, shapeUpload, uploadGroups, askedFields, missingAsk, withAsked, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { formatDayTime } from '../lib/dates';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -81,19 +82,24 @@ export function Register({ def, count, onDone }: { def: UploadDef; count: number
     }
     if (missing) { setMsg({ tone: 'error', text: `Choose the ${missing} before uploading.` }); return; }
     const asked = askedFields(def.asks, answers);
-    const rows = Object.keys(asked).length ? pending.shaped.rows.map((r) => ({ ...r, ...asked })) : pending.shaped.rows;
+    // ONE BATCH NUMBER FOR THE WHOLE UPLOAD (0483), so it can be deleted as one.
+    const batch = def.batch ? `${def.key.toUpperCase()}-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}` : '';
+    const withBatch = (r: Record<string, unknown>) => (def.batch ? { ...r, [def.batch]: batch } : r);
+    const rows = pending.shaped.rows.map((r) => withBatch(Object.keys(asked).length ? withAsked(def.asks, asked, r) : r));
     const n = rows.length;
     const askedNote = Object.keys(asked).length
-      ? `Every row is recorded with ${(def.asks ?? []).filter((a) => asked[a.to] !== undefined).map((a) => `${a.label}: ${String(asked[a.to])}`).join(', ')}.\n\n` : '';
+      ? `${(def.asks ?? []).some((a) => a.fallback) ? 'Rows without their own value are' : 'Every row is'} recorded with ${(def.asks ?? []).filter((a) => asked[a.to] !== undefined).map((a) => `${a.label}: ${a.type === 'datetime' ? formatDayTime(String(asked[a.to])) : String(asked[a.to])}`).join(', ')}.\n\n` : '';
     const warn = def.conflict
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
-      : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
+      : def.batch
+        ? `This upload is batch ${batch}. Running the file again adds new rows; a wrong upload is deleted as a whole by its batch number.`
+        : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
     if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${askedNote}${note ? `${note}\n\n` : ''}${warn}`)) return;
     setBusy(`Writing 0 / ${n}…`);
     const res = await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
-    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}` });
+    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${batch ? ` Upload batch ${batch}.` : ''}${note ? ` ${note}` : ''}` });
     setPending(null);
     onDone();
   };
@@ -135,6 +141,10 @@ export function Register({ def, count, onDone }: { def: UploadDef; count: number
               {a.type === 'select' ? (
                 <SelectPicker value={answers[a.to] ?? ''} disabled={!!busy} placeholder="— choose —"
                   options={a.options ?? []} onChange={(v) => setAnswers((x) => ({ ...x, [a.to]: v }))} />
+              ) : a.type === 'datetime' ? (
+                <input className="input" type="datetime-local" value={answers[a.to] ?? ''} disabled={!!busy}
+                  max={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                  onChange={(e) => setAnswers((x) => ({ ...x, [a.to]: e.target.value }))} />
               ) : (
                 <input className="input" inputMode="numeric" maxLength={4} placeholder="e.g. 2023" value={answers[a.to] ?? ''} disabled={!!busy}
                   onChange={(e) => setAnswers((x) => ({ ...x, [a.to]: e.target.value.replace(/\D/g, '') }))} />
@@ -150,7 +160,7 @@ export function Register({ def, count, onDone }: { def: UploadDef; count: number
       )}
       {def.note && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{def.note}</div>}
       {def.requires && <div className="muted" style={{ fontSize: 12 }}>Load <b>{def.requires}</b> first — these rows point at it.</div>}
-      {!def.conflict && (
+      {!def.conflict && !def.batch && (
         <div className="muted" style={{ fontSize: 12 }}>
           ⚠ No natural key: a second run adds rows rather than correcting them.
         </div>
