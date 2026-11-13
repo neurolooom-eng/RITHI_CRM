@@ -160,6 +160,16 @@ up)_
 
 ---
 
+## 2026-11-13 — v2 Visit as a table, same for all or per call (0482, v0.10.240)
+
+- The user: "Call Attended? and its associated fields should move into the
+  Call Specific Field ... a Common Entry for all, or per Call ... A Table".
+  Asked: v2 only; a table, one row per call. 0482 (call_requests.sql): the
+  save reads each call's own answers, falling back to the shared ones.
+  FRS-288.2c; `_status.sql` row 389; `request_registration_v2_test` 3c.
+
+---
+
 ## 2026-11-13 — Region on registers; evidence pending reason; v2 mapping + entry date; disabled login inactive (0479–0481, v0.10.239)
 
 - Region (the user: "Add Region to all Call Registers, Spare Registers,

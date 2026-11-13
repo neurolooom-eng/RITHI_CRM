@@ -98,6 +98,27 @@ rollback;
 \echo 'expect: the old three-argument save is gone (0476)'
 select to_regprocedure('public.submit_call_request_v2(jsonb,jsonb,text)') is null as gone;
 
+\echo '--- 3c. per call (0482): call 1 attended, call 2 not, in one request ---'
+\echo 'expect: 2 requests, 1 visit | call 1 Yes with its date, call 2 No with its plan date | visit Unsolved V2 Spare Awaited'
+call public.be('v2_admin@x.com');
+begin; set local role authenticated;
+  select (r->>'count')::int as requests, jsonb_array_length(r->'visit_keys') as visits
+    from public.submit_call_request_v2(
+      '{"call_type":"FIELD","party_name":"P"}'::jsonb,
+      ('[{"product":"V2PROD","serial_no":"V2P1","standard_complaint":"X","reported_problem":"Y","call_attended":"Yes","attended_date":"' || (current_date - 2)::text || '","call_status":"Unsolved","pending_reason":"V2 Spare Awaited"},'
+       || '{"product":"V2PROD","serial_no":"V2P2","standard_complaint":"X","reported_problem":"Y","call_attended":"No","plan_date":"' || (current_date + 1)::text || '"}]')::jsonb,
+      '', 'Unsolved') r;
+commit;
+select serial_no, call_attended, attended_date = current_date - 2 as own_date, plan_date = current_date + 1 as own_plan
+  from public.call_requests where serial_no in ('V2P1', 'V2P2') order by serial_no;
+select serial_no, call_status, pending_reason from public.req_visit_table where serial_no in ('V2P1', 'V2P2');
+\echo 'expect ERROR: Call 2: Call Pending Reason is required'
+begin; set local role authenticated;
+  select public.submit_call_request_v2('{"call_type":"FIELD"}'::jsonb,
+    ('[{"product":"V2PROD","serial_no":"V2P3","call_attended":"No"},'
+     || '{"product":"V2PROD","serial_no":"V2P4","call_attended":"Yes","attended_date":"2026-01-01","call_status":"Unsolved"}]')::jsonb, '', 'Unsolved');
+rollback;
+
 \echo '--- 4. what is refused ---'
 \echo 'expect ERROR: Call Pending Reason is required'
 begin; set local role authenticated;

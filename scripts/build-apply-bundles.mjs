@@ -432,6 +432,9 @@ const MODULES = {
       // ...and a request mapped to a call with no visit carries it too (0480):
       // replaces the 0475 filing trigger function.
       '0480_mapped_request_carries_visit.sql',
+      // ...and Call Attended? answered per call, or once for all (0482):
+      // replaces the 0478 save function.
+      '0482_request_v2_visit_per_call.sql',
       '0164_cr_read_initplan.sql',
     ],
   },

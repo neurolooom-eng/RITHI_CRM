@@ -20,6 +20,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.240',
+    date: '2026-11-13',
+    title: 'Request Registration v2: Visit as a table, same for all or per call',
+    changes: [
+      'On Request Registration v2, Call Attended?, the Attended / Planned Visit Date, Call Status and Call Pending Reason are now a table. Choose "Same for all calls" (one row, used for every call on the request) or "Per call" (a row for each call), so one machine can be attended and another planned on the same request. Each call is checked on its own and a message names the call it is about.',
+    ],
+  },
+  {
     version: '0.10.239',
     date: '2026-11-13',
     title: 'Region on every register; pending reason in evidence; disabled login inactive',
