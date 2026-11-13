@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**119 tables · 45 views · 3452 columns · 270 policies · 70 foreign keys.**
+**120 tables · 45 views · 3486 columns · 272 policies · 70 foreign keys.**
 
 ## How to read this
 
@@ -118,6 +118,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [recycle_other_costs](#recycle-other-costs)
 - [recycle_requests](#recycle-requests)
 - [reports](#reports)
+- [req_visit_table](#req-visit-table)
 - [role_table_views](#role-table-views)
 - [sale_entries](#sale-entries)
 - [sale_items](#sale-items)
@@ -496,6 +497,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 35 | `sys_created_on` | timestamp with time zone | yes |  |  |
 | 36 | `sys_updated_by` | uuid | yes |  |  |
 | 37 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+| 38 | `true_key` | text | yes |  | Request Registration v2's own key, RQ2-yymm-nnnn (0475): one per request, issued by the database. Blank on a v1 request. |
 
 **Unique:** `sys_id` _(call_requests_sys_id_key)_ · `unique_key` _(call_requests_unique_key_uidx)_
 
@@ -503,7 +505,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(call_requests_created_by_fkey)_
 
-**Triggers:** `call_requests_biu` → `call_requests_biu()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `zz_call_request_content_frozen` → `call_request_content_frozen()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `call_requests_biu` → `call_requests_biu()` · `record_audit_d` → `record_audit_fn()` · `record_audit_i` → `record_audit_fn()` · `record_audit_u` → `record_audit_fn()` · `req_visit_file_on_register` → `req_visit_file_on_register()` · `zz_call_request_content_frozen` → `call_request_content_frozen()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -2009,8 +2011,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
+- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
 **Triggers:** `indoor_job_visit_by_approval` → `indoor_job_visit_by_approval()` · `indoor_report_keeps_its_number` → `indoor_report_keeps_its_number()` · `zy_indoor_jobs_call_status` → `indoor_jobs_call_status()` · `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3633,8 +3635,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 - `recycle_issues_qty_check` — `CHECK ((qty > (0)::numeric))`
+- `recycle_issues_unit_cost_check` — `CHECK ((unit_cost >= (0)::numeric))`
 
 **Triggers:** `recycle_issues_guard` → `recycle_issues_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -3872,6 +3874,53 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `reports_insert` | — | `call_perm(ucn, 'report.visit'::text)` |
 | SELECT | `reports_read` | `(( SELECT is_admin() AS is_admin) OR (( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (EXISTS ( SELECT 1    FROM cal…` | — |
 | UPDATE | `reports_update` | `call_perm(ucn, 'report.visit'::text)` | `call_perm(ucn, 'report.visit'::text)` |
+
+---
+
+## req_visit_table
+
+> Req_VisitTable (0475): the visit a Request Registration v2 request records when Call Attended? = Yes, keyed <True Key>-<Product>-<Serial>; filed as the call's visit when the request is registered.
+
+**Primary key:** `visit_key` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `visit_key` | text | **no** |  |  |
+| 2 | `true_key` | text | **no** |  |  |
+| 3 | `request_unique_key` | text | **no** |  |  |
+| 4 | `product` | text | **no** | `''::text` |  |
+| 5 | `serial_no` | text | **no** | `''::text` |  |
+| 6 | `call_status` | text | **no** | `'Unsolved'::text` |  |
+| 7 | `pending_reason` | text | **no** |  |  |
+| 8 | `engineer` | text | **no** | `''::text` |  |
+| 9 | `engineer_email` | text | **no** | `''::text` |  |
+| 10 | `visit_date` | date | **no** |  |  |
+| 11 | `visit_entry_at` | timestamp with time zone | **no** | `now()` |  |
+| 12 | `ucn` | text | **no** | `''::text` |  |
+| 13 | `report_uid` | text | **no** | `''::text` |  |
+| 14 | `filed_at` | timestamp with time zone | yes |  |  |
+| 15 | `created_by` | uuid | yes |  |  |
+| 16 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 17 | `sys_id` | uuid | **no** | `gen_random_uuid()` |  |
+| 18 | `sys_created_by` | uuid | yes |  |  |
+| 19 | `sys_created_on` | timestamp with time zone | yes |  |  |
+| 20 | `sys_updated_by` | uuid | yes |  |  |
+| 21 | `sys_updated_on` | timestamp with time zone | yes |  |  |
+
+**Unique:** `sys_id` _(req_visit_table_sys_id_key)_
+
+**Constraints:**
+
+- `req_visit_table_reason` — `CHECK ((btrim(pending_reason) <> ''::text))`
+
+**Triggers:** `req_visit_table_bi` → `req_visit_table_bi()` · `zzz_sys_stamp` → `sys_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `rvt_insert` | — | `( SELECT has_perm('mod:/request-registration-v2'::text) AS has_perm)` |
+| SELECT | `rvt_read` | `(EXISTS ( SELECT 1    FROM call_requests r   WHERE (r.unique_key = req_visit_table.request_unique_key)))` | — |
 
 ---
 
@@ -4982,9 +5031,9 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
+- `training_requests_dates` — `CHECK (((to_date IS NULL) OR (from_date IS NULL) OR (to_date >= from_date)))`
 - `training_requests_plan_array` — `CHECK ((jsonb_typeof(evaluation_plan) = 'array'::text))`
 - `training_requests_record_array` — `CHECK ((jsonb_typeof(record_lines) = 'array'::text))`
-- `training_requests_dates` — `CHECK (((to_date IS NULL) OR (from_date IS NULL) OR (to_date >= from_date)))`
 
 **Triggers:** `no_hard_delete` → `block_hard_delete()` · `training_request_guard` → `training_request_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
@@ -5286,8 +5335,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `dccr_calls` | **on** | 27 |
 | `engineer_stock` | _not set_ | 3 |
 | `export_schedule_state` | **on** | 20 |
-| `failure_modes_by_product` | **on** | 4 |
-| `failure_rate_by_product` | **on** | 6 |
+| `failure_modes_by_product` | **on** | 5 |
+| `failure_rate_by_product` | **on** | 15 |
 | `feedback_report` | **on** | 28 |
 | `feedback_without_report` | **on** | 21 |
 | `field_call_review` | **on** | 59 |
@@ -5313,8 +5362,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `spare_pending_dispatch` | **on** | 31 |
 | `spare_pending_rm` | **on** | 24 |
 | `spare_stock_out_lines` | **on** | 26 |
-| `spare_usage` | **on** | 14 |
-| `spare_usage_rollup` | **on** | 8 |
+| `spare_usage` | **on** | 15 |
+| `spare_usage_rollup` | **on** | 9 |
 | `stores_dispatch_report` | **on** | 28 |
 | `tracker_list` | **on** | 20 |
 | `training_history` | **on** | 15 |
@@ -5334,7 +5383,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 
 **`feedback_without_report`** — Customer feedback with no "Solved - Report Completed" visit behind it. The feedback is the evidence that a visit happened; the report is the record of it, and a call carrying one without the other is a visit that was never written up. `missing` names which of the four findings applies. Administrators only, by the module key rather than by a rule of its own (0229).
 
-**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_dates() (0471; per call by call_first_spare_on() 0425-0450); every day count is the lower of complaint-to and breakdown-to that is not negative (call_days(), 0440), the three "... Days From" columns name the date each count came from (0442), and "Register" says which of the three registers the call is on (0450). The per-call lookup into reports is ONE LATERAL pass (0471; three until then) so the caller's date range narrows the calls FIRST (0159).
+**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG, for Field, Installation and PM calls (PM since 0390); every date an India date and the first spare request read by call_first_spare_on() (0425); every day count is the lower of complaint-to and breakdown-to that is not negative (call_days(), 0440), the three "... Days From" columns name the date each count came from (0442), and "Register" says which of the three registers the call is on (0450). The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST (0159).
 
 **`product_database`** — The install base as it stands NOW: the party from the later of the latest sale and the latest ownership transfer (0238), and the contract and installation call that name that machine AND that party. Item Status is warranty-first over the matching contract; the engineer is always the Party Master's. The stored values are kept beside them as *_keyed.
 

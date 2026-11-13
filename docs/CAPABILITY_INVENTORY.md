@@ -512,6 +512,16 @@ Purpose: the register of every call registration request, whatever became of it,
 | 38 | The submit is written to the audit log with outcome and duration | RequestCallRegistration.tsx:725 | none | partial: URS-016, FRS-021 — generic audit trail; which actions are logged is not stated | |
 | 39 | Refresh the register; last-sync time remembered on this device | RequestCallRegistration.tsx:122-124, 239-242 | none | GAP | Low |
 
+### Request Registration v2 (`/request-registration-v2`) — `src/modules/RequestCallRegistration.tsx` (`v2`)
+
+| # | Action | Where | Who / guard | Requirement | Note |
+|---|---|---|---|---|---|
+| 1 | Open the screen (administrators only) | App.tsx; rbac.ts (`admin: true`) | `mod:/request-registration-v2` | URS-192, FRS-288 | |
+| 2 | List v2 requests only, True Key first; search includes the True Key | RequestCallRegistration.tsx (`v2`) | RLS on `call_requests` (cr_read) | FRS-288.5 | |
+| 3 | New Request: the Request Registration form; Call Attended? = Yes asks Call Pending Reason (the `pendingreason` master, mandatory) | RequestCallRegistration.tsx (NewRequestForm `v2`) | client + DB | FRS-288.2 | |
+| 4 | Submit: one call to `submit_call_request_v2()` writes the request rows and their Req_VisitTable rows, all or nothing; the True Key RQ2-yymm-nnnn is issued | supabase.ts addCallRequestV2 | `mod:/request-registration-v2` in the function; RLS | FRS-288.1, FRS-288.3, OQ-307 | |
+| 5 | A registered v2 request files its Req_VisitTable row as the call's visit | DB trigger `req_visit_file_on_register` | owner-rights trigger | FRS-288.4, OQ-307 | Mapping files nothing |
+
 ### Pending Registrations (`/pending-registrations`) — `src/modules/PendingRegistrations.tsx`
 Purpose: the Hotline queue of requests with no UCN. Each leaves by mapping to an existing call, registering a new call, or cancelling with a reason.
 

@@ -50,7 +50,7 @@ export const DOC_PROCESSES: DocProcess[] = [
     checks: ['Contract entry, renewal and PM visit count'],
     keywords: ['contract', 'amc', 'cmc'] },
   { id: '5', name: 'Complaint handling', responsibility: 'Hotline · Customer Support Manager · Service engineer',
-    paths: ['/request-registration', '/pending-registrations', '/field-calls', '/pending-calls', '/daily-review', '/call-review', '/reports', '/report-mapping', '/failure-report', '/product-failure', '/missing-visit-reports'],
+    paths: ['/request-registration', '/request-registration-v2', '/pending-registrations', '/field-calls', '/pending-calls', '/daily-review', '/call-review', '/reports', '/report-mapping', '/failure-report', '/product-failure', '/missing-visit-reports'],
     checks: ['Breakdown call registration (from a call request, or directly)', 'Daily complaint review stage 1', 'Call allocation', 'Daily complaint review stage 2', 'Visit work details entry', 'Service report entry with spares used', 'Service manual report upload', 'Daily complaint review stage 3', 'Field Failure Report raised from a review'],
     keywords: ['call', 'review', 'complaint', 'visit', 'report', 'ffr', 'failure', 'registration', 'allocat', 'ucn', 'dccr'] },
   { id: '6', name: 'Installation & Preventive maintenance', responsibility: 'Service admin · Hotline · Service engineer',

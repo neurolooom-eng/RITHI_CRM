@@ -139,6 +139,22 @@ different totals. An empty register usually means access, not emptiness.
   > request's details) show **📎 Open**, which opens the stored file in a new tab.
   > **Mapped to the wrong call?** Open the request and press **↩ Unmap** — the UCN is
   > cleared and it goes back on the Pending list. The call itself is not changed.
+- **Request Registration v2** `/request-registration-v2` — **administrators only**
+  (until it is ticked for another role on Roles & Permissions). The same form
+  and the same journey as Request Registration — the request goes on to Pending
+  Registrations — with two differences:
+  > Each request gets its own **True Key**, `RQ2-yymm-nnnn` (numbered from 0001
+  > each month), issued by the database. The list shows only v2 requests, True
+  > Key first.
+  > When **Call Attended? = Yes**, **Call Pending Reason** is asked — the Visit
+  > Report's own list, mandatory — and each machine gets a row in
+  > **Req_VisitTable**, keyed `<True Key>-<Product>-<Serial>`: Call Status
+  > **Unsolved**, Visiting Service Engineer **you**, Engineer Email **your
+  > login**, Visit Date & Time **the Attended Date**, Visit Entry Date **the time
+  > you saved**. Not attended: no row.
+  > When the request is **registered as a call** on Pending Registrations, that
+  > row is filed on the call as its visit, so the call reads Unsolved with that
+  > pending reason. A request **mapped** to an existing call files nothing.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. The chips at the top filter
   it by Call Type, each with its count. When an **Installation call** is created

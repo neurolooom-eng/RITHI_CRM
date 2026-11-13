@@ -2235,6 +2235,25 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
   return { ok: true, reqid, count: items.length };
 }
 
+/** REQUEST REGISTRATION v2 (0475): the request and, when attended, its
+ *  Req_VisitTable rows in ONE call -- submit_call_request_v2() writes both or
+ *  neither, as the signed-in user. The database issues the REQID and the True
+ *  Key (RQ2-yymm-nnnn), keys each visit <True Key>-<Product>-<Serial>, and
+ *  stamps Call Status Unsolved, the requester's name and login email and the
+ *  entry time. Administrators only. */
+export async function addCallRequestV2(base: Record<string, unknown>, items: CallRequestItem[], pendingReason: string): Promise<{ ok: boolean; reqid?: string; trueKey?: string; count?: number; visitKeys?: string[]; error?: string }> {
+  if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
+  const { data, error } = await must().rpc('submit_call_request_v2', {
+    p_base: base, p_items: items.map(itemCols), p_pending_reason: pendingReason,
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  const r = (data ?? {}) as Record<string, unknown>;
+  return {
+    ok: true, reqid: String(r.reqid ?? ''), trueKey: String(r.true_key ?? ''), count: Number(r.count ?? 0),
+    visitKeys: Array.isArray(r.visit_keys) ? (r.visit_keys as unknown[]).map(String) : [],
+  };
+}
+
 // Every call request, whatever its outcome — the Request Registration register.
 // Rows keep the app's camelCase shape; `status` is Pending / Mapped /
 // Registered / Cancelled.
@@ -2436,6 +2455,8 @@ export async function listCallRequests(limit = 2000): Promise<Record<string, unk
   }
   return raw.map((r) => ({
     id: r.id, reqid: r.reqid, uniqueKey: r.unique_key, submittedAt: r.submitted_at,
+    // v2's own key (0475); blank on a v1 request.
+    trueKey: r.true_key ?? '',
     engineer: r.engineer, email: r.email, callType: r.call_type,
     partyName: r.party_name, state: r.state, city: r.city, address: r.address,
     product: r.product, serial: r.serial_no,

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { addCallRequestBatch, listCallRequests, sbPartyInfo, sbProductBySerial, supabaseConfigured,
+import { addCallRequestBatch, addCallRequestV2, listCallRequests, sbPartyInfo, sbProductBySerial, supabaseConfigured,
          updateCallRequest, callRequestEditableKeys, unmapCallRequest, sbKycByParties, kycKeyFor,
          type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
@@ -106,7 +106,11 @@ const COLUMNS: Column<Row>[] = [
   { key: 'planDate', header: 'Plan Date', width: 120, wrap: false, render: (r) => fmtLongDate(r.planDate) },
 ];
 
-export function RequestCallRegistration() {
+// REQUEST REGISTRATION v2 (0475, the user 2026-11-13): the same screen, with
+// v2's own key (RQ2-yymm-nnnn, the "True Key") and, when the call was
+// attended, a Call Pending Reason that goes into Req_VisitTable. Opened only by
+// an administrator (`admin: true`); it lists only v2 requests.
+export function RequestCallRegistration({ v2 = false }: { v2?: boolean } = {}) {
   const { can } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState('');
@@ -171,17 +175,18 @@ export function RequestCallRegistration() {
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) =>
+      (!v2 || String(r.trueKey ?? '') !== '') &&
       (!status || String(r.status ?? '') === status) &&
       // `INSTALL%` is the same test the UCN generator and the call router use
       // (0001, 0040), so "INSTALLATION" and "INSTALLATION CALL" are one thing
       // here as they are everywhere else.
       (!callType || String(r.callType ?? '').toUpperCase().startsWith(callType.toUpperCase())) &&
       (!kycFilter || matchesKyc(r)) &&
-      (!needle || ['reqid', 'ucn', 'engineer', 'partyName', 'city', 'product', 'serial', 'reportedProblem', 'standardComplaint'].some(
+      (!needle || ['trueKey', 'reqid', 'ucn', 'engineer', 'partyName', 'city', 'product', 'serial', 'reportedProblem', 'standardComplaint'].some(
         (k) => String(r[k] ?? '').toLowerCase().includes(needle),
       )),
     );
-  }, [rows, q, status, callType, kycFilter, kycBy]);
+  }, [rows, q, status, callType, kycFilter, kycBy, v2]);
 
   // The UCNs on screen, coloured by their calls' status (the standing rule,
   // 2026-09-06). This register does not carry the state — a spare line knows
@@ -226,9 +231,11 @@ export function RequestCallRegistration() {
       },
     };
     const at = COLUMNS.findIndex((c) => c.key === 'partyName');
-    return at < 0 ? [...COLUMNS, kyc] : [...COLUMNS.slice(0, at + 1), kyc, ...COLUMNS.slice(at + 1)];
+    const cols = at < 0 ? [...COLUMNS, kyc] : [...COLUMNS.slice(0, at + 1), kyc, ...COLUMNS.slice(at + 1)];
+    // v2: the True Key first -- the key of the request on this screen.
+    return v2 ? [{ key: 'trueKey', header: 'True Key', width: 140, wrap: false } as Column<Row>, ...cols] : cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kycBy]);
+  }, [kycBy, v2]);
 
   // THREE ANSWERS, NOT TWO. "The Party Master has not got this customer" is a
   // different problem from "this customer is not verified yet", with a
@@ -289,8 +296,10 @@ export function RequestCallRegistration() {
         syncedAt={lastSync}
         onRefresh={() => void load()}
         refreshing={busy}
-        title="Request Call Registration"
-        subtitle="Every call registration request raised, and what became of it. REQID is assigned automatically."
+        title={v2 ? 'Request Registration v2' : 'Request Call Registration'}
+        subtitle={v2
+          ? 'v2 requests, keyed by their True Key (RQ2-yymm-nnnn). An attended request records its visit in Req_VisitTable, filed on the call when the request is registered. Administrators only.'
+          : 'Every call registration request raised, and what became of it. REQID is assigned automatically.'}
         icon="📝"
         count={visible.length}
         // A FILTERED COUNT OVER A PARTIAL LOAD IS A LOWER BOUND TOO (finding 32).
@@ -298,7 +307,7 @@ export function RequestCallRegistration() {
         // request older than the newest 2,000 was counted on the card and simply
         // absent here, under a number with no "+".
         countMore={moreAvailable}
-        actions={can('request.create') ? <button className="btn btn-primary" onClick={() => setNewOpen(true)}>＋ New Request</button> : undefined}
+        actions={(v2 || can('request.create')) ? <button className="btn btn-primary" onClick={() => setNewOpen(true)}>＋ New Request</button> : undefined}
       />
 
       {msg && (
@@ -342,11 +351,11 @@ export function RequestCallRegistration() {
       />
 
       <Drawer open={newOpen} onClose={() => setNewOpen(false)} title="New Call Registration Request" width={900}>
-        <NewRequestForm onSaved={() => void load()} />
+        <NewRequestForm v2={v2} onSaved={() => void load()} />
       </Drawer>
 
       <Drawer open={!!detail} onClose={() => { setDetail(null); setEditing(false); }}
-              title={`Request ${String(detail?.reqid ?? '')}`} width={620}>
+              title={`Request ${String((v2 && detail?.trueKey) || detail?.reqid || '')}`} width={620}>
         {detail && (
           <div className="reg-detail-list">
             {/* CORRECTING A REQUEST (the user, 2026-09-22). A request is typed
@@ -445,8 +454,13 @@ const LABELS: Record<string, string> = {
   cancelReason: 'Cancel Reason', actionedBy: 'Actioned By', actionedAt: 'Actioned At',
 };
 
-function NewRequestForm({ onSaved }: { onSaved: () => void }) {
+function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boolean }) {
   const { user } = useAuth();
+  // v2 (0475): when attended, the Call Pending Reason -- the Visit Report's own
+  // list, mandatory. Status (Unsolved) and the engineer (the requester) are
+  // fixed by the database, so they are not asked.
+  const pendingReasons = useMaster('pendingreason');
+  const [pendingReason, setPendingReason] = useState('');
   // WHO THIS REQUEST IS FOR. A Reporting Manager raises one on behalf of any
   // engineer reporting to them; an engineer raises their own. It used to be
   // stamped from the login with no say in it, so a manager could not raise a
@@ -720,6 +734,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     }
     if (!f.callAttended) return 'Answer Call Attended?';
     if (attended && !f.attendedDate) return 'Attended Date is required when Call Attended? = Yes.';
+    if (v2 && attended && !pendingReason.trim()) return 'Call Pending Reason is required when Call Attended? = Yes.';
     if (uploading > 0) return 'Wait for the document upload to finish.';
     return '';
   };
@@ -787,6 +802,16 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     };
     const t0 = performance.now();
     try {
+      if (v2) {
+        const r2 = await addCallRequestV2(base, rows, attended ? pendingReason : '');
+        logAudit({ action: 'request.create.v2', target: r2.trueKey ?? '', status: r2.ok ? 'ok' : 'error', error: r2.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType, reqid: r2.reqid } });
+        if (r2.ok) {
+          setMsg({ tone: 'ok', text: `Request ${r2.trueKey} submitted — ${r2.count} call${r2.count === 1 ? '' : 's'}.`
+            + (r2.visitKeys?.length ? ` Req_VisitTable: ${r2.visitKeys.join(', ')}.` : '') + ' Now in Pending Registrations.' });
+          reset(); setPendingReason(''); onSaved();
+        } else setMsg({ tone: 'error', text: `Submit failed: ${r2.error}` });
+        return;
+      }
       const res = await addCallRequestBatch(base, rows);
       logAudit({ action: 'request.create', target: res.reqid ?? '', status: res.ok && !res.error ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType } });
       if (res.ok) {
@@ -1115,6 +1140,10 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                             placeholder="—" options={['Yes', 'No']} />
             ))}
             {attended && field('Attended Date *', <input type="date" className="input" value={f.attendedDate} onChange={(e) => set('attendedDate', e.target.value)} />)}
+            {v2 && attended && field('Call Pending Reason *', (
+              <SelectPicker value={pendingReason} onChange={setPendingReason} placeholder="—"
+                options={pendingReasons.values} />
+            ))}
             {!attended && field('Planned Visit Date', <input type="date" className="input" value={f.planDate || todayISO()} onChange={(e) => set('planDate', e.target.value)} />)}
             {field('Additional Comments', <textarea className="input" rows={2} value={f.additionalComments} onChange={(e) => set('additionalComments', e.target.value)} />, true)}
           </div>

@@ -111,6 +111,11 @@ export const MODULES: ModuleDef[] = [
   { path: '/contracts', label: 'Contract Register' },
   { path: '/ownership-transfer', label: 'Ownership Transfer' },
   { path: '/request-registration', label: 'Request Registration' },
+  // REQUEST REGISTRATION v2 (0475, the user 2026-11-13: "Add this only for
+  // Admin"). `admin: true` keeps it out of every role's code defaults, and no
+  // migration writes it into app_roles, so only an administrator opens it --
+  // until somebody ticks it on Roles & Permissions.
+  { path: '/request-registration-v2', label: 'Request Registration v2', admin: true },
   { path: '/pending-registrations', label: 'Pending Registrations' },
   { path: '/field-calls', label: 'Field Call Register' },
   { path: '/installations', label: 'Installation Calls' },
@@ -775,6 +780,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create', 'calls.create', 'pending.register'] },
+    { path: '/request-registration-v2', label: 'Request Registration v2', actions: [] },
     { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register', 'pending.mail', 'calls.create', 'install.create', 'calls.edit', 'install.edit'] },
     { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.report.visit', 'visit.spares', 'visit.feedback', 'calls.cancel', 'calls.reopen', 'spare.request', 'consumption.reconcile'] },
     { path: '/installations', label: 'Installation Calls', actions: ['calls.view', 'install.create', 'install.edit', 'install.edit.complaint', 'install.edit.customer', 'install.edit.vigilance', 'install.edit.contact', 'install.allot', 'install.report', 'install.report.visit', 'visit.spares', 'visit.feedback', 'install.cancel', 'install.reopen', 'spare.request', 'consumption.reconcile'] },
