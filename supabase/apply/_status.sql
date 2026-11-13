@@ -2408,7 +2408,9 @@ with checks(sort_order, bundle, provides, present) as (
     (390, 'An uploaded hand stock count keeps its date and time, and a wrong count can be deleted', 'handstock_reconciliations.upload_batch, the guard keeping an uploaded count''s reconciled_at, and delete_handstock_reconciliations() (0483). NO means an upload is dated at the time of the upload, or Delete on Hand Stock answers an error. Restore: HandStock_X.sql (0483)',
         exists (select 1 from pg_attribute where attrelid = coalesce(to_regclass('public.handstock_reconciliations'), 0::regclass) and attname = 'upload_batch' and not attisdropped)
         and position('v_later' in coalesce(pg_get_functiondef(to_regprocedure('public.handstock_reconciliations_bi()')), '')) > 0
-        and to_regprocedure('public.delete_handstock_reconciliations(bigint[],text)') is not null)
+        and to_regprocedure('public.delete_handstock_reconciliations(bigint[],text)') is not null),
+    (391, 'A count of the same line at the same moment is refused in words', 'handstock_reconciliations_bi() names the part, the engineer and the other count (this file, an earlier upload or the screen) before the unique index answers (0484). NO means a repeated line in an upload answers "duplicate key value violates unique constraint". Restore: HandStock_X.sql (0484)',
+        position('appears more than once in this file' in coalesce(pg_get_functiondef(to_regprocedure('public.handstock_reconciliations_bi()')), '')) > 0)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
