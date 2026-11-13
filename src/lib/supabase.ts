@@ -1642,11 +1642,17 @@ export async function sbLogComplaintSuggestion(row: {
 export interface FailureRate {
   product: string; machines: number; calls_total: number; calls_12m: number;
   calls_open: number; per_100_machines: number | null;
+  // Each register's counts (0474), for the Call Type filter. Absent before it.
+  field_total?: number; field_12m?: number; field_open?: number;
+  installation_total?: number; installation_12m?: number; installation_open?: number;
+  pm_total?: number; pm_12m?: number; pm_open?: number;
 }
-export interface FailureMode { product: string; complaint: string; calls: number; calls_12m: number }
+/** The register a call is on, from the table it was read from (0474). */
+export interface FailureMode { product: string; complaint: string; calls: number; calls_12m: number; register?: string }
 export interface SpareUsage {
   cover: string; region: string; product: string;
   lines: number; qty: number; calls: number; parts: number; engineers: number;
+  register?: string;
 }
 // One row per PRODUCT, so about fifty today — paged anyway, because the number
 // of products is not a promise and "it is small now" is how the other twelve
@@ -1662,11 +1668,11 @@ export async function sbFailureRates(): Promise<FailureRate[]> {
 // view has no primary key to fall back on.
 export async function sbFailureModes(): Promise<FailureMode[]> {
   return allRows<FailureMode>((a, b) => must().from('failure_modes_by_product').select('*')
-    .order('product').order('complaint').range(a, b), 20000);
+    .order('product').order('complaint').order('register').range(a, b), 20000);
 }
 export async function sbSpareUsage(): Promise<SpareUsage[]> {
   return allRows<SpareUsage>((a, b) => must().from('spare_usage_rollup').select('*')
-    .order('cover').order('region').order('product').range(a, b), 20000);
+    .order('cover').order('region').order('product').order('register').range(a, b), 20000);
 }
 
 // ---- Moving a spare request to a different engineer ------------------------

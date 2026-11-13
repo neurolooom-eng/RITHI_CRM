@@ -1608,7 +1608,11 @@ typed into a form that reads it.
 ## Analysis & reports
 
 - **KPI & Failure Analysis** `/kpi` — failure rate by product, region × cover, and
-  spare use by cover, product and region.
+  spare use by cover, product and region. **Call Type** at the top — All, Field,
+  Installation or PM — narrows every figure on the page. It opens on **Field**
+  and remembers your last choice on that device. A call counts under the
+  register it is in, whatever its Call Type text says. The machines in the field
+  are always the whole Product Register.
 - **Part Search** `/part-search` (Overview) — look a part up: every **active**
   part with its Part Code, Description, Spare / Consumable and the products it
   fits (a part with no product reads *Common (all products)*). Search by code,

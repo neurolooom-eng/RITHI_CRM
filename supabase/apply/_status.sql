@@ -2370,7 +2370,14 @@ with checks(sort_order, bundle, provides, present) as (
         and not has_function_privilege('anon', 'public.call_first_spare_dates()', 'execute')),
     (382, 'Objective 11''s evidence names the registration date too', 'objective_evidence() (0473): each call''s line reads "the lowest of from complaint ..., from breakdown ... and from registration ...", the three dates call_days() counts from since 0472. NO means the download names two of the three. Restore: objective.sql (0473)',
         coalesce((select p.prosrc like '%and from registration%'
-                    from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false))
+                    from pg_proc p where p.oid = to_regprocedure('public.objective_evidence(bigint,integer)')), false)),
+    (383, 'KPI & Failure Analysis can be filtered by Call Type', 'failure_rate_by_product carries field_ / installation_ / pm_ counts; failure_modes_by_product, spare_usage and spare_usage_rollup carry `register` -- the table each call was read from (0474). All four stay security_invoker. NO means the Call Type chips on KPI & Failure Analysis change nothing. Restore: performance.sql (0474)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'failure_rate_by_product' and column_name = 'field_12m')
+        and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'failure_modes_by_product' and column_name = 'register')
+        and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'spare_usage_rollup' and column_name = 'register')
+        and (select count(*) from pg_class where relnamespace = 'public'::regnamespace
+              and relname in ('spare_usage', 'spare_usage_rollup', 'failure_rate_by_product', 'failure_modes_by_product')
+              and 'security_invoker=on' = any (reloptions)) = 4)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
