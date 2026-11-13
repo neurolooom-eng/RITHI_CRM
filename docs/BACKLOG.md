@@ -160,6 +160,22 @@ up)_
 
 ---
 
+## 2026-11-13 — KPI Export timed out (D-180, 0471, v0.10.232)
+
+- The user: a screenshot of Reports → KPI Export, Field, CSV — "Could not
+  export: canceling statement due to statement timeout" — "fix this".
+- Cause: `kpi_field_inst` asked `call_first_spare_on()` once per call, each
+  call re-running its permission checks; every page sorts on the registration
+  date, so every page computed every call. 2.8 s a page on 5,000 calls as an
+  administrator locally (1.8 s of it that function); past the timeout live.
+- 0471 (performance.sql): `call_first_spare_dates()` — the same rule, once per
+  query — joined into the view; the three reads of `reports` folded into one
+  pass. 13 ms a page; every row identical to the old view as an administrator
+  and as an engineer. `_status.sql` row 381; `kpi_export_reads_once_test`.
+- Applied by the merge's "Apply database migrations" run — read its log.
+
+---
+
 ## 2026-11-11 — Hand stock reconciliation to a physical count (URS-191, FRS-287, OQ-306, 0468–0470, v0.10.231)
 
 - The user: a provision to reconcile stock — the date and time of the count

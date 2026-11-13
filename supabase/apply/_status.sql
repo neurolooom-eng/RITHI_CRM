@@ -2206,10 +2206,11 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.call_first_spare_on(text)') is not null
      and not has_function_privilege('anon', 'public.call_first_spare_on(text)', 'execute')
      and coalesce((select pg_get_viewdef(to_regclass('public.call_dates')) like '%Asia/Kolkata%'), false))),
-    (345, 'KPI export dates every call in India time', 'kpi_field_inst (0425): Call Attended On, Call Solved Date & Time, the registration day the day counts start from, and Failure Month are India dates, and the first spare request is read by call_first_spare_on() so the export agrees with the call registers. NO means nearly every Attended and Solved date in the export reads a day early. Restore: performance.sql (0425)',
-        coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%call_first_spare_on%'
+    (345, 'KPI export dates every call in India time', 'kpi_field_inst (0425): Call Attended On, Call Solved Date & Time, the registration day the day counts start from, and Failure Month are India dates, and the first spare request follows the rule of call_first_spare_on() -- since 0471 through call_first_spare_dates(), the same rule asked once per export -- so the export agrees with the call registers. NO means nearly every Attended and Solved date in the export reads a day early. Restore: performance.sql (0425, 0471)',
+        coalesce((select pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%call_first_spare_dates%'
                      and pg_get_viewdef(to_regclass('public.kpi_field_inst')) like '%Asia/Kolkata%'
                      and pg_get_viewdef(to_regclass('public.kpi_field_inst')) not like '%(s.visit_at)::date%'
+                     and pg_get_viewdef(to_regclass('public.kpi_field_inst')) not like '%(v.solved_at)::date%'
                    where to_regclass('public.kpi_field_inst') is not null), false)),
     (346, 'Files can be kept with a stock transfer and a material return', 'stock_record_files (0426): row-level security on, read and attach policies that follow the transfer / return, select and insert granted to authenticated and nothing else, nothing to the public key, and the stamp trigger that writes who attached a file and when. NO means the Files column and the attach buttons on Stock Transfer (MTN) and Material Returns fail. Restore: HandStock_X.sql (0426)',
         (to_regclass('public.stock_record_files') is not null
@@ -2358,7 +2359,12 @@ with checks(sort_order, bundle, provides, present) as (
     (379, 'A User Master rename carries the hand stock counts', 'user_directory_carry_rename_records() lists handstock_reconciliations (0469). NO means a renamed engineer''s count stays under the old name and the line splits in two. Restore: user_directory.sql (0469)',
         position('handstock_reconciliations' in coalesce(pg_get_functiondef(to_regprocedure('public.user_directory_carry_rename_records()')), '')) > 0),
     (380, 'A counted part cannot be deleted from the Part Master', 'master_delete_guard() counts handstock_reconciliations.part (0470). NO means a part on a hand stock count can be deleted. Restore: rbac.sql (0470)',
-        position('handstock_reconciliations.part' in coalesce(pg_get_functiondef(to_regprocedure('public.master_delete_guard()')), '')) > 0)
+        position('handstock_reconciliations.part' in coalesce(pg_get_functiondef(to_regprocedure('public.master_delete_guard()')), '')) > 0),
+    (381, 'KPI export: the first spare request is read once, not per call', 'call_first_spare_dates() joined into kpi_field_inst, and the visits read in one pass per call (0471, D-180). Asked once per call, call_first_spare_on() re-ran its permission checks for every call on every page, and the export timed out ("canceling statement due to statement timeout"). NO means the KPI Export still times out. Restore: performance.sql (0471)',
+        to_regprocedure('public.call_first_spare_dates()') is not null
+        and position('call_first_spare_dates' in coalesce(pg_get_viewdef(to_regclass('public.kpi_field_inst')), '')) > 0
+        and position('call_first_spare_on' in coalesce(pg_get_viewdef(to_regclass('public.kpi_field_inst')), '')) = 0
+        and not has_function_privilege('anon', 'public.call_first_spare_dates()', 'execute'))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
