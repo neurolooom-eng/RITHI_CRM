@@ -58,8 +58,9 @@ export const KPI_FIELD_INST_COLUMNS = [
   'Pending Days',
   // WHICH DATE EACH COUNT CAME FROM (0442, the user 2026-10-14: "mention
   // explicitly which was used for calculation. Since this carries per record"):
-  // Complaint Date, Breakdown Date, Complaint & Breakdown Date, Registration
-  // Date, or Neither -- both after (0). Also not the workbook's, so also last.
+  // Complaint, Breakdown or Registration Date, a tie of them ("Complaint &
+  // Registration Date"), or None -- all after (0) (0472). Also not the
+  // workbook's, so also last.
   'Attended Days From',
   'Solved Days From',
   'Pending Days From',

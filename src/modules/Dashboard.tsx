@@ -32,8 +32,9 @@ const g = (r: Rec, k: string) => String(r[k] ?? '');
 // neither carries a time; now when both are in the future (0, as callDays());
 // the registration where a call has neither. The same rule as callDays() in
 // aging.ts and call_days() (0440), said in hours.
+// The REGISTRATION day is a third candidate since 0472 (the user, 2026-11-13).
 const slaStartOf = (r: Rec): string => {
-  const days = ['complaintDate', 'breakdownDate'].map((k) => g(r, k).trim().slice(0, 10))
+  const days = ['complaintDate', 'breakdownDate', 'regDate'].map((k) => g(r, k).trim().slice(0, 10))
     .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
   if (!days.length) return g(r, 'regDate');
   const now = Date.now();

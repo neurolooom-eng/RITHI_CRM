@@ -197,10 +197,11 @@ different totals. An empty register usually means access, not emptiness.
   > filled if the call was solved and later re-opened. The same definitions as
   > the KPI Export's *Call Attended On* and *Call Solved Date*. India dates;
   > they sort, and they are in the CSV.
-  > **Every day count takes the lower of two**: the days from the **Complaint
-  > Date** and the days from the **Breakdown Date**, whichever is lower and not
-  > negative (if both are negative, 0). A call with only one of the two dates
-  > counts from that one; with neither, from its registration. This is
+  > **Every day count takes the lowest of three**: the days from the
+  > **Complaint Date**, from the **Breakdown Date** and from the **Call
+  > Registration Date** (its date in India, without the time), whichever is
+  > lowest and not negative (if all are negative, 0). A date the call does not
+  > have is left out. This is
   > **Aging** here, the **SLA** on the Dashboard (from the start of the day),
   > the **KPI Export**'s day counts and the *Attended within N days* objective.
   > **Attending** is the earliest date among the call's visits and its spare

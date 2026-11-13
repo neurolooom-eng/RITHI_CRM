@@ -37,6 +37,9 @@
 // one that is not negative, 0 when both are; a call with only one of the two
 // dates counts from that one, with neither from its registration. The
 // database's copy is call_days() (0440); check:ui compares the two.
+// AND THE REGISTRATION DATE IS A THIRD COUNT (0472, the user 2026-11-13:
+// "Include Call Registration Date As well"): the lowest of complaint-to,
+// breakdown-to and registration-to that is not negative.
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -62,13 +65,11 @@ export function callDays(complaint: unknown, breakdown: unknown, registered: unk
   const end = dayOf(on);
   if (!end) return null;
   const diff = (d: Date | null) => (d ? Math.round((end.getTime() - d.getTime()) / DAY) : null);
-  const c = diff(dayOf(complaint));
-  const b = diff(dayOf(breakdown));
-  if (c == null && b == null) {
-    const r = diff(dayOf(registered));
-    return r == null ? null : Math.max(0, r);
-  }
-  const ok = [c, b].filter((x): x is number => x != null && x >= 0);
+  // THE REGISTRATION DATE IS THE THIRD CANDIDATE (0472, the user 2026-11-13),
+  // not only the fallback: the lowest of the three that is not negative.
+  const all = [diff(dayOf(complaint)), diff(dayOf(breakdown)), diff(dayOf(registered))];
+  if (all.every((x) => x == null)) return null;
+  const ok = all.filter((x): x is number => x != null && x >= 0);
   return ok.length ? Math.min(...ok) : 0;
 }
 
