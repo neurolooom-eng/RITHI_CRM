@@ -154,7 +154,8 @@ different totals. An empty register usually means access, not emptiness.
   > **Supporting documents** (service manuals and knowledge-base articles for
   > each call) open in a pop-up once the request is submitted, instead of
   > sitting in each Call card.
-  > **The customer is one line**: once the serial names the customer, each call
+  > **The customer is one line from Call 2 onwards**: Call 1 keeps its customer
+  > fields open; on every later call, once the serial names the customer, it
   > shows the customer, City, State and contact number in a single line, and
   > **Show details** opens City, State, Address and the contact fields to change
   > them.

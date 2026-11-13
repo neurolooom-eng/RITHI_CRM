@@ -1152,7 +1152,9 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
                           {/* v2 (2026-11-13: "hide the Customer Details ... Which is
                               occupying soooooo much space"): the site in one line,
                               its fields behind Show details. */}
-                          {v2 && (
+                          {/* Call 1 stays open (the user, 2026-11-13: "don't collapse
+                              Customer details in Call 1 .. only from Call 2 onwards"). */}
+                          {v2 && i > 0 && (
                             <span className="req-cust-line">
                               {[it.city, it.state].filter((x) => String(x ?? '').trim()).join(', ') || 'No city / state'}
                               {String(it.contactNumber ?? '').trim() ? ` · ${it.contactNumber}` : ''}
@@ -1172,7 +1174,7 @@ function NewRequestForm({ onSaved, v2 = false }: { onSaved: () => void; v2?: boo
                     started naming the customer, they need not be. Prefilled from
                     the register and EDITABLE: the register says where the
                     machine was sold, and a ward move is not filed with anybody. */}
-                {!isInstall && (!v2 || !it.party || custOpen.has(i)) && (
+                {!isInstall && (!v2 || i === 0 || !it.party || custOpen.has(i)) && (
                   <>
                     {field('City', <input className="input" value={it.city ?? ''} onChange={(e) => setItem(i, 'city', e.target.value)} />)}
                     {field('State', <input className="input" value={it.state ?? ''} onChange={(e) => setItem(i, 'state', e.target.value)} />)}
