@@ -11,6 +11,8 @@ import {
   handstockForEngineer, addHandstockReconciliation,
 } from '../lib/supabase';
 import { PickList } from '../components/ui/PickList';
+import { Register as RegisterUpload } from './BulkUploads';
+import { UPLOADS } from '../lib/uploads';
 import { useMaster } from '../lib/masters';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync, MAX_CACHED_ROWS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
@@ -203,6 +205,7 @@ export function HandStock() {
   const [detail, setDetail] = useState<Row | null>(null);
   const [adjusting, setAdjusting] = useState(false);
   const [reconciling, setReconciling] = useState(false);
+  const [uploadingCounts, setUploadingCounts] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
@@ -368,6 +371,10 @@ export function HandStock() {
               <button className="btn" onClick={() => setReconciling(true)}
                 title="Set an engineer's hand stock to a physically verified count, part by part">🧮 Reconcile</button>
             )}
+            {can('handstock.reconcile') && onDb && COUNT_UPLOAD && (
+              <button className="btn" onClick={() => setUploadingCounts(true)}
+                title="Load physical counts for several engineers from a CSV file">⤵ Upload counts</button>
+            )}
             {can('consumption.reconcile') && onDb && (
               <button className="btn" onClick={() => setAdjusting(true)}
                 title="Add or remove quantity from an engineer's hand stock, with a reason">± Adjust stock</button>
@@ -376,6 +383,16 @@ export function HandStock() {
           </div>
         )}
       />
+
+      {uploadingCounts && COUNT_UPLOAD && (
+        <Drawer open onClose={() => { setUploadingCounts(false); void load(); }} title="Upload physical counts" width={860}>
+          <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+            A CSV with <b>Engineer</b>, <b>Part</b> and <b>Physical Qty</b> (Remarks optional), one row per engineer + part counted.
+            It previews first; nothing is written until you press Upload.
+          </p>
+          <RegisterUpload def={COUNT_UPLOAD} count={null} onDone={() => void load()} />
+        </Drawer>
+      )}
 
       {reconciling && (
         <ReconcileDrawer engineers={team.names} onClose={() => setReconciling(false)}
@@ -924,6 +941,26 @@ function AdjustDrawer({ engineers, onClose, onSaved }: {
 // ===========================================================================
 interface CountLine { part: string; system: number; physical: string }
 
+// The physical-count upload, which lives here rather than on Bulk Uploads.
+const COUNT_UPLOAD = UPLOADS.find((d) => d.key === 'handstock_reconciliation');
+
+// The Reconcile list is GROUPED by the system quantity (the user, 2026-11-13:
+// "a Grouping based on 0 Qty and More than 0"). A balance can go below zero
+// since 0401, so that group is shown on its own when any part has one rather
+// than being folded into either of the two asked for.
+const COUNT_GROUPS: { key: string; title: string; test: (n: number) => boolean }[] = [
+  { key: 'pos', title: 'More than 0', test: (n) => n > 0 },
+  { key: 'zero', title: '0', test: (n) => n === 0 },
+  { key: 'neg', title: 'Below 0', test: (n) => n < 0 },
+];
+type CountSort = 'part-asc' | 'part-desc' | 'qty-desc' | 'qty-asc';
+const COUNT_SORTS: { value: CountSort; label: string }[] = [
+  { value: 'part-asc', label: 'Part No (A → Z)' },
+  { value: 'part-desc', label: 'Part No (Z → A)' },
+  { value: 'qty-desc', label: 'Qty (high → low)' },
+  { value: 'qty-asc', label: 'Qty (low → high)' },
+];
+
 function ReconcileDrawer({ engineers, onClose, onSaved }: {
   engineers: string[]; onClose: () => void; onSaved: (text: string) => void;
 }) {
@@ -932,6 +969,7 @@ function ReconcileDrawer({ engineers, onClose, onSaved }: {
   const [lines, setLines] = useState<CountLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
+  const [sort, setSort] = useState<CountSort>('part-asc');
   const [adding, setAdding] = useState('');
   const [remarks, setRemarks] = useState('');
   const [busy, setBusy] = useState(false);
@@ -969,8 +1007,18 @@ function ReconcileDrawer({ engineers, onClose, onSaved }: {
   const differ = counted.filter((l) => Number(l.physical) !== l.system);
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return q ? lines.filter((l) => l.part.toLowerCase().includes(q)) : lines;
-  }, [lines, filter]);
+    const got = q ? lines.filter((l) => l.part.toLowerCase().includes(q)) : lines;
+    const code = (l: CountLine) => l.part.split('|')[0];
+    const byPart = (a: CountLine, b: CountLine) => code(a).localeCompare(code(b), undefined, { numeric: true });
+    const cmp = sort === 'part-asc' ? byPart
+      : sort === 'part-desc' ? (a: CountLine, b: CountLine) => byPart(b, a)
+        : sort === 'qty-desc' ? (a: CountLine, b: CountLine) => (b.system - a.system) || byPart(a, b)
+          : (a: CountLine, b: CountLine) => (a.system - b.system) || byPart(a, b);
+    return [...got].sort(cmp);
+  }, [lines, filter, sort]);
+  const grouped = useMemo(() => COUNT_GROUPS
+    .map((g) => ({ ...g, rows: shown.filter((l) => g.test(l.system)) }))
+    .filter((g) => shown.length > 0 && (g.rows.length > 0 || g.key !== 'neg')), [shown]);
 
   const problem = !engineer ? 'Choose the engineer.'
     : !counted.length ? 'Type the physical count beside at least one part.'
@@ -1001,6 +1049,8 @@ function ReconcileDrawer({ engineers, onClose, onSaved }: {
             <div className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <label className="field" style={{ flex: '1 1 260px' }}><span className="field-label">Find a part on the list</span>
                 <input className="input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Code or description" /></label>
+              <label className="field" style={{ flex: '0 1 200px' }}><span className="field-label">Sort by</span>
+                <SelectPicker value={sort} onChange={(v) => setSort((v || 'part-asc') as CountSort)} options={COUNT_SORTS} /></label>
               <label className="field" style={{ flex: '1 1 300px' }}><span className="field-label">Add a part not on the list</span>
                 <PickList value={adding} options={parts} onPick={addPart} placeholder="Type any part of the code or description…"
                   emptyLabel={parts.length ? '— pick a part —' : '— loading parts… —'} /></label>
@@ -1014,8 +1064,12 @@ function ReconcileDrawer({ engineers, onClose, onSaved }: {
                 <thead>
                   <tr><th>Spare</th><th>Description</th><th style={{ textAlign: 'right' }}>System</th><th style={{ textAlign: 'right' }}>Physical</th><th style={{ textAlign: 'right' }}>Difference</th></tr>
                 </thead>
-                <tbody>
-                  {shown.map((l) => {
+                {grouped.map((g) => (
+                <tbody key={g.key}>
+                  <tr className="req-count-group"><th colSpan={5} style={{ textAlign: 'left' }}>
+                    System qty {g.title} · {g.rows.length} part{g.rows.length === 1 ? '' : 's'}
+                  </th></tr>
+                  {g.rows.map((l) => {
                     const has = l.physical.trim() !== '';
                     const diff = has ? Number(l.physical) - l.system : 0;
                     return (
@@ -1036,10 +1090,14 @@ function ReconcileDrawer({ engineers, onClose, onSaved }: {
                       </tr>
                     );
                   })}
-                  {!loading && !shown.length && (
-                    <tr><td colSpan={5} className="muted">{lines.length ? 'No part on the list matches.' : 'The system shows no hand stock for them — add the parts you counted.'}</td></tr>
+                  {!loading && !g.rows.length && (
+                    <tr><td colSpan={5} className="muted">None.</td></tr>
                   )}
                 </tbody>
+                ))}
+                {!loading && !shown.length && (
+                  <tbody><tr><td colSpan={5} className="muted">{lines.length ? 'No part on the list matches.' : 'The system shows no hand stock for them — add the parts you counted.'}</td></tr></tbody>
+                )}
               </table>
             </div>
             <label className="field"><span className="field-label">Remarks</span>

@@ -23,7 +23,7 @@ import './fieldcalls.css';
 
 interface Pending { file: string; shaped: ShapeResult }
 
-function Register({ def, count, onDone }: { def: UploadDef; count: number | null; onDone: () => void }) {
+export function Register({ def, count, onDone }: { def: UploadDef; count: number | null; onDone: () => void }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
@@ -256,7 +256,8 @@ export function BulkUploads() {
   const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [counting, setCounting] = useState(false);
 
-  const defs = useMemo(() => [...UPLOADS, ...lists.map((l) => masterUpload(l))], [lists]);
+  // An upload with a `home` lives on that screen instead (Hand Stock's counts).
+  const defs = useMemo(() => [...UPLOADS.filter((d) => !d.home), ...lists.map((l) => masterUpload(l))], [lists]);
   const groups = useMemo(() => uploadGroups(defs), [defs]);
 
   // THE ROW COUNTS ARE ASKED FOR, NOT TAKEN ON EVERY OPEN. Each is an exact
@@ -299,6 +300,7 @@ export function BulkUploads() {
           <li><b>Every file previews first</b> — how many rows are ready, which were held back and why, and any column the register did not recognise. That last one is what catches a file loaded against the wrong register.</li>
           <li><b>Dates are read day-first</b> (03/04/2026 = 3 April), which is how these exports are written.</li>
           <li>Registers <b>with</b> a natural key can be re-run safely; the ones marked ⚠ cannot.</li>
+          <li><b>Hand stock physical counts</b> are uploaded on <b>Hand Stock</b> (⤵ Upload counts), beside Reconcile.</li>
         </ul>
         <div className="row" style={{ gap: 10, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
           <button className="btn btn-sm" disabled={counting} onClick={() => void refresh()}>

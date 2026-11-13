@@ -793,3 +793,10 @@ th.rbac-col-admin { color: var(--text-muted); }
   display: inline-block; padding: 1px 6px; border-radius: 4px;
   background: #2e7d32; color: #ffffff; font-weight: 600;
 }
+
+/* Hand Stock → Reconcile: the System-qty group headings (More than 0 / 0 / Below 0). */
+.req-count-group th {
+  position: static;
+  background: var(--text); color: var(--surface);
+  font-size: 12.5px; letter-spacing: 0.02em; padding: 6px 8px;
+}
