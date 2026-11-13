@@ -160,6 +160,16 @@ up)_
 
 ---
 
+## 2026-11-13 — Hand Stock: count upload moved here; Reconcile grouped + sorted (v0.10.245)
+
+- The user: "Bulk Upload - Move it to Handstock Screen Itself. In the
+  Reconcile Page, Add a Grouping based on 0 Qty and More than 0. Add Option to
+  Sort by Qty, Part No". `UploadDef.home` keeps an upload off Bulk Uploads.
+  A Below 0 group appears only when a part is below zero (0401 allows it).
+  Screen only.
+
+---
+
 ## 2026-11-13 — v2 Call 1 keeps customer details open (v0.10.244)
 
 - The user: "don't collapse Customer details in Call 1 .. that setup is

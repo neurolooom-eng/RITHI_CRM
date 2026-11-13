@@ -618,9 +618,12 @@ against the call it was fitted to.
   > it can be done two or three engineers a day. A count is never edited or
   > deleted; to correct one, count that part again (the latest count is the one
   > that counts). The **Last counted** column shows when each line was last
-  > counted and the quantity. Several engineers at once: **Bulk Uploads → Hand
-  > Stock Reconciliation — physical count** (Engineer, Part, Physical Qty,
-  > Remarks).
+  > counted and the quantity. The list is **grouped by the system quantity** —
+  > **More than 0**, then **0** (and **Below 0** when a part has gone below
+  > zero) — and **Sort by** orders it by **Part No** or **Qty**, either way.
+  > Several engineers at once: **⤵ Upload counts**, beside Reconcile on the same
+  > screen (Engineer, Part, Physical Qty, Remarks) — it previews first and
+  > needs the same permission. It is no longer on Bulk Uploads.
   > **The cap applies on every route.** Marking a booking, transfer or return
   > as "imported" no longer lets it past the limit — only Bulk Uploads and the
   > Data Import panel load history. Stores cannot lower an issued quantity or

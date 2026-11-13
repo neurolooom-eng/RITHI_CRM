@@ -109,6 +109,9 @@ export interface UploadDef {
   cols: Col[];
   /** Constants written on every row — the list name, the call type, and so on. */
   stamp?: Record<string, unknown>;
+  /** The screen this upload lives on INSTEAD of Bulk Uploads (its route).
+   *  Bulk Uploads leaves it out and says where it went. */
+  home?: string;
   /** Values ASKED on the upload screen and written on every row (UploadAsk). */
   asks?: UploadAsk[];
   /** Upsert key, where the table has one. Without it a re-run DUPLICATES. */
@@ -971,6 +974,9 @@ export const UPLOADS: UploadDef[] = [
   // when are stamped by the database (the time of the upload), as on screen.
   { key: 'handstock_reconciliation', label: 'Hand Stock Reconciliation — physical count', group: 'Spares',
     table: 'handstock_reconciliations',
+    // On Hand Stock, beside Reconcile (the user, 2026-11-13: "Bulk Upload -
+    // Move it to Handstock Screen Itself").
+    home: '/handstock',
     prepare: 'handstock-engineers',
     stamp: { source: 'Upload' },
     note: 'The physically verified hand stock — one row per engineer + part counted, with the Physical Qty. Each row becomes that line\u2019s count, dated and signed with the time of this upload and your name: anything entered for that engineer and part BEFORE the upload is no longer counted (it stays on its own register as history), and anything entered after it counts as usual. A part not in the file keeps its figure. Needs the Reconcile hand stock permission. A count is never edited: to correct one, upload (or count on screen) that part again. ONLY ACTIVE USERS OF THE USER MASTER are loaded; the names left out are named before anything is written. Give each engineer + part only once in a file: if it appears twice, the rows are refused when they reach the database together, and otherwise the later row becomes the count.',

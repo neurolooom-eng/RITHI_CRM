@@ -20,6 +20,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.245',
+    date: '2026-11-13',
+    title: 'Hand Stock: upload counts beside Reconcile; Reconcile grouped and sortable',
+    changes: [
+      'The physical-count upload has moved from Bulk Uploads to Hand Stock: "⤵ Upload counts", beside Reconcile, for whoever may reconcile.',
+      'Reconcile groups the parts by what the system holds: More than 0, then 0 (and Below 0 when a part has gone below zero).',
+      'Reconcile can be sorted by Part No or by Qty, either way.',
+    ],
+  },
+  {
     version: '0.10.244',
     date: '2026-11-13',
     title: 'Request Registration v2: Call 1 keeps its customer details open',
