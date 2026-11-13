@@ -289,6 +289,20 @@ export function useRegionByEngineer(): Map<string, string> {
   return map;
 }
 
+/** THE REGION OF A ROW (the user, 2026-11-13: "Add Region to all Call
+ *  Registers, Spare Registers, Handstock and their Exports"): the engineer's
+ *  CURRENT User Master region, read when shown, never stored. Given several
+ *  names it takes the first that has a region -- on a call, the Visiting
+ *  Service Engineer of the latest visit, else Call Allocated To (the user's
+ *  order). A name the directory does not know gives blank, never a guess. */
+export function regionFor(map: Map<string, string>, ...names: unknown[]): string {
+  for (const n of names) {
+    const r = map.get(norm(n));
+    if (r) return r;
+  }
+  return '';
+}
+
 // Is a call with this allottee visible under the given scope?
 export function allowsAllottee(scope: AccessScope, allottee: unknown): boolean {
   if (scope.all) return true;

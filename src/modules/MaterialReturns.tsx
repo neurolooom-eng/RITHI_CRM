@@ -13,7 +13,7 @@ import {
 import { listUsers } from '../lib/sheets';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, previewScoped } from '../lib/access';
+import { useAccessScope, previewScoped, useRegionByEngineer, regionFor } from '../lib/access';
 import { engineerKey, num, partDescription, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
@@ -53,6 +53,7 @@ const COLUMNS: Column<Row>[] = [
   { key: 'uid', header: 'Reference', width: 135, wrap: false },
   { key: 'row_no', header: '#', width: 45, align: 'right', wrap: false },
   { key: 'engineer', header: 'Engineer', width: 165 },
+  { key: 'region', header: 'Region', width: 100, wrap: false },
   { key: 'item_code', header: 'Spare', width: 115, wrap: false },
   { key: 'item_name', header: 'Description', width: 240, render: (r) => g(r, 'item_name') || partDescription(r.part) },
   { key: 'good_qty', header: 'Good', width: 70, align: 'right', wrap: false },
@@ -137,7 +138,8 @@ export function MaterialReturns() {
     [rows],
   );
 
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (engineerFilter && g(r, 'engineer') !== engineerFilter) return false;
@@ -146,6 +148,9 @@ export function MaterialReturns() {
         .some((k) => g(r, k).toLowerCase().includes(q));
     });
   }, [rows, search, engineerFilter]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, region: regionFor(regionOf, r.engineer) })), [visibleBase, regionOf]);
 
 
   const detailRows = useMemo(() => rows.filter((r) => g(r, 'uid') === detail), [rows, detail]);

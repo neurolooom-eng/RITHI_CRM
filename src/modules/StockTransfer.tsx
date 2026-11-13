@@ -12,7 +12,7 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, previewScoped } from '../lib/access';
+import { useAccessScope, previewScoped, useRegionByEngineer, regionFor } from '../lib/access';
 import './fieldcalls.css';
 import { cappedAt } from '../lib/exportscope';
 import { DocPreview } from '../components/doc/DocPreview';
@@ -247,7 +247,9 @@ const TRANSFER_COLUMNS: Column<Row>[] = [
   { key: 'uid', header: 'Transfer No', width: 140, wrap: false },
   { key: 'transfer_date', header: 'Date', width: 110, wrap: false, render: (r) => fmtLongDate(r.transfer_date) },
   { key: 'from_engineer', header: 'From', width: 170 },
+  { key: 'from_region', header: 'From Region', width: 110, wrap: false },
   { key: 'to_engineer', header: 'To', width: 170 },
+  { key: 'to_region', header: 'To Region', width: 110, wrap: false },
   { key: 'row_no', header: '#', width: 45, align: 'right', wrap: false },
   { key: 'part', header: 'Part', width: 220 },
   { key: 'qty', header: 'Qty', width: 60, align: 'right', wrap: false },
@@ -327,12 +329,16 @@ export function StockTransfer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [navigate, transferFiles]);
   const exportColumns = TRANSFER_COLUMNS;
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return transfers;
     const keys = ['uid', 'from_engineer', 'to_engineer', 'part', 'remarks'];
     return transfers.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
   }, [transfers, search]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, from_region: regionFor(regionOf, r.from_engineer), to_region: regionFor(regionOf, r.to_engineer) })), [visibleBase, regionOf]);
 
   // Counted from the transfers themselves, so the screen needs nothing but them.
 

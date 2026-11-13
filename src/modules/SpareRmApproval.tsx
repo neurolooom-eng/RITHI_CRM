@@ -1,4 +1,5 @@
 import { isMissingTable } from '../lib/dberror';
+import { useRegionByEngineer, regionFor } from '../lib/access';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, Toolbar, SearchBox, EmptyState, Modal } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -138,7 +139,8 @@ export function SpareRmApproval() {
   };
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return lines;
     // The SERIAL and the call number are searched too (2026-09-09): an
@@ -148,6 +150,9 @@ export function SpareRmApproval() {
                                 l.product_name, l.serial, l.call_number, l.complaint]
       .some((v) => String(v).toLowerCase().includes(q)));
   }, [lines, search]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, region: regionFor(regionOf, r.engineer) })), [visibleBase, regionOf]);
 
   // The UCNs on screen, coloured by their calls' status (the standing rule,
   // 2026-09-06). This register does not carry the state — a spare line knows
@@ -191,6 +196,7 @@ export function SpareRmApproval() {
   const columns: Column<RmLine>[] = [
     { key: 'or_no', header: 'OR Number', width: 130, wrap: false },
     { key: 'engineer', header: 'Engineer', width: 150 },
+    { key: 'region', header: 'Region', width: 100, wrap: false },
     {
       key: 'part', header: 'Part', width: 210,
       render: (r) => <span title={r.part}>{r.part_code || r.part}</span>,

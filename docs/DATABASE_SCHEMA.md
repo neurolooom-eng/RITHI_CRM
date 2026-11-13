@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**120 tables · 45 views · 3486 columns · 272 policies · 70 foreign keys.**
+**120 tables · 45 views · 3487 columns · 272 policies · 70 foreign keys.**
 
 ## How to read this
 
@@ -3464,7 +3464,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `id` → **users**(`id`) · on delete cascade _(profiles_id_fkey)_
 
-**Triggers:** `profiles_role_guard` → `profiles_role_guard()` · `zzz_sys_stamp` → `sys_stamp()`
+**Triggers:** `profiles_login_disable_sync` → `profiles_login_disable_sync()` · `profiles_role_guard` → `profiles_role_guard()` · `zzz_sys_stamp` → `sys_stamp()`
 
 **Permissions**
 
@@ -5326,7 +5326,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | View | security_invoker | Columns |
 | --- | --- | --- |
 | `app_user_names` | _not set_ | 2 |
-| `call_dates` | **on** | 5 |
+| `call_dates` | **on** | 6 |
 | `call_report` | **on** | 51 |
 | `call_state` | **on** | 6 |
 | `calls` | **on** | 54 |
@@ -5371,7 +5371,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `unused_spare_report` | **on** | 25 |
 | `warranty_sale_details` | **on** | 46 |
 
-**`call_dates`** — Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424); and the Call Pending Reason of the latest visit entry while the call is open (0433). security_invoker: one row per call the reader may see.
+**`call_dates`** — Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424); the Call Pending Reason of the latest visit entry while the call is open (0433); and the engineer of that latest entry, for the Region (0479). security_invoker: one row per call the reader may see.
 
 **`call_report`** — One row per CALL — never per visit — with its latest visit and what was fitted. security_invoker, so it shows a reader exactly the calls they may see and no more.
 

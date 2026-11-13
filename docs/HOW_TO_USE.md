@@ -156,7 +156,9 @@ different totals. An empty register usually means access, not emptiness.
   > you saved**. Not attended: no row.
   > When the request is **registered as a call** on Pending Registrations, that
   > row is filed on the call as its visit, so the call reads Unsolved (or Report
-  > pending) with that pending reason. A request **mapped** to an existing call files nothing.
+  > pending) with that pending reason. A request **mapped** to an existing call
+  > files it too, but **only if that call has no visit yet**. The filed visit's
+  > **Visit Entry Date** is the call's registration time **+ 1 minute**.
 - **Pending Registrations** `/pending-registrations` — the Hotline queue.
   Registering one issues the UCN and files the call. The chips at the top filter
   it by Call Type, each with its count. When an **Installation call** is created
@@ -189,6 +191,15 @@ different totals. An empty register usually means access, not emptiness.
 
 ## The call registers
 
+- **REGION, ON EVERY REGISTER THAT NAMES AN ENGINEER** (Field, Installation and
+  PM calls; Spare Requests, RM Approval, Pending Dispatch and Stock Out lines,
+  Spare Consumption, Stock Transfer — From Region and To Region — Material
+  Returns, Hand Stock and its movements, Hand Stock Report) and in each one's
+  download: the engineer's **current** region from the User Master. Nothing is
+  stored, so moving someone to another region moves their records with them. On
+  a call it is the region of the **Visiting Service Engineer** of the latest
+  visit, or of **Call Allocated To** if the call has no visit yet. A name the
+  User Master does not know shows no region.
 - **Field Call Register** `/field-calls` — breakdown calls.
 - **Installation Calls** `/installations` — new machines going in.
   > Under the choice the report shows the machine's warranty **now** and where it
@@ -1339,6 +1350,9 @@ typed into a form that reads it.
   > **Signatures saved: X of Y** (above the list, for whoever may edit these
   > details): how many active logins have saved a signature, **Show who** for
   > those still to do and when each one saved theirs, and **⬇ CSV**.
+  > **Disabling a login sets the person inactive here**: 🔒 Disable login turns
+  > the person's **Active** to No on User Master. Enabling the login again does
+  > not turn Active back on; do that on User Master if it is meant.
   > **No signature is asked of a test account or an inactive user**: tag a
   > test login **Test Account** in Tags (any capitals), or mark the person
   > inactive. They read **Not required**, are not counted in Signatures saved,
@@ -1710,6 +1724,10 @@ typed into a form that reads it.
     average satisfaction of the feedback whose **visit date** is in the period.
     A feedback missing an answer is left out. The evidence download lists every
     feedback with each score.
+  - **Every call-based objective's evidence download** has a **Call Pending
+    Reason** column beside the call's status: the same value as the call
+    registers' column (the latest visit's reason while the call is open, blank
+    once it is solved or cancelled).
   - **Missed PMs are left out of the PM objective.** A Missed PM is a PM call
     whose **Added On** date is after the month it is registered for — a March
     PM added in October. Switch **Missed PM: Excluded / Included** on the PM row

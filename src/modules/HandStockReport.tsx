@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRegionByEngineer, regionFor } from '../lib/access';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate } from '../lib/format';
@@ -59,6 +60,7 @@ const when = (v: unknown) => (v ? formatDayTime(v) : '');
 
 const COLUMNS: Column<Row>[] = [
   { key: 'engineer', header: 'Engineer', width: 170 },
+  { key: 'region', header: 'Region', width: 100, wrap: false },
   { key: 'part_code', header: 'Part Code', width: 110, wrap: false },
   { key: 'part', header: 'Part', width: 260 },
   { key: 'opening', header: 'Opening', width: 80, wrap: false, render: (r) => num(r.opening) },
@@ -132,12 +134,16 @@ export function HandStockReport() {
   // server-side search would be the right answer for a paged screen and is the
   // wrong one for a report that has, by the time you can type into it, loaded
   // every row.
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return rows;
     return rows.filter((r) => `${r.engineer} ${r.engineer_email} ${r.part_code} ${r.part}`
       .toLowerCase().includes(s));
   }, [rows, q]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, region: regionFor(regionOf, r.engineer) }) as typeof r & Record<string, unknown>), [visibleBase, regionOf]);
 
   const scope = [
     // NOT "your own stock only": the tables behind handstock_balance show a

@@ -14,7 +14,7 @@ import { PickList } from '../components/ui/PickList';
 import { useMaster } from '../lib/masters';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync, MAX_CACHED_ROWS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, previewScoped, useTeamEngineers, useInactiveNames } from '../lib/access';
+import { useAccessScope, previewScoped, useTeamEngineers, useInactiveNames, useRegionByEngineer, regionFor } from '../lib/access';
 import {
   balanceTone, byEngineer, movementTone, num, partDescription, summarise, withoutHistory,
   type HandstockBalance, type HandstockMovement, type MovementKind,
@@ -276,7 +276,8 @@ export function HandStock() {
     return out.sort((a, b) => a.engineer.localeCompare(b.engineer));
   }, [team.names, holders]);
 
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     // A search shows what the DATABASE matched, not what this page happens to
     // hold. The chips and the engineer filter still narrow it.
     const base = hits ?? rows;
@@ -288,9 +289,13 @@ export function HandStock() {
       return true;
     });
   }, [rows, hits, engineerFilter, holding]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, region: regionFor(regionOf, r.engineer) })), [visibleBase, regionOf]);
 
   const columns: Column<Row>[] = [
     { key: 'engineer', header: 'Engineer', width: 165 },
+    { key: 'region', header: 'Region', width: 100, wrap: false },
     { key: 'part_code', header: 'Spare', width: 115, wrap: false },
     { key: 'part', header: 'Description', width: 235, accessor: (r) => partDescription(r.part) || r.part, render: (r) => partDescription(r.part) || r.part },
     { key: 'on_hand', header: 'Stock level', width: 100, align: 'right', wrap: false, render: (r) => stockBadge(r.on_hand) },
@@ -557,7 +562,8 @@ function Movements({
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   };
 
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     const q = search.trim().toLowerCase();
     return moves.filter((m) => {
       if (kind && m.movement !== kind) return false;
@@ -566,6 +572,9 @@ function Movements({
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [moves, search, kind]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, region: regionFor(regionOf, r.engineer) })), [visibleBase, regionOf]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -577,6 +586,7 @@ function Movements({
     { key: 'moved_at', header: 'When', width: 135, render: (m) => fmtLongDate(m.moved_at) },
     { key: 'movement', header: 'Movement', width: 120, wrap: false, render: (m) => <span className={`badge badge-${movementTone(m.movement)}`}>{m.movement}</span> },
     { key: 'engineer', header: 'Engineer', width: 160 },
+    { key: 'region', header: 'Region', width: 100, wrap: false },
     { key: 'part_code', header: 'Spare', width: 115, wrap: false },
     { key: 'part', header: 'Description', width: 220, accessor: (m) => partDescription(m.part) || m.part, render: (m) => partDescription(m.part) || m.part },
     { key: 'qty', header: 'Qty', width: 70, align: 'right', wrap: false, render: (m) => <span className={m.direction === 'IN' ? 'wf-in' : 'wf-out'}>{m.direction === 'IN' ? '+' : '−'}{m.qty}</span> },
