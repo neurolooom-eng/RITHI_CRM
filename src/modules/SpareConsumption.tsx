@@ -13,7 +13,7 @@ import {
 import { Drawer } from '../components/ui/ui';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS, startBackgroundSync } from '../lib/cache';
 import { useAuth } from '../lib/auth';
-import { useAccessScope } from '../lib/access';
+import { useAccessScope, useRegionByEngineer, regionFor } from '../lib/access';
 import './fieldcalls.css';
 import { partial } from '../lib/exportscope';
 import { isSysColumn } from '../lib/syscols';
@@ -35,7 +35,7 @@ const UCN_KEYS = ['UC Number', 'UCN', 'UC No'];
 const ENGINEER_KEYS = ['Visiting Service Engineer', 'ENGINEER NAME', 'Engineer', 'engineer', 'Service Engineer', 'Allocated To', 'Call Allocated To'];
 const EMAIL_KEYS = ['Engineer Email', 'Email address', 'Email-ID', 'Email ID'];
 const PREFERRED = [
-  'ucn', 'call_number', 'part', 'qty', 'engineer', 'source', 'created_at', // Supabase shape
+  'ucn', 'call_number', 'part', 'qty', 'engineer', 'region', 'source', 'created_at', // Supabase shape (region: 2026-11-13)
   'UC Number', 'Call Number', 'Party Name', 'Product Name', 'Product Serial Number',
   'Spare', 'Part Number', 'Part Description', 'Qty', 'Quantity', 'Consumption Date', 'Date', 'Timestamp',
   'Visiting Service Engineer', 'ENGINEER NAME',
@@ -329,11 +329,18 @@ export function SpareConsumption() {
     return out;
   };
 
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, carried
+  // on each row so the table and the CSV both have it.
+  const regionOf = useRegionByEngineer();
+  const rowsR = useMemo(() => rows.map((r) => {
+    const k = ENGINEER_KEYS.find((x) => g(r, x).trim());
+    return k ? { ...r, region: regionFor(regionOf, g(r, k)) } : r;
+  }), [rows, regionOf]);
   const headerKeys = useMemo(() => {
     const ks = new Set<string>();
-    rows.slice(0, 60).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && k !== 'data' && !isSysColumn(k) && !/^Page.*Header$/i.test(k)) ks.add(k); }));
+    rowsR.slice(0, 60).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && k !== 'data' && !isSysColumn(k) && !/^Page.*Header$/i.test(k)) ks.add(k); }));
     return [...ks];
-  }, [rows]);
+  }, [rowsR]);
 
   const engineerKey = useMemo(() => ENGINEER_KEYS.find((k) => headerKeys.includes(k)), [headerKeys]);
   const emailKey = useMemo(() => EMAIL_KEYS.find((k) => headerKeys.includes(k)), [headerKeys]);
@@ -349,12 +356,12 @@ export function SpareConsumption() {
   // member's, a line the office booked for them). Only rows that did NOT come
   // through the policy are narrowed here.
   const scoped = useMemo(() => {
-    if (onDb || scope.all || (!engineerKey && !emailKey)) return rows;
-    return rows.filter((r) =>
+    if (onDb || scope.all || (!engineerKey && !emailKey)) return rowsR;
+    return rowsR.filter((r) =>
       (engineerKey && scope.names.has(g(r, engineerKey).trim().toLowerCase())) ||
       (emailKey && g(r, emailKey).toLowerCase() === email),
     );
-  }, [rows, scope, engineerKey, emailKey, email, onDb]);
+  }, [rowsR, scope, engineerKey, emailKey, email, onDb]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();

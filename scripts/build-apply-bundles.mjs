@@ -318,6 +318,9 @@ const MODULES = {
             // A profile only for an address on an active User Master row
             // (0463, security scan F-02); restates 0033's ensure_my_profile.
             '0463_profile_only_for_the_user_master.sql',
+            // A disabled login sets its User Master rows inactive (0481):
+            // restates the 0033 address guard with one narrow exception.
+            '0481_disabled_login_inactive_on_user_master.sql',
             // The delete guard counts the hand stock counts (0470). Redefines
             // 0350's master_delete_guard(), so after it.
             '0470_delete_guard_counts_reconciliations.sql',
@@ -426,6 +429,9 @@ const MODULES = {
       // ...Solved - Report Pending carries the reason REPORT PENDING, locked
       // (0478): replaces the 0476 save function and table guard.
       '0478_request_v2_report_pending_reason.sql',
+      // ...and a request mapped to a call with no visit carries it too (0480):
+      // replaces the 0475 filing trigger function.
+      '0480_mapped_request_carries_visit.sql',
       '0164_cr_read_initplan.sql',
     ],
   },
@@ -870,7 +876,10 @@ const MODULES = {
       '0472_days_count_from_registration_too.sql',
       // KPI & Failure Analysis by Call Type (0474): the four 0101 views gain
       // the register each call is on, appended.
-      '0474_kpi_views_by_register.sql'],
+      '0474_kpi_views_by_register.sql',
+      // The latest visit engineer on call_dates, for the Region (0479):
+      // appended to the 0433 view.
+      '0479_call_dates_visit_engineer.sql'],
   },
   audit: {
     title: 'Audit Log',

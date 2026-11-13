@@ -2685,13 +2685,15 @@ const chunked = <T,>(xs: T[], n = CHUNK): T[][] => {
 // columns blank rather than taking the register down with it.
 // pendingReason (0433): the latest visit entry's Call Pending Reason, only
 // while the call is open -- blank for a Solved or Cancelled call.
-export interface CallDates { firstAttendedOn: string; lastVisitOn: string; solvedOn: string; pendingReason: string }
+export interface CallDates { firstAttendedOn: string; lastVisitOn: string; solvedOn: string; pendingReason: string;
+  /** The engineer of the latest visit entry (0479), for the Region. */
+  visitEngineer: string }
 export async function callDatesFor(ucns: string[]): Promise<Map<string, CallDates>> {
   const out = new Map<string, CallDates>();
   const c = getSupabase(); if (!c) return out;
   const list = [...new Set(ucns.map((u) => String(u ?? '').trim()).filter(Boolean))];
   for (const part of chunked(list)) {
-    const { data, error } = await c.from('call_dates').select('ucn, first_attended_on, last_visit_on, solved_on, pending_reason').in('ucn', part);
+    const { data, error } = await c.from('call_dates').select('ucn, first_attended_on, last_visit_on, solved_on, pending_reason, visit_engineer').in('ucn', part);
     if (error) { console.warn(`call_dates: ${errMsg(error)}`); return out; }
     for (const r of data ?? []) {
       out.set(String(r.ucn), {
@@ -2699,6 +2701,7 @@ export async function callDatesFor(ucns: string[]): Promise<Map<string, CallDate
         lastVisitOn: String(r.last_visit_on ?? ''),
         solvedOn: String(r.solved_on ?? ''),
         pendingReason: String(r.pending_reason ?? ''),
+        visitEngineer: String(r.visit_engineer ?? ''),
       });
     }
   }

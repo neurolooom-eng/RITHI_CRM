@@ -1,4 +1,5 @@
 import { isMissingTable } from '../lib/dberror';
+import { useRegionByEngineer, regionFor } from '../lib/access';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Modal, Toolbar, SearchBox, EmptyState, Drawer } from '../components/ui/ui';
@@ -128,12 +129,16 @@ export function SpareDispatch() {
     // eslint-disable-next-line
   }, []);
 
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return lines;
     return lines.filter((l) => [l.engineer, l.or_no, l.line_uid, l.part, l.ucn, l.call_number, l.party_name]
       .some((v) => v.toLowerCase().includes(q)));
   }, [lines, search]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, region: regionFor(regionOf, r.engineer) })), [visibleBase, regionOf]);
 
   const queues = useMemo(() => groupByEngineer(visible), [visible]);
   // Seed once, on the first load that has anything in it: a short queue starts
@@ -284,7 +289,7 @@ export function SpareDispatch() {
               <button
                 className="btn btn-sm"
                 onClick={() => csvExport('pending-dispatch.csv', [
-                  { key: 'engineer', header: 'Engineer' }, { key: 'or_no', header: 'OR' },
+                  { key: 'engineer', header: 'Engineer' }, { key: 'region', header: 'Region' }, { key: 'or_no', header: 'OR' },
                   { key: 'line_uid', header: 'Spare ID' }, { key: 'part', header: 'Part' },
                   { key: 'qty', header: 'Qty' }, { key: 'req_type', header: 'Type' },
                   { key: 'call_number', header: 'Call' }, { key: 'party_name', header: 'Party' },
@@ -572,12 +577,16 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
   }, []);
 
   const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');
-  const visible = useMemo(() => {
+  const regionOf = useRegionByEngineer();
+  const visibleBase = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => ['stock_out_no', 'dc_number', 'engineer', 'part', 'or_no', 'ucn', 'call_number', 'party_name']
       .some((k) => g(r, k).toLowerCase().includes(q)));
   }, [rows, search]);
+  // REGION (2026-11-13): the engineer's CURRENT User Master region, on the
+  // screen and in its export alike -- read when shown, never stored.
+  const visible = useMemo(() => visibleBase.map((r) => ({ ...r, region: regionFor(regionOf, r.engineer) })), [visibleBase, regionOf]);
 
   useEffect(() => { onCount?.(visible.length, rows.length >= STOCK_OUT_CAP); }, [visible.length, rows.length, onCount]);
 
@@ -589,6 +598,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
     { key: 'dc_number', header: 'DC', width: 120, wrap: false },
     { key: 'dc_date', header: 'Date', width: 110, wrap: false, render: (r) => fmtLongDate(r.dc_date) },
     { key: 'engineer', header: 'Engineer', width: 150 },
+    { key: 'region', header: 'Region', width: 100, wrap: false },
     {
       key: 'part', header: 'Part', width: 250,
       render: (r) => (

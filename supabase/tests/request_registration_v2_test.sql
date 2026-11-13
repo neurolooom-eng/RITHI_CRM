@@ -30,9 +30,14 @@ insert into public.masters (name, value) values ('pendingreason', 'V2 Spare Awai
 
 -- A field call each registration below can point at.
 alter table public.field_calls disable trigger user;
-insert into public.field_calls (ucn, call_number, call_type, reg_date, complaint_date, product_name, serial, party_name, allocated_to) values
-  ('V2-C1', 'V2N1', 'FIELD CALL', current_date - 3, current_date - 3, 'V2PROD', 'V2S1', 'P', 'V2 Admin'),
-  ('V2-C2', 'V2N2', 'FIELD CALL', current_date - 3, current_date - 3, 'V2PROD', 'V2S2', 'P', 'V2 Admin');
+insert into public.field_calls (ucn, call_number, call_type, reg_date, reg_at, complaint_date, product_name, serial, party_name, allocated_to) values
+  ('V2-C1', 'V2N1', 'FIELD CALL', current_date - 3, (current_date - 3)::timestamp at time zone 'Asia/Kolkata' + interval '10 hours 15 minutes', current_date - 3, 'V2PROD', 'V2S1', 'P', 'V2 Admin'),
+  ('V2-C2', 'V2N2', 'FIELD CALL', current_date - 3, null, current_date - 3, 'V2PROD', 'V2S2', 'P', 'V2 Admin'),
+  ('V2-C3', 'V2N3', 'FIELD CALL', current_date - 3, null, current_date - 3, 'V2PROD', 'V2S5', 'P', 'V2 Admin');
+alter table public.reports disable trigger user;
+insert into public.reports (uid, ucn, call_status, data, visit_at, updated_at) values
+  ('V2-EXISTING', 'V2-C3', 'Unsolved', '{}', now() - interval '2 days', now() - interval '2 days');
+alter table public.reports enable trigger user;
 alter table public.field_calls enable trigger user;
 
 \echo '--- 1. an administrator saves an attended v2 request for two machines ---'
@@ -141,11 +146,21 @@ select count(*) as visits, min(r.uid) = min(t.visit_key) as uid_is_key, min(r.ca
  where r.ucn = 'V2-C1';
 select open_state from public.calls where ucn = 'V2-C1';
 select ucn, report_uid <> '' as filed from public.req_visit_table where serial_no = 'V2S1';
+\echo 'expect: t | t -- the Visit Entry Date is the call''s registration + 1 minute, not the request''s save time'
+select r.updated_at = (select reg_at from public.field_calls where ucn = 'V2-C1') + interval '1 minute' as entry_is_reg_plus_1,
+       r.data->>'Visit Entry Date' = to_char(r.updated_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI:SS') as data_agrees
+  from public.reports r where r.ucn = 'V2-C1';
 
-\echo '--- 8. mapped to a call: nothing is filed ---'
-\echo 'expect: 0 visits on V2-C2'
+\echo '--- 8. mapped (0480): a call with NO visit takes it; a call with visits keeps its own ---'
+\echo 'expect: 1 visit on V2-C2, entered at its registration date (00:00 IST) + 1 minute'
 update public.call_requests set ucn = 'V2-C2', status = 'Mapped' where serial_no = 'V2S2';
-select count(*) as visits from public.reports where ucn = 'V2-C2';
+select count(*) as visits,
+       min(updated_at) = ((current_date - 3)::timestamp at time zone 'Asia/Kolkata') + interval '1 minute' as entry_is_reg_plus_1
+  from public.reports where ucn = 'V2-C2';
+\echo 'expect: still 1 visit on V2-C3 (its own), and the request row unfiled'
+update public.call_requests set ucn = 'V2-C3', status = 'Mapped' where serial_no = 'V2S5';
+select (select count(*) from public.reports where ucn = 'V2-C3') as visits,
+       (select report_uid = '' from public.req_visit_table where serial_no = 'V2S5') as unfiled;
 
 \echo '--- 9. the public key reaches nothing ---'
 \echo 'expect ERROR: administrators only'

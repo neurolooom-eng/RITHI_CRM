@@ -5,7 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
-import { allowsAllottee, scopeLabel, useAccessScope, useRegionByEngineer, useTeamEngineers } from '../lib/access';
+import { allowsAllottee, scopeLabel, useAccessScope, useRegionByEngineer, regionFor, useTeamEngineers } from '../lib/access';
 import { CallReportDrawer } from './CallReporting';
 import { useNavigate } from 'react-router-dom';
 import { SpareRequestDrawer } from './SpareRequests';
@@ -67,6 +67,7 @@ const CALL_ALL_FIELDS = [
   // The latest visit's Call Pending Reason while the call is open (0433), and
   // the reason it was cancelled while it is cancelled (0108).
   { key: 'pendingReason', header: 'Call Pending Reason' },
+  { key: 'region', header: 'Region' },
   { key: 'cancellationReason', header: 'Cancellation Reason' },
   { key: 'cancelledAt', header: 'Cancellation Date', render: (r: Rec) => formatDayTime(r.cancelledAt) },
   { key: 'cancelledByWho', header: 'Cancelled By' },
@@ -334,6 +335,9 @@ const COLUMNS: Column<Rec>[] = [
   { key: 'standardComplaint', header: 'Standard Complaint', width: 220 },
   { key: 'complaintReported', header: 'Complaint Reported', width: 200 },
   { key: 'allocatedTo', header: 'Allocated To', width: 150 },
+  // The engineer's CURRENT User Master region: the latest visit's engineer,
+  // else the allottee (2026-11-13).
+  { key: 'region', header: 'Region', width: 100, wrap: false },
   { key: 'personCalling', header: 'Person Calling', width: 130 },
 ];
 
@@ -1223,7 +1227,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       const d = callDates.get(String(r.ucn ?? ''));
       return {
         ...r,
-        _region: regionOf.get(String(r.allocatedTo ?? '').trim().toLowerCase()) ?? '',
+        // REGION (2026-11-13): the latest visit's engineer, else the allottee.
+        _region: regionFor(regionOf, d?.visitEngineer, r.allocatedTo),
+        region: regionFor(regionOf, d?.visitEngineer, r.allocatedTo),
         firstAttendedOn: d?.firstAttendedOn ?? '',
         lastVisitOn: d?.lastVisitOn ?? '',
         solvedOn: d?.solvedOn ?? '',

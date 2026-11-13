@@ -160,6 +160,26 @@ up)_
 
 ---
 
+## 2026-11-13 — Region on registers; evidence pending reason; v2 mapping + entry date; disabled login inactive (0479–0481, v0.10.239)
+
+- Region (the user: "Add Region to all Call Registers, Spare Registers,
+  Handstock and their Exports. Ideally to all Tables which has Engineer
+  Name"). Asked: the CURRENT User Master region, not stored; on a call the
+  Visiting Service Engineer, else Call Allocated To. 0479 (performance.sql):
+  call_dates.visit_engineer. Client: regionFor() over useRegionByEngineer()
+  on 11 screens + their CSV. FRS-131.20; `_status.sql` row 386.
+- ⏳ NOT YET: Region in the REPORTS built from views (Call Report, Consumption
+  Report, KPI Export, Unused Spare, Stores Dispatch) -- each needs its view
+  and column lists. Asked the user.
+- Evidence: Call Pending Reason on every call-based objective (FRS-121.8a).
+- v2: a mapped request carries its visit when the call has none; the moved
+  visit is entered at the call's registration + 1 minute (0480,
+  call_requests.sql). FRS-288.4; row 387.
+- Disabling a login sets User Master Active = false, one way (0481,
+  rbac.sql). FRS-171.9; row 388; `login_disable_sets_inactive_test`.
+
+---
+
 ## 2026-11-13 — v2: Solved - Report Pending sets REPORT PENDING, locked (0478, v0.10.238)
 
 - The user: "Solved - Report Pending should set the Call Pending Reason to

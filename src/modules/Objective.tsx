@@ -7,6 +7,7 @@ import {
   objectiveCutoffLocked, setObjectiveCutoffLock, listObjectiveCutoffs, setObjectiveCutoff,
   saveObjectiveDef, addObjective, deleteObjective,
   supabaseConfigured, type QualityObjective,
+  callDatesFor, type CallDates,
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { xlsxDownload } from '../lib/xlsx';
@@ -491,19 +492,33 @@ export function Objective() {
         mine.forEach((n, i) => calc.push({ Item: `${i + 1}.`, Value: n.note }));
       }
 
+      // CALL PENDING REASON (the user, 2026-11-13: "In Objective - Evidence
+      // Download - Add Call Pending Reason for Call Related KPIs"): every
+      // call-based objective's Sheet 1 carries it, read from call_dates --
+      // the same value as the registers' column (the latest visit entry's
+      // reason while the call is open; blank once solved or cancelled).
+      const pendingBy = isCount ? new Map<string, CallDates>()
+        : await callDatesFor(calls.map((r) => String(r.ucn ?? '')));
+      const withReason = (r: Record<string, unknown>) =>
+        ({ ...r, 'Call Pending Reason': (pendingBy.get(String(r.ucn ?? ''))?.pendingReason ?? '').trim() });
+      const reasonAfterStatus = (cols: string[]) => {
+        const at = cols.indexOf('status');
+        return at < 0 ? [...cols, 'Call Pending Reason'] : [...cols.slice(0, at + 1), 'Call Pending Reason', ...cols.slice(at + 1)];
+      };
+
       const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
       xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
         isCount
           ? { name: sheet1Name, columns: FFR_HEADINGS, rows: calls.map(ffrRow) }
           : isRate
-            ? { name: sheet1Name, columns: ['role', ...CALL_COLUMNS, ...RATE_DETAILS],
-                rows: calls.map((r) => ({ ...r, ...((r.details ?? {}) as Record<string, unknown>) })) }
+            ? { name: sheet1Name, columns: reasonAfterStatus(['role', ...CALL_COLUMNS, ...RATE_DETAILS]),
+                rows: calls.map((r) => withReason({ ...r, ...((r.details ?? {}) as Record<string, unknown>) })) }
             : isAttended
               ? { name: sheet1Name,
-                  columns: ['role', 'ucn', 'call_number', ...ATTENDED_DETAILS,
-                            ...CALL_COLUMNS.filter((c) => c !== 'ucn' && c !== 'call_number')],
-                  rows: calls.map((r) => ({ ...r, ...((r.details ?? {}) as Record<string, unknown>) })) }
-              : { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
+                  columns: reasonAfterStatus(['role', 'ucn', 'call_number', ...ATTENDED_DETAILS,
+                            ...CALL_COLUMNS.filter((c) => c !== 'ucn' && c !== 'call_number')]),
+                  rows: calls.map((r) => withReason({ ...r, ...((r.details ?? {}) as Record<string, unknown>) })) }
+              : { name: sheet1Name, columns: reasonAfterStatus(['role', ...CALL_COLUMNS]), rows: calls.map(withReason) },
         {
           name: 'Installation Base',
           columns: filterRow ? BASE_COLUMNS.map(([head]) => head) : ['Note'],

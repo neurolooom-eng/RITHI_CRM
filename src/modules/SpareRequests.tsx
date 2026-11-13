@@ -488,6 +488,8 @@ const SUPA_COLUMNS: Column<Row>[] = [
     },
   },
   { key: 'item_status', header: 'Item', width: 70, wrap: false },
+  // The requesting engineer's CURRENT User Master region (2026-11-13).
+  { key: 'region', header: 'Region', width: 100, wrap: false },
   { key: 'stage', header: 'Stage', width: 130, wrap: false, render: (r) => stageBadge(deriveStage(r)) },
   { key: 'rm_approval', header: 'RM', width: 100, render: (r) => badge(g(r, 'rm_approval')) },
   { key: 'commercial_approval', header: 'Commercial', width: 120, render: (r) => badge(g(r, 'commercial_approval')) },
@@ -950,6 +952,7 @@ export function SpareRequests() {
     () => visible.map((r) => ({
       ...r,
       _region: regionOf.get(engineerOf(r).trim().toLowerCase()) ?? '',
+      region: regionOf.get(engineerOf(r).trim().toLowerCase()) ?? '',
     })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [visible, regionOf],
@@ -1088,7 +1091,7 @@ export function SpareRequests() {
             <SearchBox value={search} onChange={setSearch} placeholder="UID, UCN, party, part, engineer, DC, status…" />
             <div className="spacer" />
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('spare-requests.csv', columns.filter((c) => c.key !== '_wf').map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[], exportScope(more))}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('spare-requests.csv', columns.filter((c) => c.key !== '_wf').map((c) => ({ key: c.key, header: c.header })), visibleWithRegion as unknown as Record<string, unknown>[], exportScope(more))}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }

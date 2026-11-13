@@ -20,6 +20,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.239',
+    date: '2026-11-13',
+    title: 'Region on every register; pending reason in evidence; disabled login inactive',
+    changes: [
+      'Region column on the Field, Installation and PM call registers, Spare Requests, RM Approval, Pending Dispatch and Stock Out lines, Spare Consumption, Stock Transfer (From Region and To Region), Material Returns, Hand Stock and its movements and the Hand Stock Report, and in each one\'s download. It is the engineer\'s current region from the User Master, not stored, so it follows a move. On a call it is the Visiting Service Engineer\'s (latest visit), else Call Allocated To\'s.',
+      'Objective: every call-based objective\'s evidence download has a Call Pending Reason column beside the call\'s status.',
+      'Request Registration v2: a request mapped to an existing call now carries its visit too, if that call has no visit yet. The moved visit\'s Visit Entry Date is the call\'s registration time + 1 minute (it was the time the request was saved).',
+      'User Master: disabling a login sets the person\'s Active to No. Enabling the login again does not turn it back on.',
+    ],
+  },
+  {
     version: '0.10.238',
     date: '2026-11-13',
     title: 'Request Registration v2: Solved - Report Pending sets REPORT PENDING',

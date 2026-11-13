@@ -76,6 +76,7 @@
 --   0459_admin_uploads_a_signature.sql
 --   0461_anonymous_caller_holds_nothing.sql
 --   0463_profile_only_for_the_user_master.sql
+--   0481_disabled_login_inactive_on_user_master.sql
 --   0470_delete_guard_counts_reconciliations.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
@@ -186,6 +187,7 @@
 --   0475_request_registration_v2.sql
 --   0476_request_v2_call_status.sql
 --   0478_request_v2_report_pending_reason.sql
+--   0480_mapped_request_carries_visit.sql
 --   0164_cr_read_initplan.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
@@ -466,6 +468,7 @@
 --   0471_kpi_export_reads_once.sql
 --   0472_days_count_from_registration_too.sql
 --   0474_kpi_views_by_register.sql
+--   0479_call_dates_visit_engineer.sql
 --   0218_product_database_v2.sql
 --   0220_product_database_2_is_materialised.sql
 --   0221_product_database_2_needs_no_gate.sql
@@ -6426,6 +6429,90 @@ end $$;
 revoke all on function public.ensure_my_profile() from public;
 revoke execute on function public.ensure_my_profile() from anon;
 grant execute on function public.ensure_my_profile() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0481_disabled_login_inactive_on_user_master.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0481 -- DISABLING A LOGIN SETS THE PERSON INACTIVE ON USER MASTER (the user,
+-- 2026-11-13: "Disabling a User Login should automatically set the User
+-- Account to False in the "Active" Column in User Master.").
+--
+-- profiles_login_disable_sync: when a login's `active` goes to false -- the
+-- Disable login button, or anything else that writes it -- every User Master
+-- row of that address (Air Liquide ID or Gmail) gets Active (validity) = false.
+-- One way only, as asked: enabling the login again does NOT re-activate the
+-- User Master row; that is a decision somebody makes there.
+--
+-- The guard on user_directory (0033) lets only an administrator change a row
+-- other than its address, and `users.manage.disable` -- which may disable a
+-- login -- is not only an administrator's. So the trigger marks its own
+-- change (a transaction-local setting) and the guard lets exactly that change
+-- through: Active from true to false, every other column untouched. 0033's
+-- guard otherwise word for word, read out of a database built from every
+-- migration. No loop: the User Master -> login sync (0199) writes role, name
+-- and designation only.
+-- ===========================================================================
+
+create or replace function public.user_directory_address_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.is_admin() then return new; end if;
+  -- A LOGIN DISABLED SETS ACTIVE TO NO (0481): the change profiles_login_
+  -- disable_sync makes on whoever disabled the login -- Active (validity) to
+  -- false and nothing else -- is let through. Only that trigger sets the flag,
+  -- for the length of its own statement's transaction.
+  if coalesce(current_setting('rithi.login_disable_sync', true), '') = 'on'
+     and old.validity is distinct from false and new.validity = false
+     and (to_jsonb(new) - 'validity' - 'sys_updated_by' - 'sys_updated_on')
+       = (to_jsonb(old) - 'validity' - 'sys_updated_by' - 'sys_updated_on') then
+    return new;
+  end if;
+  -- Everything except the four address fields must be identical.
+  if new.id                is distinct from old.id
+  or new.name              is distinct from old.name
+  or new.email             is distinct from old.email
+  or new.gmail             is distinct from old.gmail
+  or new.designation       is distinct from old.designation
+  or new.reporting_manager is distinct from old.reporting_manager
+  or new.regional_manager  is distinct from old.regional_manager
+  or new.region            is distinct from old.region
+  or new.validity          is distinct from old.validity
+  or new.role              is distinct from old.role
+  or new.extra             is distinct from old.extra then
+    raise exception 'Only an administrator may edit the user directory; dispatch may set the address only';
+  end if;
+  if not public.has_perm('spare.dispatch') then
+    raise exception 'RBAC: setting a delivery address requires the spare.dispatch permission';
+  end if;
+  return new;
+end $function$;
+
+create or replace function public.profiles_login_disable_sync()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.active is distinct from false or old.active is not distinct from false then return null; end if;
+  if btrim(coalesce(new.email, '')) = '' then return null; end if;
+  perform set_config('rithi.login_disable_sync', 'on', true);
+  update public.user_directory u
+     set validity = false
+   where u.validity is distinct from false
+     and (lower(btrim(coalesce(u.email, ''))) = lower(btrim(new.email))
+       or (btrim(coalesce(u.gmail, '')) <> '' and lower(btrim(u.gmail)) = lower(btrim(new.email))));
+  perform set_config('rithi.login_disable_sync', '', true);
+  return null;
+end $$;
+comment on function public.profiles_login_disable_sync() is
+  'A login disabled (profiles.active -> false) sets its User Master rows inactive (0481). One way only.';
+revoke execute on function public.profiles_login_disable_sync() from public, anon, authenticated;
+drop trigger if exists profiles_login_disable_sync on public.profiles;
+create trigger profiles_login_disable_sync after update of active on public.profiles
+  for each row execute function public.profiles_login_disable_sync();
 
 -- ------------------------------------------------------------------------
 -- 0470_delete_guard_counts_reconciliations.sql
@@ -22092,6 +22179,91 @@ begin
     end if;
   end if;
   return new;
+end $function$;
+
+-- ------------------------------------------------------------------------
+-- 0480_mapped_request_carries_visit.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0480 -- A v2 REQUEST MAPPED TO A CALL WITH NO VISIT CARRIES ITS VISIT TOO (the
+-- user, 2026-11-13, asked whether a mapped request should carry its visit:
+-- "If there are no Visit Entries in that call then yes").
+--
+-- 0475 filed a v2 request's Req_VisitTable row on the call only when the
+-- request was REGISTERED as a new call. Now also when it is MAPPED to an
+-- existing call -- but only if that call has no visit entry at all. A call
+-- that already has visits keeps its own record and nothing is added.
+--
+-- Worth knowing, and said to the user: a mapping can be undone (Unmap, back to
+-- Pending), and a visit is never deleted (0049), so a visit carried onto a
+-- call that is later unmapped stays on that call.
+--
+-- AND THE MOVED VISIT'S ENTRY DATE (the user, the same day: "Visit Entry Date
+-- when Moved to the Main Visit Report - Should be the Timestamp of Call
+-- Registration + 1 Minute -- i think it is taking the Req_VisitTable timestamp
+-- there"): reports.updated_at -- the Visit Entry Date -- and the report's own
+-- "Visit Entry Date" are the call's registration time + 1 minute. For a
+-- mapped request that is the existing call's registration time. Req_VisitTable
+-- keeps its own Visit Entry Date (when the request was saved).
+--
+-- 0475's body, read out of a database built from every migration; only the
+-- status test, the no-visit rule and the entry date changed.
+-- ===========================================================================
+
+create or replace function public.req_visit_file_on_register()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v record;
+  v_call_no text;
+  v_entry   timestamptz;
+begin
+  if coalesce(new.true_key, '') = '' then return null; end if;
+  if lower(btrim(coalesce(new.status, ''))) not in ('registered', 'mapped') or btrim(coalesce(new.ucn, '')) = '' then return null; end if;
+  if tg_op = 'UPDATE' then
+    if lower(btrim(coalesce(old.status, ''))) = lower(btrim(coalesce(new.status, '')))
+       and btrim(coalesce(old.ucn, '')) = btrim(new.ucn) then return null; end if;
+  end if;
+  -- MAPPED (0480): only onto a call that has no visit entry yet. A call that
+  -- already has visits keeps its own record; the request's visit is not added.
+  if lower(btrim(coalesce(new.status, ''))) = 'mapped'
+     and exists (select 1 from public.reports r where r.ucn = new.ucn) then
+    return null;
+  end if;
+
+  -- THE VISIT ENTRY DATE IS THE CALL'S REGISTRATION + 1 MINUTE (the user,
+  -- 2026-11-13: "Visit Entry Date when Moved to the Main Visit Report - Should
+  -- be the Timestamp of Call Registration + 1 Minute"), not the time the
+  -- request was saved. Where the call has no registration time, its
+  -- registration date at midnight India time; the Req_VisitTable time only if
+  -- the call has neither.
+  select coalesce(c.call_number, ''),
+         coalesce(c.reg_at, (c.reg_date::timestamp at time zone 'Asia/Kolkata')) + interval '1 minute'
+    into v_call_no, v_entry
+    from public.calls c where c.ucn = new.ucn;
+  for v in select * from public.req_visit_table t
+            where t.request_unique_key = new.unique_key and t.report_uid = '' loop
+    insert into public.reports (uid, ucn, call_number, call_status, pending_reason, engineer, engineer_email,
+                                visit_at, updated_at, data)
+    values (v.visit_key, new.ucn, coalesce(v_call_no, ''), v.call_status, v.pending_reason, v.engineer, v.engineer_email,
+            (v.visit_date::timestamp at time zone 'UTC'), coalesce(v_entry, v.visit_entry_at),
+            jsonb_build_object(
+              'Email-ID', v.engineer_email,
+              'Call Type', coalesce(new.call_type, ''),
+              'Visit Entry Date', to_char(coalesce(v_entry, v.visit_entry_at) at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI:SS'),
+              'Visit Date & Time', to_char(v.visit_date, 'YYYY-MM-DD'),
+              'Source', 'Request Registration v2',
+              'Request Key', v.visit_key))
+    on conflict (uid) do nothing;
+    update public.req_visit_table
+       set ucn = new.ucn, report_uid = v.visit_key, filed_at = now()
+     where visit_key = v.visit_key;
+  end loop;
+  return null;
 end $function$;
 
 -- ------------------------------------------------------------------------
@@ -64849,6 +65021,68 @@ create or replace view public.failure_rate_by_product as
      FULL JOIN calls c ON c.product = f.product;
 alter view public.failure_rate_by_product set (security_invoker = on);
 grant select on public.failure_rate_by_product to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0479_call_dates_visit_engineer.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0479 -- CALL DATES CARRY THE LATEST VISIT'S ENGINEER, FOR THE REGION (the
+-- user, 2026-11-13: "Add Region to all Call Registers, Spare Registers,
+-- Handstock and their Exports. Ideally to all Tables which has Engineer Name
+-- should have Region Column").
+--
+-- Asked, the user chose: the region is the engineer's CURRENT one, read from
+-- the User Master when it is shown (never stored); on a call it is the
+-- Visiting Service Engineer's -- the engineer of the latest visit entry --
+-- else Call Allocated To's ("Use this as Order / Priority").
+--
+-- The call registers already read call_dates for every call on screen (0424,
+-- 0433). One column is APPENDED: `visit_engineer`, the engineer of the same
+-- latest entry the Call Pending Reason comes from (updated_at desc, id desc --
+-- the latest thing the register was told, 0032), blank where the call has no
+-- visit. 0433's view otherwise word for word; 0424 drops the view first, so a
+-- replay of performance.sql does not stop on the appended column.
+-- ===========================================================================
+
+create or replace view public.call_dates as
+select c.ucn,
+       least(v.first_visit_on, public.call_first_spare_on(c.ucn)) as first_attended_on,
+       v.last_visit_on,
+       s.solved_on,
+       case when c.cancelled_at is null
+             and (coalesce(c.open_state, '') <> 'Solved' or c.reopened_at is not null)
+            then nullif(btrim(p.pending_reason), '')
+       end as pending_reason,
+       -- appended (0479): the engineer of the latest visit entry.
+       nullif(btrim(coalesce(p.engineer, '')), '') as visit_engineer
+  from public.calls c
+  left join lateral (
+    select min((r.visit_at at time zone 'Asia/Kolkata')::date) as first_visit_on,
+           max((r.visit_at at time zone 'Asia/Kolkata')::date) as last_visit_on
+      from public.reports r
+     where r.ucn = c.ucn and r.visit_at is not null
+  ) v on true
+  left join lateral (
+    select (rs.visit_at at time zone 'Asia/Kolkata')::date as solved_on
+      from public.reports rs
+     where rs.ucn = c.ucn and rs.call_status ilike 'solved%report%complet%'
+     order by rs.updated_at desc nulls last, rs.id desc
+     limit 1
+  ) s on true
+  left join lateral (
+    select rp.pending_reason, rp.engineer
+      from public.reports rp
+     where rp.ucn = c.ucn
+     order by rp.updated_at desc nulls last, rp.id desc
+     limit 1
+  ) p on true;
+
+alter view public.call_dates set (security_invoker = on);
+grant select on public.call_dates to authenticated;
+
+comment on view public.call_dates is
+  'Per call: First Attended (earlier of first visit and first spare request), Last Visit and Solved (visit date of the standing Solved - Report Completed entry), all India dates (0424); the Call Pending Reason of the latest visit entry while the call is open (0433); and the engineer of that latest entry, for the Region (0479). security_invoker: one row per call the reader may see.';
 
 -- ------------------------------------------------------------------------
 -- 0218_product_database_v2.sql

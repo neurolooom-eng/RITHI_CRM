@@ -2393,7 +2393,16 @@ with checks(sort_order, bundle, provides, present) as (
         to_regprocedure('public.signature_not_required(uuid)') is not null
         and to_regprocedure('public.my_signature_required()') is not null
         and exists (select 1 from pg_proc p where p.oid = to_regprocedure('public.signature_tracker()')
-                     and 'required' = any (p.proargnames)))
+                     and 'required' = any (p.proargnames))),
+    (386, 'Call dates carry the latest visit''s engineer, for the Region', 'call_dates.visit_engineer -- the engineer of the latest visit entry (0479). The call registers read it for Region (the Visiting Service Engineer, else Call Allocated To). NO means the call registers answer an error reading their dates. Restore: performance.sql (0479)',
+        exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'call_dates' and column_name = 'visit_engineer')
+        and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%' from pg_class where oid = to_regclass('public.call_dates')), false)),
+    (387, 'A v2 request mapped to a call with no visit carries its visit, entered at registration + 1 minute', 'req_visit_file_on_register() files on Mapped when the call has no visit, and dates the visit entry at the call''s registration + 1 minute (0480). NO means a mapped v2 request files nothing, or the moved visit carries the request''s save time. Restore: call_requests.sql (0480)',
+        position('mapped' in coalesce(pg_get_functiondef(to_regprocedure('public.req_visit_file_on_register()')), '')) > 0
+        and position('interval ''1 minute''' in coalesce(pg_get_functiondef(to_regprocedure('public.req_visit_file_on_register()')), '')) > 0),
+    (388, 'Disabling a login sets the person inactive on User Master', 'profiles_login_disable_sync on profiles + the address guard''s one exception (0481). NO means a disabled login leaves its User Master row Active. Restore: rbac.sql (0481)',
+        exists (select 1 from pg_trigger where tgrelid = to_regclass('public.profiles') and tgname = 'profiles_login_disable_sync')
+        and position('rithi.login_disable_sync' in coalesce(pg_get_functiondef(to_regprocedure('public.user_directory_address_guard()')), '')) > 0)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
