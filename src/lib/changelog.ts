@@ -20,6 +20,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.10.242',
+    date: '2026-11-13',
+    title: 'Request Registration v2: customer details folded away',
+    changes: [
+      'On Request Registration v2, once a call\'s serial has filled in the customer, the City, State, Address and contact fields are folded into one line under the customer\'s name (City, State and the contact number). Show details opens them for that call when something needs changing. Much less to scroll past, on a phone especially.',
+    ],
+  },
+  {
     version: '0.10.241',
     date: '2026-11-13',
     title: 'Request Registration v2: visit inside each call, built for a phone',

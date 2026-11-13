@@ -151,6 +151,10 @@ different totals. An empty register usually means access, not emptiness.
   > every call and the other cards say "Same as Call 1"; off, each card is
   > answered on its own, so one machine can be attended and another planned on
   > the same request. Built for a phone: one column, full-width controls.
+  > **The customer is one line**: once the serial names the customer, each call
+  > shows the customer, City, State and contact number in a single line, and
+  > **Show details** opens City, State, Address and the contact fields to change
+  > them.
   > When **Call Attended? = Yes**, **Call Status** is asked — **Unsolved** (the
   > default) or **Solved - Report Pending**, nothing else — and **Call Pending
   > Reason** — the Visit Report's own list, mandatory. With **Solved - Report
